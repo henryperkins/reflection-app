@@ -210,7 +210,7 @@ test('capabilities, seven-day events and applied security operations expire with
   expect(status).toMatchObject({
     state: 'published',
     editionId: reading.editionId,
-    nextSequence: 2,
+    nextSequence: 3,
     events: [],
   });
 });

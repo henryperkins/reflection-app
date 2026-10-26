@@ -48,7 +48,15 @@ app.all('/api/v1/*', async (c, next) => {
   }
   const response = await identityRoute(c.req.raw, c.env);
   if (response) return response;
-  const reading = await readingRoute(c.req.raw, c.env);
+  // Direct service/in-process callers may await completion; Worker requests acknowledge admission.
+  let defer: ((work: Promise<void>) => void) | undefined;
+  try {
+    const ctx = c.executionCtx;
+    defer = (work) => ctx.waitUntil(work);
+  } catch {
+    /* No execution context for direct application calls. */
+  }
+  const reading = await readingRoute(c.req.raw, c.env, defer);
   if (reading) return reading;
   await next();
 });

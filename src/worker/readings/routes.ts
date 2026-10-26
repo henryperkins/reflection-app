@@ -66,6 +66,7 @@ async function readBody(request: Request) {
 export async function readingRoute(
   request: Request,
   env: ReadingBindings,
+  defer?: (work: Promise<void>) => void,
 ): Promise<Response | null> {
   if (env.READING_MODE !== 'synthetic-local') return null;
   const url = new URL(request.url),
@@ -136,13 +137,34 @@ export async function readingRoute(
       await identity.rate('reading-start-minute', session.subjectId, 5, 60_000);
       await identity.rate('reading-start-day', session.subjectId, 20, 86_400_000);
       return recordResponse(
-        await generation.start(session, apiSchemas.StartRequest.parse(body), key()),
+        await generation.start(session, apiSchemas.StartRequest.parse(body), key(), defer),
         202,
       );
     }
+    const after = () =>
+      z.coerce
+        .number()
+        .int()
+        .min(0)
+        .max(Number.MAX_SAFE_INTEGER)
+        .parse(url.searchParams.get('after') ?? 0);
+    if (method === 'GET' && path === '/requests')
+      return recordResponse(
+        await generation.resolveIntent(
+          session,
+          Id.parse(url.searchParams.get('intentId')),
+          after(),
+        ),
+      );
+    const cancelMatch = match(/^\/requests\/([^/]+)\/cancel$/);
+    if (method === 'POST' && cancelMatch) {
+      apiSchemas.Empty.parse(body);
+      const value = await generation.cancel(session, Id.parse(cancelMatch[1]), revision(), key());
+      return recordResponse(value, 200, value.revision);
+    }
     const requestMatch = match(/^\/requests\/([^/]+)$/);
     if (method === 'GET' && requestMatch)
-      return recordResponse(await generation.status(session, Id.parse(requestMatch[1])));
+      return recordResponse(await generation.status(session, Id.parse(requestMatch[1]), after()));
     if (method === 'GET' && path === '/sessions')
       return recordResponse(
         await records.history(

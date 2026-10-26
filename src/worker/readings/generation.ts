@@ -4,6 +4,8 @@ import {
   apiSchemas,
   ModelCandidate,
   type StartRequest,
+  type WritingProvider,
+  type ErrorCode,
 } from '../../contracts/index.ts';
 import { drawTarot } from '../../domain/tarot/draw.ts';
 import { buildPlan, validateCandidateBindings } from '../../domain/tarot/plan.ts';
@@ -15,10 +17,16 @@ import type { Session } from '../identity/types.ts';
 import { statement as q, DB_NOW, DAY, MONTH } from '../db/core.ts';
 import { iso, type RecordBase, RecordError } from './base.ts';
 import { syntheticBundle } from './local-content.ts';
+import { RequestState, requestEvent } from './request-state.ts';
 
 /** Only instantiated behind the explicit localhost simulation switch. No fetch transport. */
-export class LocalGeneration {
-  constructor(readonly base: RecordBase) {}
+export class LocalGeneration extends RequestState {
+  constructor(
+    base: RecordBase,
+    private readonly writer?: WritingProvider,
+  ) {
+    super(base);
+  }
   async maintenance() {
     const expired = await q(
       this.base.db,
@@ -27,70 +35,13 @@ export class LocalGeneration {
     for (const row of expired.results)
       await this.base.db.batch([
         onlineGuard(this.base.db),
-        ...this.base.stopStatements(row.owner_id, row.session_id),
-        q(
-          this.base.db,
-          "UPDATE generation_requests SET state='expired',error_code='EXPIRED' WHERE owner_id=? AND id=? AND state='blocked'",
-          row.owner_id,
-          row.id,
-        ),
+        ...this.base.stopStatements(row.owner_id, row.session_id, 'expired', 'EXPIRED'),
         q(
           this.base.db,
           'UPDATE accounts SET data_revision=data_revision+1 WHERE id=?',
           row.owner_id,
         ),
       ]);
-  }
-  async status(session: Session, id: string) {
-    const row = await q(
-      this.base.db,
-      'SELECT r.*,e.id AS edition_id FROM generation_requests r LEFT JOIN reading_editions e ON e.request_id=r.id AND e.owner_id=r.owner_id WHERE r.owner_id=? AND r.id=?',
-      session.subjectId,
-      id,
-    ).first<{
-      id: string;
-      session_id: string;
-      state: string;
-      revision: number;
-      error_code: string | null;
-      expires_at: number;
-      edition_id: string | null;
-      next_event: number;
-    }>();
-    if (!row) throw new RecordError(404, 'NOT_FOUND');
-    await this.base.ownedSession(session, row.session_id);
-    const events = await q(
-      this.base.db,
-      'SELECT sequence,created_at,state,code,edition_id,error_code FROM request_events WHERE owner_id=? AND request_id=? ORDER BY sequence LIMIT 20',
-      session.subjectId,
-      id,
-    ).all<{
-      sequence: number;
-      created_at: number;
-      state: string;
-      code: string;
-      edition_id: string | null;
-      error_code: string | null;
-    }>();
-    await this.base.checked(session);
-    return apiSchemas.RequestStatus.parse({
-      requestId: id,
-      sessionId: row.session_id,
-      state: row.state,
-      revision: row.revision,
-      events: events.results.map((e) => ({
-        sequence: e.sequence,
-        at: iso(e.created_at),
-        state: e.state,
-        code: e.code,
-        editionId: e.edition_id,
-        errorCode: e.error_code,
-      })),
-      nextSequence: Math.max(row.next_event - 1, events.results.at(-1)?.sequence ?? 0),
-      editionId: row.edition_id,
-      errorCode: row.error_code,
-      expiresAt: iso(row.expires_at),
-    });
   }
   private guard(session: Session, permission: number, content: string) {
     return assertion(
@@ -110,7 +61,12 @@ export class LocalGeneration {
       status,
     });
   }
-  async start(session: Session, input: z.infer<typeof StartRequest>, key: string) {
+  async start(
+    session: Session,
+    input: z.infer<typeof StartRequest>,
+    key: string,
+    defer?: (work: Promise<void>) => void,
+  ) {
     if (input.parentEditionId !== null || input.selection.length)
       throw new RecordError(422, 'BAD_INPUT');
     const mutation = await this.base.mutation(session, key, 'reading.start', input);
@@ -255,12 +211,7 @@ export class LocalGeneration {
           session.subjectId,
         ),
         mutation.insert(requestId),
-        q(
-          this.base.db,
-          `INSERT INTO request_events(request_id,owner_id,sequence,state,code,created_at) VALUES (?,?,1,'prepared','QUEUED',${DB_NOW})`,
-          requestId,
-          session.subjectId,
-        ),
+        ...requestEvent(this.base.db, session.subjectId, requestId, 'QUEUED'),
       ]);
     } catch (error) {
       const joined = await resolve();
@@ -271,206 +222,243 @@ export class LocalGeneration {
         throw new RecordError(429, 'QUOTA_EXCEEDED');
       throw error;
     }
-    // The simulated provider is deliberately invoked only after unique durable dispatch authorization.
-    try {
-      const template = await composeTemplate(plan),
-        payload = await projectWriterPayload(plan);
-      const candidate = ModelCandidate.parse({
-        schemaVersion: 1,
-        kind: 'tarot.interpretation.v1',
-        units: template.units.map(({ basisText: _text, ...unit }) => unit),
-        closing: template.closing,
-      });
-      const dispatchId = crypto.randomUUID(),
-        attemptId = crypto.randomUUID(),
-        lease = crypto.randomUUID();
-      const transmission = await seal('provider_dispatches', 'transmission_enc', dispatchId, {
-        v: 1,
-        syntheticOnly: true,
-        payload: new TextDecoder().decode(payload),
-      });
-      const transmissionHash = await this.base.crypt.hash(
-        session.subjectId,
-        'transmission',
-        new TextDecoder().decode(payload),
-      );
-      await this.base.atomic(session, [
-        this.guard(session, input.permissionRevision, content.editionHash),
-        this.base.sessionGuard(session, sessionId),
-        q(
-          this.base.db,
-          `UPDATE generation_requests SET state='dispatching',revision=revision+1,run_epoch=1,lease_token=?,lease_expires_at=${DB_NOW}+30000 WHERE owner_id=? AND id=? AND state='prepared' AND expires_at>${DB_NOW}`,
-          lease,
+    const run = async () => {
+      let failure: ErrorCode = 'PROVIDER_UNAVAILABLE';
+      // The simulated provider is deliberately invoked only after unique durable dispatch authorization.
+      try {
+        const template = await composeTemplate(plan),
+          payload = await projectWriterPayload(plan);
+        const candidate = ModelCandidate.parse({
+          schemaVersion: 1,
+          kind: 'tarot.interpretation.v1',
+          units: template.units.map(({ basisText: _text, ...unit }) => unit),
+          closing: template.closing,
+        });
+        const dispatchId = crypto.randomUUID(),
+          attemptId = crypto.randomUUID(),
+          lease = crypto.randomUUID();
+        const transmission = await seal('provider_dispatches', 'transmission_enc', dispatchId, {
+          v: 1,
+          syntheticOnly: true,
+          payload: new TextDecoder().decode(payload),
+        });
+        const transmissionHash = await this.base.crypt.hash(
           session.subjectId,
-          requestId,
-        ),
-        assertion(this.base.db, 'changes()=1'),
-        q(
-          this.base.db,
-          `INSERT INTO generation_attempts(id,owner_id,request_id,run_epoch,lease_token,started_at) VALUES (?,?,?,1,?,${DB_NOW})`,
-          attemptId,
-          session.subjectId,
-          requestId,
-          lease,
-        ),
-        q(
-          this.base.db,
-          `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai','gpt-5.6-terra',?,?,1,?,?,?,'{"syntheticOnly":true,"externalCall":false}',${DB_NOW})`,
-          dispatchId,
-          session.subjectId,
-          requestId,
-          attemptId,
-          transmission,
-          transmissionHash,
-          policyHash,
-          policyHash,
-          content.editionHash,
-        ),
-      ]);
-      const writer = new InterceptedWritingProvider({
-        outcome: {
-          kind: 'candidate',
-          candidate,
-          providerResponseId: null,
-          returnedModel: 'synthetic-local-writer.v1',
-          inputTokens: 0,
-          outputTokens: 0,
-          durationMs: 0,
-        },
-      });
-      const outcome = await writer.write({
-        dispatchId,
-        model: 'gpt-5.6-terra',
-        payload,
-        timeoutMs: 18000,
-        maxOutputTokens: 1600,
-        store: false,
-        reasoning: 'none',
-        signal: AbortSignal.timeout(18000),
-      });
-      if (outcome.kind !== 'candidate') throw new Error('Local writer unavailable');
-      validateCandidateBindings(plan, outcome.candidate);
-      const editionId = crypto.randomUUID(),
-        acceptedAt = Date.now();
-      const reading = AcceptedReading.parse({
-        kind: 'tarot.accepted.v1',
-        editionId,
-        sessionId,
-        editionNumber: 1,
-        parentEditionId: null,
-        question: input.question,
-        basis,
-        mode: 'model',
-        contentHash: content.editionHash,
-        planHash,
-        sources: plan.sources,
-        units: template.units,
-        closing: template.closing,
-        acceptedAt: iso(acceptedAt),
-        provenance: {
-          requestId,
-          dispatchId,
-          provider: 'openai',
-          requestedModel: 'gpt-5.6-terra',
-          returnedModel: outcome.returnedModel,
-          promptHash: policyHash,
-          validatorHash: policyHash,
-          policyHash,
-          contentHash: content.editionHash,
-          selected: [],
-          transmissionHash,
-          fallbackReason: null,
-        },
-      });
-      const body = await seal('reading_editions', 'body_enc', editionId, reading),
-        candidateEnc = await seal(
-          'provider_dispatches',
-          'candidate_enc',
-          dispatchId,
-          outcome.candidate,
+          'transmission',
+          new TextDecoder().decode(payload),
         );
-      await this.base.atomic(session, [
-        this.guard(session, input.permissionRevision, content.editionHash),
-        this.base.sessionGuard(session, sessionId),
-        assertion(
-          this.base.db,
-          `EXISTS(SELECT 1 FROM generation_requests WHERE owner_id=? AND id=? AND state='dispatching' AND lease_token=? AND expires_at>${DB_NOW} AND lease_expires_at>${DB_NOW})`,
-          session.subjectId,
-          requestId,
-          lease,
-        ),
-        q(
-          this.base.db,
-          `INSERT INTO reading_editions(id,owner_id,session_id,edition_number,request_id,basis_id,status,mode,body_enc,key_version,content_hash,accepted_at) VALUES (?,?,?,1,?,?,'accepted','model',?,1,?,?)`,
-          editionId,
-          session.subjectId,
-          sessionId,
-          requestId,
-          basisId,
-          body,
-          content.editionHash,
-          acceptedAt,
-        ),
-        q(
-          this.base.db,
-          "UPDATE quota_reservations SET state='consumed' WHERE owner_id=? AND request_id=? AND state='held'",
-          session.subjectId,
-          requestId,
-        ),
-        assertion(this.base.db, 'changes()=1'),
-        q(
-          this.base.db,
-          'UPDATE quota_buckets SET held=held-1,consumed=consumed+1 WHERE owner_id=? AND period IN (SELECT day_period FROM quota_reservations WHERE request_id=? UNION SELECT month_period FROM quota_reservations WHERE request_id=?)',
-          session.subjectId,
-          requestId,
-          requestId,
-        ),
-        assertion(this.base.db, 'changes()=2'),
-        q(
-          this.base.db,
-          `INSERT INTO quota_events VALUES (?,?,'consume',${DB_NOW})`,
-          requestId,
-          session.subjectId,
-        ),
-        q(
-          this.base.db,
-          `UPDATE provider_dispatches SET state='received',candidate_enc=?,returned_model='synthetic-local-writer.v1',input_tokens=0,output_tokens=0,duration_ms=0,received_at=${DB_NOW} WHERE owner_id=? AND id=?`,
-          candidateEnc,
-          session.subjectId,
+        await this.base.atomic(session, [
+          this.guard(session, input.permissionRevision, content.editionHash),
+          this.base.sessionGuard(session, sessionId),
+          q(
+            this.base.db,
+            `UPDATE generation_requests SET state='dispatching',revision=revision+1,run_epoch=1,lease_token=?,lease_expires_at=${DB_NOW}+30000 WHERE owner_id=? AND id=? AND state='prepared' AND expires_at>${DB_NOW}`,
+            lease,
+            session.subjectId,
+            requestId,
+          ),
+          assertion(this.base.db, 'changes()=1'),
+          q(
+            this.base.db,
+            `INSERT INTO generation_attempts(id,owner_id,request_id,run_epoch,lease_token,started_at) VALUES (?,?,?,1,?,${DB_NOW})`,
+            attemptId,
+            session.subjectId,
+            requestId,
+            lease,
+          ),
+          q(
+            this.base.db,
+            `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai','gpt-5.6-terra',?,?,1,?,?,?,'{"syntheticOnly":true,"externalCall":false}',${DB_NOW})`,
+            dispatchId,
+            session.subjectId,
+            requestId,
+            attemptId,
+            transmission,
+            transmissionHash,
+            policyHash,
+            policyHash,
+            content.editionHash,
+          ),
+          ...requestEvent(this.base.db, session.subjectId, requestId, 'WRITING'),
+        ]);
+        const writer =
+          this.writer ??
+          new InterceptedWritingProvider({
+            outcome: {
+              kind: 'candidate',
+              candidate,
+              providerResponseId: null,
+              returnedModel: 'synthetic-local-writer.v1',
+              inputTokens: 0,
+              outputTokens: 0,
+              durationMs: 0,
+            },
+          });
+        const outcome = await writer.write({
           dispatchId,
-        ),
-        q(
-          this.base.db,
-          `UPDATE generation_requests SET state='published',revision=revision+1,lease_token=NULL,lease_expires_at=NULL,finished_at=${DB_NOW} WHERE owner_id=? AND id=?`,
-          session.subjectId,
-          requestId,
-        ),
-        q(
-          this.base.db,
-          `UPDATE generation_attempts SET outcome='complete',finished_at=${DB_NOW} WHERE owner_id=? AND id=?`,
-          session.subjectId,
-          attemptId,
-        ),
-        q(
-          this.base.db,
-          `INSERT INTO request_events(request_id,owner_id,sequence,state,code,edition_id,created_at) VALUES (?,?,2,'published','ACCEPTED',?,${DB_NOW})`,
-          requestId,
-          session.subjectId,
+          model: 'gpt-5.6-terra',
+          payload,
+          timeoutMs: 18000,
+          maxOutputTokens: 1600,
+          store: false,
+          reasoning: 'none',
+          signal: AbortSignal.timeout(18000),
+        });
+        if (outcome.kind !== 'candidate') {
+          failure =
+            outcome.kind === 'refusal'
+              ? 'PROVIDER_REFUSAL'
+              : outcome.kind === 'uncertain'
+                ? 'PROVIDER_UNCERTAIN'
+                : 'PROVIDER_UNAVAILABLE';
+          throw new Error('Writer did not produce a reading');
+        }
+        failure = 'INVALID_CANDIDATE';
+        validateCandidateBindings(plan, outcome.candidate);
+        failure = 'PROVIDER_UNAVAILABLE';
+        const editionId = crypto.randomUUID(),
+          acceptedAt = Date.now();
+        const reading = AcceptedReading.parse({
+          kind: 'tarot.accepted.v1',
           editionId,
-        ),
-      ]);
-    } catch {
-      // Never redispatch an authorized simulation on retry; keep a recoverable terminal status.
-      await this.base.db.batch([
-        onlineGuard(this.base.db),
-        ...this.base.stopStatements(session.subjectId, sessionId),
-        q(
+          sessionId,
+          editionNumber: 1,
+          parentEditionId: null,
+          question: input.question,
+          basis,
+          mode: 'model',
+          contentHash: content.editionHash,
+          planHash,
+          sources: plan.sources,
+          units: template.units,
+          closing: template.closing,
+          acceptedAt: iso(acceptedAt),
+          provenance: {
+            requestId,
+            dispatchId,
+            provider: 'openai',
+            requestedModel: 'gpt-5.6-terra',
+            returnedModel: outcome.returnedModel,
+            promptHash: policyHash,
+            validatorHash: policyHash,
+            policyHash,
+            contentHash: content.editionHash,
+            selected: [],
+            transmissionHash,
+            fallbackReason: null,
+          },
+        });
+        const body = await seal('reading_editions', 'body_enc', editionId, reading),
+          candidateEnc = await seal(
+            'provider_dispatches',
+            'candidate_enc',
+            dispatchId,
+            outcome.candidate,
+          );
+        await this.base.atomic(session, [
+          this.guard(session, input.permissionRevision, content.editionHash),
+          this.base.sessionGuard(session, sessionId),
+          assertion(
+            this.base.db,
+            `EXISTS(SELECT 1 FROM generation_requests WHERE owner_id=? AND id=? AND state='dispatching' AND lease_token=? AND expires_at>${DB_NOW} AND lease_expires_at>${DB_NOW})`,
+            session.subjectId,
+            requestId,
+            lease,
+          ),
+          q(
+            this.base.db,
+            `INSERT INTO reading_editions(id,owner_id,session_id,edition_number,request_id,basis_id,status,mode,body_enc,key_version,content_hash,accepted_at) VALUES (?,?,?,1,?,?,'accepted','model',?,1,?,?)`,
+            editionId,
+            session.subjectId,
+            sessionId,
+            requestId,
+            basisId,
+            body,
+            content.editionHash,
+            acceptedAt,
+          ),
+          q(
+            this.base.db,
+            "UPDATE quota_reservations SET state='consumed' WHERE owner_id=? AND request_id=? AND state='held'",
+            session.subjectId,
+            requestId,
+          ),
+          assertion(this.base.db, 'changes()=1'),
+          q(
+            this.base.db,
+            'UPDATE quota_buckets SET held=held-1,consumed=consumed+1 WHERE owner_id=? AND period IN (SELECT day_period FROM quota_reservations WHERE request_id=? UNION SELECT month_period FROM quota_reservations WHERE request_id=?)',
+            session.subjectId,
+            requestId,
+            requestId,
+          ),
+          assertion(this.base.db, 'changes()=2'),
+          q(
+            this.base.db,
+            `INSERT INTO quota_events VALUES (?,?,'consume',${DB_NOW})`,
+            requestId,
+            session.subjectId,
+          ),
+          q(
+            this.base.db,
+            `UPDATE provider_dispatches SET state='received',candidate_enc=?,returned_model='synthetic-local-writer.v1',input_tokens=0,output_tokens=0,duration_ms=0,received_at=${DB_NOW} WHERE owner_id=? AND id=?`,
+            candidateEnc,
+            session.subjectId,
+            dispatchId,
+          ),
+          q(
+            this.base.db,
+            `UPDATE generation_requests SET state='published',revision=revision+1,lease_token=NULL,lease_expires_at=NULL,finished_at=${DB_NOW} WHERE owner_id=? AND id=?`,
+            session.subjectId,
+            requestId,
+          ),
+          q(
+            this.base.db,
+            `UPDATE generation_attempts SET outcome='complete',finished_at=${DB_NOW} WHERE owner_id=? AND id=?`,
+            session.subjectId,
+            attemptId,
+          ),
+          ...requestEvent(this.base.db, session.subjectId, requestId, 'ACCEPTED', editionId),
+        ]);
+      } catch {
+        const current = await q(
           this.base.db,
-          'UPDATE accounts SET data_revision=data_revision+1 WHERE id=?',
+          `SELECT r.expires_at<=${DB_NOW} AS expired,p.model_allowed FROM generation_requests r JOIN accounts a ON a.id=r.owner_id JOIN permission_revisions p ON p.owner_id=a.id AND p.revision=a.permission_revision WHERE r.owner_id=? AND r.id=?`,
           session.subjectId,
-        ),
-      ]);
+          requestId,
+        ).first<{ expired: number; model_allowed: number }>();
+        if (current?.expired) failure = 'EXPIRED';
+        else if (current && !current.model_allowed) failure = 'CONSENT_REQUIRED';
+        const state =
+          failure === 'EXPIRED'
+            ? 'expired'
+            : ['CONSENT_REQUIRED', 'PROVIDER_REFUSAL'].includes(failure)
+              ? 'blocked'
+              : 'failed';
+        // Never redispatch an authorized simulation on retry; keep a recoverable terminal status.
+        await this.base.db.batch([
+          onlineGuard(this.base.db),
+          ...this.base.stopStatements(session.subjectId, sessionId, state, failure),
+          q(
+            this.base.db,
+            `UPDATE provider_dispatches SET state=? WHERE owner_id=? AND request_id=? AND state='authorized'`,
+            failure === 'PROVIDER_UNCERTAIN' ? 'unknown' : 'rejected',
+            session.subjectId,
+            requestId,
+          ),
+          q(
+            this.base.db,
+            'UPDATE accounts SET data_revision=data_revision+1 WHERE id=?',
+            session.subjectId,
+          ),
+        ]);
+      }
+    };
+    if (defer) {
+      const admitted = await this.reply(session, requestId, false);
+      defer(run());
+      return admitted;
     }
+    await run();
     return this.reply(session, requestId, false);
   }
 }
