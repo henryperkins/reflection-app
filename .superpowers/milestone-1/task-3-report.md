@@ -42,3 +42,11 @@ It publishes a synthetic placeholder after a candidate outcome; it does not impl
 Added optional `SyntheticPlan.requestId?: string` for trusted synthetic fixtures. `start` uses it when supplied so the domain plan can be built and hashed with the exact request identity before admission. Default calls still generate a random UUID. The actual primary-key constraint rejects reuse by a different intent, with quota increments and other admission writes rolled back. A regression test observes the ID in the returned request and accepted edition, joins a duplicate start, and proves mismatched-intent reuse cannot create a second request or quota hold. The test was observed failing before implementation.
 
 Latest full `npm test`: **81 Node tests + 39 actual D1 tests pass**; `npm run typecheck` passes. The coordinating agent has resolved the previously reported test-routing and generated-artifact drift issues.
+
+## Execution-clock evidence follow-up
+
+Added two actual D1 regressions parameterized over `lease_expires_at` and absolute `expires_at`. Each prepares and dispatches normally, sets the target database deadline to database time plus 500 ms before calling publication, and samples it inside the `beforePublication` barrier to prove it is still eligible. The barrier then waits for the sampled remaining time plus 30 ms using a real timer. No row is mutated during the barrier. A second database clock sample proves time alone crossed the unchanged deadline. Publication must then fail specifically through the SQL CHECK assertion, so a failure in the test's sampling assertions cannot produce a false pass.
+
+Both cases prove rollback of editions, request events, quota consumption events, quota held/consumed balances, account revision/storage accounting, and request publication state. Explicit terminal cleanup then releases the original quota hold. The two focused cases pass with approximately 1.06 seconds of intentional timer delay in total. No production code changed for this follow-up.
+
+Latest full `npm test`: **81 Node tests + 44 actual D1 tests pass** (41 prototype tests, two scaffold tests, one root integration test). `npm run typecheck` passes. These tests supplement the earlier row-mutation race tests with execution-time-only deadline evidence.

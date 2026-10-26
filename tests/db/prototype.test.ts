@@ -552,3 +552,65 @@ test('outage template mode still admits work but cannot authorize a model dispat
   expect(await count('provider_dispatches')).toBe(0);
   expect(writer.write).not.toHaveBeenCalled();
 });
+
+for (const deadlineColumn of ['lease_expires_at', 'expires_at'] as const) {
+  test(`clock-only passage across ${deadlineColumn} after eligibility sampling rolls publication back`, async () => {
+    const f = await validating();
+    await sql(
+      env.DB,
+      `UPDATE generation_requests SET ${deadlineColumn}=CAST(unixepoch('subsec')*1000 AS INTEGER)+500 WHERE id=?`,
+      f.requestId,
+    ).run();
+    const beforeEvents = await count('request_events');
+    const beforeAccount = await sql(
+      env.DB,
+      'SELECT data_revision,storage_bytes FROM accounts WHERE id=?',
+      OWNER,
+    ).first();
+    type ClockSample = { now: number; deadline: number };
+    let eligibleSample: ClockSample | null = null;
+    let expiredSample: ClockSample | null = null;
+    const sample = () =>
+      sql(
+        env.DB,
+        `SELECT CAST(unixepoch('subsec')*1000 AS INTEGER) AS now,${deadlineColumn} AS deadline FROM generation_requests WHERE id=?`,
+        f.requestId,
+      ).first<ClockSample>();
+    const service = new SyntheticGenerationPrototype(env.DB, writer, {
+      beforePublication: async () => {
+        eligibleSample = await sample();
+        expect(eligibleSample).not.toBeNull();
+        expect(eligibleSample!.now).toBeLessThan(eligibleSample!.deadline);
+        // No row mutations or fake timers: only wall-clock time crosses the deadline.
+        await new Promise<void>((resolve) =>
+          setTimeout(resolve, eligibleSample!.deadline - eligibleSample!.now + 30),
+        );
+        expiredSample = await sample();
+        expect(expiredSample!.now).toBeGreaterThanOrEqual(expiredSample!.deadline);
+        expect(expiredSample!.deadline).toBe(eligibleSample!.deadline);
+      },
+    });
+    // Match the SQL assertion failure so a failed sampling assertion cannot pass this test.
+    await expect(service.publish(f.lease)).rejects.toThrow(/CHECK constraint failed/);
+    expect(eligibleSample).not.toBeNull();
+    expect(expiredSample).not.toBeNull();
+    expect(await count('reading_editions')).toBe(0);
+    expect(await count('request_events')).toBe(beforeEvents);
+    expect(await quota()).toEqual({ held: 2, consumed: 0 });
+    expect(
+      await env.DB.prepare("SELECT count(*) AS n FROM quota_events WHERE event='consume'").first(),
+    ).toEqual({ n: 0 });
+    expect(
+      await sql(
+        env.DB,
+        'SELECT data_revision,storage_bytes FROM accounts WHERE id=?',
+        OWNER,
+      ).first(),
+    ).toEqual(beforeAccount);
+    expect(
+      await sql(env.DB, 'SELECT state FROM generation_requests WHERE id=?', f.requestId).first(),
+    ).toEqual({ state: 'validating' });
+    await service.terminalize(OWNER, f.requestId, 'cancelled');
+    expect(await quota()).toEqual({ held: 0, consumed: 0 });
+  });
+}
