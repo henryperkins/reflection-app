@@ -1,5 +1,25 @@
-:root { font-family: system-ui, sans-serif; color: #253b36; background: #f5f3eb; line-height: 1.6; }
-body { margin: 0; }
-main { max-width: 42rem; margin: 12vh auto; padding: 1.5rem; }
-h1 { font-family: Georgia, serif; font-weight: 400; font-size: clamp(2.2rem, 6vw, 3.5rem); line-height: 1.15; }
-.eyebrow { font-size: .8rem; letter-spacing: .12em; text-transform: uppercase; }
+:root {
+  font-family: system-ui, sans-serif;
+  color: #253b36;
+  background: #f5f3eb;
+  line-height: 1.6;
+}
+body {
+  margin: 0;
+}
+main {
+  max-width: 42rem;
+  margin: 12vh auto;
+  padding: 1.5rem;
+}
+h1 {
+  font-family: Georgia, serif;
+  font-weight: 400;
+  font-size: clamp(2.2rem, 6vw, 3.5rem);
+  line-height: 1.15;
+}
+.eyebrow {
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
