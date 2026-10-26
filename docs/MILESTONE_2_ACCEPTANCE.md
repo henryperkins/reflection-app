@@ -6,12 +6,13 @@ Milestone 2 remains open. Deployment and live provider traffic remain disabled. 
 
 Milestone 1 is complete. Identity/recovery, the complete downloadable handle-and-codes kit, and the saved-reading return journey are verified locally. Save needs no reflection; sign-in/history/recovery reopen identical accepted content without another generation/quota charge. Consent-off history, reopening, reflection edits, export and deletion remain regression requirements. Privacy deletion and stale-bookmark replay are recorded in `PRIVACY_RESTORE_RESULTS.md`.
 
-The current local retention/accounting/cleanup slice is undergoing final verification and independent review. Its evidence is recorded in `RETENTION_CLEANUP_RESULTS.md`; it does not close all Milestone 2 gates.
+The current local retention/accounting/cleanup slice is complete locally after independent review, correction of both material findings, and a 13-stage/260-test verification run. One disclosed minor request-cursor issue remains deferred. Its evidence is recorded in `RETENTION_CLEANUP_RESULTS.md`; it does not close all Milestone 2 gates.
 
 ## Remaining acceptance
 
 | Gate | Required evidence / next work |
 |---|---|
+| Request status | Fix the disclosed minor event-retention race that can regress `nextSequence`; saved-reading history/reopening is unaffected. |
 | Identity completion | Passkey listing/removal and last-factor protection, logout-all, failure-only recovery throttling, and browser acceptance of those controls. Qualify stable production domain/RP ID and physical/synchronized passkeys separately. |
 | Generation and provider | Complete durable generation/recovery behavior and intercepted egress checks; bounded real-provider qualification only under explicit separate authorization, with verified privacy/access/pricing and no hidden retry. Preserve consent-off operation. |
 | Content and user experience | Human-reviewed English default/non-reading outcomes, cleared launch canon and rights, precise reading/source UI, accessible interruption/conflict/offline states. Synthetic approval fixtures do not count as launch approval. |

@@ -13,6 +13,9 @@ export const assertion = (
   condition: string,
   ...values: (string | number | null)[]
 ) => statement(db, `INSERT INTO assertion_probe(ok) SELECT 0 WHERE NOT (${condition})`, ...values);
+/** Every ordinary mutation must recheck the persistent operator fence at execution. */
+export const onlineGuard = (db: D1Database) =>
+  assertion(db, 'NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1)');
 interface Operation {
   id: string;
   owner_id: string;
@@ -46,10 +49,7 @@ export class IdentityCheckpoints {
     const key = await this.crypt.checkpointKey(snapshot);
     const now = Date.now(),
       fence = `security:${snapshot.operationId}`;
-    const writes = [
-      assertion(this.db, 'NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1)'),
-      ...(options.guards ?? []),
-    ];
+    const writes = [onlineGuard(this.db), ...(options.guards ?? [])];
     if (options.initialKeys) {
       if (snapshot.epoch !== 1) throw new Error('Invalid initial epoch');
       writes.push(
@@ -265,7 +265,7 @@ export class IdentityCheckpoints {
         const delay = Math.min(30, 2 ** Math.floor(Math.log2(age / 60_000 + 1))) * 60_000;
         await statement(
           this.db,
-          "UPDATE security_operations SET next_run_at=? WHERE id=? AND state<>'applied'",
+          "UPDATE security_operations SET next_run_at=? WHERE id=? AND state<>'applied' AND NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1)",
           Date.now() + delay,
           operation.id,
         ).run();

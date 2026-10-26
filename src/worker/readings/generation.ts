@@ -10,7 +10,7 @@ import { buildPlan, validateCandidateBindings } from '../../domain/tarot/plan.ts
 import { composeTemplate, projectWriterPayload } from '../../domain/tarot/render.ts';
 import { sha256Json } from '../../domain/json.ts';
 import { InterceptedWritingProvider } from '../provider/intercepted.ts';
-import { assertion } from '../identity/checkpoint.ts';
+import { assertion, onlineGuard } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
 import { statement as q, DB_NOW, DAY, MONTH } from '../db/core.ts';
 import { iso, type RecordBase, RecordError } from './base.ts';
@@ -26,6 +26,7 @@ export class LocalGeneration {
     ).all<{ id: string; owner_id: string; session_id: string }>();
     for (const row of expired.results)
       await this.base.db.batch([
+        onlineGuard(this.base.db),
         ...this.base.stopStatements(row.owner_id, row.session_id),
         q(
           this.base.db,
@@ -145,6 +146,7 @@ export class LocalGeneration {
     const content = await syntheticBundle(),
       policyHash = await sha256Json({ localOnly: true, writer: 'simulation.v1' });
     await this.base.db.batch([
+      onlineGuard(this.base.db),
       q(
         this.base.db,
         `INSERT OR IGNORE INTO content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at) VALUES (?,'approved',?,?,'human_approved','SYNTHETIC LOCAL FIXTURE; NOT EDITORIAL APPROVAL','cleared',${DB_NOW},${DB_NOW})`,
@@ -460,6 +462,7 @@ export class LocalGeneration {
     } catch {
       // Never redispatch an authorized simulation on retry; keep a recoverable terminal status.
       await this.base.db.batch([
+        onlineGuard(this.base.db),
         ...this.base.stopStatements(session.subjectId, sessionId),
         q(
           this.base.db,

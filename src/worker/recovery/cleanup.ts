@@ -56,9 +56,14 @@ export class OfflineCleanup {
         selected.push(group);
         count += group.objects.length;
       }
+      // Cleanup is never a readiness verifier. Only full restore replay clears the fence.
       if (!count) {
-        await this.onlineFence();
-        return { status: 'complete' as const, purgedObjects: 0, recoveryEpoch: currentEpoch };
+        return {
+          status: 'complete' as const,
+          access: 'offline' as const,
+          purgedObjects: 0,
+          recoveryEpoch: currentEpoch,
+        };
       }
       const candidates = selected.flatMap((g) => g.objects);
       const chosen = new Set(candidates.map((o) => o.key));
@@ -136,10 +141,6 @@ export class OfflineCleanup {
       return this.resume(pending);
     });
   }
-  private async onlineFence() {
-    // The separate RESTORE_MODE=offline binding remains. Generation stays globally disabled.
-    await q(this.env.DB, 'UPDATE system_state SET restore_in_progress=0 WHERE id=1').run();
-  }
   private async resume(loaded: LoadedCleanup) {
     if (loaded.value.phase !== 'pending') throw new Error('Missing pending cleanup plan');
     const plan: PendingCleanup = loaded.value;
@@ -178,9 +179,9 @@ export class OfflineCleanup {
       },
       loaded,
     );
-    await this.onlineFence();
     return {
       status: 'complete' as const,
+      access: 'offline' as const,
       purgedObjects: plan.objects.length,
       recoveryEpoch: plan.epoch,
     };
@@ -232,10 +233,10 @@ export class OfflineCleanup {
     }
     const eligible = new Set<string>();
     for (const chain of chains) {
+      await this.requireErased(chain.target);
       const completion = chain.completion!;
       if (Date.parse(completion.purgeAfter) > now || Date.parse(completion.backupExpiresBy) > now)
         continue;
-      await this.requireErased(chain.target);
       const job = await q(
         db,
         'SELECT state,target_hmac,ledger_key FROM deletion_jobs WHERE id=?',

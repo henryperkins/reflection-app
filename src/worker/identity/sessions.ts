@@ -1,5 +1,5 @@
 import { AuthResult, SessionView } from '../../contracts/index.ts';
-import { assertion, DB_NOW, statement } from './checkpoint.ts';
+import { assertion, onlineGuard, DB_NOW, statement } from './checkpoint.ts';
 import { encode, type IdentityCrypto, randomToken } from './crypto.ts';
 import { IdentityError, type Session } from './types.ts';
 const DAY = 86_400_000;
@@ -20,6 +20,7 @@ export class IdentitySessions {
     const csrfHash = await this.crypt.hash('csrf-verifier', csrfToken),
       now = Date.now();
     await this.db.batch([
+      onlineGuard(this.db),
       ...guards,
       assertion(
         this.db,
@@ -69,13 +70,16 @@ export class IdentitySessions {
     const csrfToken = encode(await this.crypt.mac('csrf', [token, row.auth_epoch]));
     if ((await this.crypt.hash('csrf-verifier', csrfToken)) !== row.csrf_hash)
       throw new IdentityError(401, 'AUTH_REQUIRED');
-    await statement(
-      this.db,
-      `UPDATE auth_sessions SET idle_expires_at=min(expires_at,${DB_NOW}+?) WHERE token_hash=? AND idle_expires_at<${DB_NOW}+?`,
-      DAY,
-      tokenHash,
-      DAY - 300_000,
-    ).run();
+    await this.db.batch([
+      onlineGuard(this.db),
+      statement(
+        this.db,
+        `UPDATE auth_sessions SET idle_expires_at=min(expires_at,${DB_NOW}+?) WHERE token_hash=? AND idle_expires_at<${DB_NOW}+?`,
+        DAY,
+        tokenHash,
+        DAY - 300_000,
+      ),
+    ]);
     return {
       subjectId: row.owner_id,
       epoch: row.auth_epoch,
@@ -133,10 +137,9 @@ export class IdentitySessions {
     return row?.remaining ?? allowance;
   }
   async logout(session: Session) {
-    await statement(
-      this.db,
-      'DELETE FROM auth_sessions WHERE token_hash=?',
-      session.tokenHash,
-    ).run();
+    await this.db.batch([
+      onlineGuard(this.db),
+      statement(this.db, 'DELETE FROM auth_sessions WHERE token_hash=?', session.tokenHash),
+    ]);
   }
 }

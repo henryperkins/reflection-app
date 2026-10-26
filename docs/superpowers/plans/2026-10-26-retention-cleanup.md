@@ -60,4 +60,4 @@
 - [x] Add delayed checkpoint writer, overlapping cleanup/restore, interrupted deletion and same-plan retry cases. Run targeted tests; expect missing service/behavior.
 - [x] Implement shared exclusion, independent authenticated journal and recovery epoch, backup verification, exact candidate deletion/resume and terminal receipt; keep private routes and Cron offline throughout. Recheck target erasure before retiring evidence. Keep over-bound groups retained.
 - [x] Run targeted tests and `npm test`; expect green. Document exact limits, backup-boundary consequence and remaining gates; commit locally.
-- [ ] Run full `npm run verify` and `npm run release -- --check`; expect all stages/tests pass and `deploymentAllowed:false`. Obtain one fresh whole-branch review; fix material findings with RED→GREEN regressions in one pass, rerun the full gate and commit locally.
+- [x] Run full `npm run verify` and `npm run release -- --check`; expect all stages/tests pass and `deploymentAllowed:false`. Obtain one fresh whole-branch review; fix material findings with RED→GREEN regressions in one pass, rerun the full gate and commit locally.

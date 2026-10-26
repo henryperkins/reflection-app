@@ -81,13 +81,15 @@ test('a later pending pass blocks cleanup even when D1 retains an older complete
 });
 
 test('old superseded checkpoints retire while current factors and the latest checkpoint survive', async () => {
-  const { kit, client } = await readingAccount();
+  const { kit, client, passkey } = await readingAccount();
   const { reading } = await client.create();
   const ops = await historicalCheckpoints(kit.subjectId);
   const latest = ops.at(-1)!;
   const result = await sweep();
   expect(result.purgedObjects).toBe(ops.length - 1);
   expect((await objects(env.RECOVERY, 'identity/')).map((o) => o.key)).toEqual([latest.ledger_key]);
+  await new OfflineRestore(cleanupBindings()).replay();
+  await login(client, passkey, kit.subjectId);
   await localIdentity(readingBindings)!.checkpoints.apply(ops[0]!.id);
   expect(await env.RECOVERY.head(ops[0]!.ledger_key)).toBeNull();
   expect(await (await client.request(`/readings/${reading.editionId}`)).json()).toEqual(reading);
@@ -181,6 +183,8 @@ test('an interrupted purge blocks restore and resumes its exact durable plan', a
   expect(result).toMatchObject({ status: 'complete', recoveryEpoch: 1, purgedObjects: 3 });
   expect(backup.snapshots.size).toBe(1);
   expect(await objects(env.RECOVERY, 'erasures/')).toHaveLength(0);
+  expect(await offline()).toBe(1);
+  await new OfflineRestore(cleanupBindings()).replay();
   expect(await offline()).toBe(0);
 });
 

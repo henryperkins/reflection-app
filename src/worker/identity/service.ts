@@ -1,7 +1,7 @@
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
 import type { z } from 'zod';
 import { type apiSchemas, AuthOptions, IdentityCheckpoint } from '../../contracts/index.ts';
-import { assertion, DB_NOW, IdentityCheckpoints, statement } from './checkpoint.ts';
+import { assertion, onlineGuard, DB_NOW, IdentityCheckpoints, statement } from './checkpoint.ts';
 import { type Checkpoint, encode, type IdentityCrypto, randomToken, uuidBytes } from './crypto.ts';
 import { IdentitySessions } from './sessions.ts';
 import { type Challenge, type CredentialRow, IdentityError, type Session } from './types.ts';
@@ -26,13 +26,17 @@ export class IdentityService {
       day = Math.floor(now / 86_400_000),
       start = Math.floor(now / period) * period;
     const hash = await this.crypt.hash('rate', [scope, day, identity]);
-    const row = await statement(
-      this.db,
-      'INSERT INTO rate_buckets(scope_hash,window_start,count,expires_at) VALUES (?,?,1,?) ON CONFLICT(scope_hash,window_start) DO UPDATE SET count=count+1 RETURNING count',
-      hash,
-      start,
-      now + 2 * 86_400_000,
-    ).first<{ count: number }>();
+    const results = await this.db.batch<{ count: number }>([
+      onlineGuard(this.db),
+      statement(
+        this.db,
+        'INSERT INTO rate_buckets(scope_hash,window_start,count,expires_at) VALUES (?,?,1,?) ON CONFLICT(scope_hash,window_start) DO UPDATE SET count=count+1 RETURNING count',
+        hash,
+        start,
+        now + 2 * 86_400_000,
+      ),
+    ]);
+    const row = results[1]?.results[0];
     if (!row || row.count > limit) throw new IdentityError(429, 'RATE_LIMITED');
   }
   private async newChallenge(
@@ -86,7 +90,11 @@ export class IdentityService {
       session?.subjectId ?? null,
       session?.epoch ?? null,
     );
-    await this.db.batch([...(session ? [this.sessions.guard(session)] : []), made.insert]);
+    await this.db.batch([
+      onlineGuard(this.db),
+      ...(session ? [this.sessions.guard(session)] : []),
+      made.insert,
+    ]);
     return made;
   }
   private async challenge(

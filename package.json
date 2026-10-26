@@ -26,7 +26,7 @@
     "dev:identity": "tsx scripts/local-identity.ts",
     "test:browser": "playwright test",
     "restore:rehearse": "vitest run --config vitest.db.config.ts tests/db/privacy-restore.test.ts tests/db/privacy-review-regressions.test.ts",
-    "cleanup:rehearse": "vitest run --config vitest.db.config.ts tests/db/storage-accounting.test.ts tests/db/retention.test.ts tests/db/recovery-cleanup.test.ts"
+    "cleanup:rehearse": "vitest run --config vitest.db.config.ts tests/db/storage-accounting.test.ts tests/db/retention.test.ts tests/db/recovery-cleanup.test.ts tests/db/cleanup-review-regressions.test.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",
