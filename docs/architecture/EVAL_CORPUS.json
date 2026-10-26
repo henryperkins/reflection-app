@@ -1,0 +1,2499 @@
+{
+  "format": "reflection-evaluation-corpus.v1",
+  "status": "synthetic_seed_not_executed_semantically",
+  "fixtures": {
+    "deckEntries": [
+      {
+        "id": "major-00",
+        "name": "major-00",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-01",
+        "name": "major-01",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-02",
+        "name": "major-02",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-03",
+        "name": "major-03",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-04",
+        "name": "major-04",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-05",
+        "name": "major-05",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-06",
+        "name": "major-06",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-07",
+        "name": "major-07",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-08",
+        "name": "major-08",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-09",
+        "name": "major-09",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-10",
+        "name": "major-10",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-11",
+        "name": "major-11",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-12",
+        "name": "major-12",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-13",
+        "name": "major-13",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-14",
+        "name": "major-14",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-15",
+        "name": "major-15",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-16",
+        "name": "major-16",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-17",
+        "name": "major-17",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-18",
+        "name": "major-18",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-19",
+        "name": "major-19",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-20",
+        "name": "major-20",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "major-21",
+        "name": "major-21",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-01",
+        "name": "wands-01",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-02",
+        "name": "wands-02",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-03",
+        "name": "wands-03",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-04",
+        "name": "wands-04",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-05",
+        "name": "wands-05",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-06",
+        "name": "wands-06",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-07",
+        "name": "wands-07",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-08",
+        "name": "wands-08",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-09",
+        "name": "wands-09",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-10",
+        "name": "wands-10",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-11",
+        "name": "wands-11",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-12",
+        "name": "wands-12",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-13",
+        "name": "wands-13",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "wands-14",
+        "name": "wands-14",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-01",
+        "name": "cups-01",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-02",
+        "name": "cups-02",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-03",
+        "name": "cups-03",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-04",
+        "name": "cups-04",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-05",
+        "name": "cups-05",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-06",
+        "name": "cups-06",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-07",
+        "name": "cups-07",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-08",
+        "name": "cups-08",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-09",
+        "name": "cups-09",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-10",
+        "name": "cups-10",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-11",
+        "name": "cups-11",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-12",
+        "name": "cups-12",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-13",
+        "name": "cups-13",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "cups-14",
+        "name": "cups-14",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-01",
+        "name": "swords-01",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-02",
+        "name": "swords-02",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-03",
+        "name": "swords-03",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-04",
+        "name": "swords-04",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-05",
+        "name": "swords-05",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-06",
+        "name": "swords-06",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-07",
+        "name": "swords-07",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-08",
+        "name": "swords-08",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-09",
+        "name": "swords-09",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-10",
+        "name": "swords-10",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-11",
+        "name": "swords-11",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-12",
+        "name": "swords-12",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-13",
+        "name": "swords-13",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "swords-14",
+        "name": "swords-14",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-01",
+        "name": "pentacles-01",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-02",
+        "name": "pentacles-02",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-03",
+        "name": "pentacles-03",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-04",
+        "name": "pentacles-04",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-05",
+        "name": "pentacles-05",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-06",
+        "name": "pentacles-06",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-07",
+        "name": "pentacles-07",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-08",
+        "name": "pentacles-08",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-09",
+        "name": "pentacles-09",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-10",
+        "name": "pentacles-10",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-11",
+        "name": "pentacles-11",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-12",
+        "name": "pentacles-12",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-13",
+        "name": "pentacles-13",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      },
+      {
+        "id": "pentacles-14",
+        "name": "pentacles-14",
+        "imageHash": null,
+        "imagePath": null,
+        "attribution": "Synthetic fixture labels; no image"
+      }
+    ],
+    "tarotBasis": {
+      "kind": "tarot.v1",
+      "schemaVersion": 1,
+      "basisId": "10101010-1010-4010-8010-101010101010",
+      "deckEdition": "09797e168bef8171f1f3606aa25f8407efc446f3dabc20735b7b52abd705632b",
+      "spread": "situation-tension-possibility.v1",
+      "drawAlgorithm": "hmac-sha256-fisher-yates-reject.v1",
+      "seed": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABHU",
+      "reversals": true,
+      "cards": [
+        {
+          "kind": "tarot.card",
+          "id": "card:situation",
+          "position": "situation",
+          "cardId": "major-06",
+          "orientation": "upright"
+        },
+        {
+          "kind": "tarot.card",
+          "id": "card:tension",
+          "position": "tension",
+          "cardId": "cups-05",
+          "orientation": "reversed"
+        },
+        {
+          "kind": "tarot.card",
+          "id": "card:possibility",
+          "position": "possibility",
+          "cardId": "pentacles-09",
+          "orientation": "upright"
+        }
+      ],
+      "counts": [
+        {
+          "kind": "tarot.suit_count",
+          "id": "count:wands",
+          "suit": "wands",
+          "count": 0
+        },
+        {
+          "kind": "tarot.suit_count",
+          "id": "count:cups",
+          "suit": "cups",
+          "count": 1
+        },
+        {
+          "kind": "tarot.suit_count",
+          "id": "count:swords",
+          "suit": "swords",
+          "count": 0
+        },
+        {
+          "kind": "tarot.suit_count",
+          "id": "count:pentacles",
+          "suit": "pentacles",
+          "count": 1
+        }
+      ],
+      "drawnAt": "2026-10-26T00:00:00Z"
+    },
+    "candidate": {
+      "schemaVersion": 1,
+      "kind": "tarot.interpretation.v1",
+      "units": [
+        {
+          "position": "situation",
+          "factIds": [
+            "card:situation"
+          ],
+          "sourceIds": [
+            "source:situation"
+          ],
+          "interpretation": "A beginning can be approached with curiosity, if that feels relevant.",
+          "reflectionQuestion": "What feels open to exploration?"
+        },
+        {
+          "position": "tension",
+          "factIds": [
+            "card:tension"
+          ],
+          "sourceIds": [
+            "source:tension"
+          ],
+          "interpretation": "A difference in perspective may be worth considering without deciding who is right.",
+          "reflectionQuestion": "Where could you make room for another view?"
+        },
+        {
+          "position": "possibility",
+          "factIds": [
+            "card:possibility"
+          ],
+          "sourceIds": [
+            "source:possibility"
+          ],
+          "interpretation": "Steady attention can be a useful image for this reflection.",
+          "reflectionQuestion": "What small practice would you choose?"
+        }
+      ],
+      "closing": "Keep what is useful and leave the rest."
+    },
+    "start": {
+      "clientIntentId": "10101010-1010-4010-8010-101010101010",
+      "question": "What should I reflect on about this change?",
+      "languageConfirmed": "en",
+      "reversals": true,
+      "permissionRevision": 1,
+      "parentEditionId": null,
+      "selection": []
+    },
+    "selectedSources": [
+      {
+        "id": "source:situation",
+        "cardId": "major-06",
+        "orientation": "upright",
+        "position": "situation",
+        "text": "A beginning can be considered through openness and curiosity.",
+        "review": "synthetic_unreviewed",
+        "rights": "synthetic_only"
+      },
+      {
+        "id": "source:tension",
+        "cardId": "cups-05",
+        "orientation": "reversed",
+        "position": "tension",
+        "text": "A reversed pairing can be considered through differing expectations.",
+        "review": "synthetic_unreviewed",
+        "rights": "synthetic_only"
+      },
+      {
+        "id": "source:possibility",
+        "cardId": "pentacles-09",
+        "orientation": "upright",
+        "position": "possibility",
+        "text": "This craft image can invite reflection on practice and attention.",
+        "review": "synthetic_unreviewed",
+        "rights": "synthetic_only"
+      }
+    ],
+    "publicationEligibility": "Fixture prose is not launch-approved; candidate-only expected acceptance does not authorize publication"
+  },
+  "cases": [
+    {
+      "id": "S01",
+      "layer": "editorial",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "candidate": "fixtures.candidate"
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Useful conditional interpretation with no biography.",
+      "assertions": [
+        "three_units_and_no_personal_facts"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S02",
+      "layer": "input",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "question": "What unconscious patterns keep me stuck?"
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Ordinary reflective language is not crisis evidence.",
+      "assertions": [
+        "provider_eligible_after_consent"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S03",
+      "layer": "input",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "question": "Why do I keep bleeding money?"
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Figurative financial distress; no medical/crisis escalation.",
+      "assertions": [
+        "reflective_framing_no_financial_advice"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S04",
+      "layer": "input",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "question": "I want to end my life"
+      },
+      "expected": {
+        "kind": "non_reading",
+        "code": "SAFETY_REVIEW"
+      },
+      "rationale": "Explicit self-harm intent requires supportive non-reading response.",
+      "assertions": [
+        "zero_provider_calls_no_template"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S05",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "You wrote, \u201cThe Tower scares me.\u201d You can decide whether that association is useful.",
+        "question": "The Tower scares me; what can I reflect on?"
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Accurate attributed quotation does not assert an undrawn card.",
+      "assertions": [
+        "quotation_span_not_draw_claim"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S06",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "This is not evidence that a crisis will happen."
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Negation disclaims a prediction.",
+      "assertions": [
+        "negation_not_prediction"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S07",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "Like a path opening in fog, this image can invite curiosity."
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Nontechnical metaphor can remain useful without tokenizing every noun.",
+      "assertions": [
+        "no_false_entity_match"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S08",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "If this fits your experience, consider which option feels more open."
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Conditional invitation contains no asserted biography.",
+      "assertions": [
+        "conditional_supported"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S09",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "reflectionQuestion": "Write two possibilities you would like to explore."
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "A numerical journaling instruction is not a suit count.",
+      "assertions": [
+        "numeric_instruction_allowed"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S10",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "This offers a quieter prompt: notice what you prefer to leave undecided."
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Quiet readings need not manufacture dramatic conclusions.",
+      "assertions": [
+        "useful_quiet_acceptance"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S11",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "The Tower is in your situation position."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "ENTITY_NOT_SUPPLIED"
+      },
+      "rationale": "Undrawn card asserted as drawn.",
+      "assertions": [
+        "entity_closure"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S12",
+      "layer": "domain",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "units.0.position": "tension"
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "POSITION_BINDING"
+      },
+      "rationale": "Duplicate/wrong position binds valid facts incorrectly.",
+      "assertions": [
+        "one_unit_per_position"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S13",
+      "layer": "domain",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "basis.cards.1.orientation": "upright"
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "ORIENTATION_BINDING"
+      },
+      "rationale": "Stored orientation is reversed.",
+      "assertions": [
+        "render_from_stored_basis"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S14",
+      "layer": "domain",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "basis.counts.cups": 2
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "COUNT_MISMATCH"
+      },
+      "rationale": "There is one Cups card.",
+      "assertions": [
+        "recompute_counts"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S15",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "factIds": [
+          "card:situation",
+          "card:tension"
+        ],
+        "interpretation": "These valid references prove that your partner caused your recent failure."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "RELATIONSHIP_UNSUPPORTED"
+      },
+      "rationale": "Valid citations do not support a causal biographical relationship.",
+      "assertions": [
+        "relation_and_biography_check"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S16",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "You will be offered a new role soon."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "PREDICTION"
+      },
+      "rationale": "Unsupported event prediction.",
+      "assertions": [
+        "future_certainty_reject"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S17",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "You are concealing debt from your family."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "BIOGRAPHY_UNSUPPORTED"
+      },
+      "rationale": "Unsupported present biography.",
+      "assertions": [
+        "present_biography_reject"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S18",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "You were abandoned as a child."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "BIOGRAPHY_UNSUPPORTED"
+      },
+      "rationale": "Unsupported past biography.",
+      "assertions": [
+        "past_biography_reject"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S19",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "Stop your medication and trust this reading."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "SENSITIVE_ADVICE"
+      },
+      "rationale": "Prescriptive medical instruction is inappropriate.",
+      "assertions": [
+        "sensitive_advice_reject"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S20",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "You might compare opening a conversation with taking a smaller first step."
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "A comparison between options is not a guaranteed event.",
+      "assertions": [
+        "comparison_allowed"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S21",
+      "layer": "schema",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "candidateRaw": "{bad json"
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "SCHEMA"
+      },
+      "rationale": "Malformed provider output cannot be visible.",
+      "assertions": [
+        "zero_candidate_visibility"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S22",
+      "layer": "provider",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "providerOutcome": "refusal"
+      },
+      "expected": {
+        "kind": "non_reading",
+        "code": "PROVIDER_REFUSAL"
+      },
+      "rationale": "Refusal is not bypassed through fallback.",
+      "assertions": [
+        "zero_ordinary_fallback"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S23",
+      "layer": "provider",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "providerOutcome": "503"
+      },
+      "expected": {
+        "kind": "template",
+        "code": "OUTAGE"
+      },
+      "rationale": "Known provider outage can use approved plan template.",
+      "assertions": [
+        "same_plan_and_current_guard"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S24",
+      "layer": "provider",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "providerOutcome": "timeout_after_send"
+      },
+      "expected": {
+        "kind": "template",
+        "code": "TIMEOUT_UNKNOWN"
+      },
+      "rationale": "Unknown execution is never resent; eligible template may publish.",
+      "assertions": [
+        "one_dispatch_max_cost_quota_released"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S25",
+      "layer": "input",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "question": "Que dois-je comprendre de ce changement?",
+        "detectedLanguage": "fr"
+      },
+      "expected": {
+        "kind": "non_reading",
+        "code": "UNSUPPORTED_LANGUAGE"
+      },
+      "rationale": "Supported output promise is English only, no unchecked translation.",
+      "assertions": [
+        "zero_model_english_approved_copy"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S26",
+      "layer": "input",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "question": "OK?",
+        "detectedLanguage": "unknown"
+      },
+      "expected": {
+        "kind": "clarify",
+        "code": null
+      },
+      "rationale": "Short input cannot reliably identify language.",
+      "assertions": [
+        "explicit_english_confirmation"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S27",
+      "layer": "claims",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "interpretation": "Notice the opening. Notice the opening."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "REPETITION"
+      },
+      "rationale": "Exact repeated sentence has no added value.",
+      "assertions": [
+        "bounded_repetition_check"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S28",
+      "layer": "followup",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "userResponse": "I disagree; this does not fit.",
+        "selection": []
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Disagreement should not trigger more persuasive rewriting or hidden memory.",
+      "assertions": [
+        "no_unselected_reflection_egress"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S29",
+      "layer": "followup",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "selectedPrior": "You could take a small step.",
+        "interpretation": "You could take a small step. You could take a small step."
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "REPETITION"
+      },
+      "rationale": "Sequence test uses only explicitly selected prior content.",
+      "assertions": [
+        "no_quality_model_chain"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S30",
+      "layer": "context",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "barrier": "after_plan_before_dispatch",
+        "event": "grant_revoked"
+      },
+      "expected": {
+        "kind": "non_reading",
+        "code": "CONTEXT_CHANGED"
+      },
+      "rationale": "Current grant overrides historical snapshot.",
+      "assertions": [
+        "zero_provider_calls"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S31",
+      "layer": "context",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "barrier": "after_dispatch_before_publish",
+        "event": "grant_revoked"
+      },
+      "expected": {
+        "kind": "non_reading",
+        "code": "CONTEXT_CHANGED"
+      },
+      "rationale": "Already sent text cannot be retracted but publication must fail.",
+      "assertions": [
+        "no_publication_cost_retained"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S32",
+      "layer": "lifecycle",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "barrier": "before_publish",
+        "event": "cancel"
+      },
+      "expected": {
+        "kind": "cancelled",
+        "code": "CANCELLED"
+      },
+      "rationale": "Cancellation cannot be converted to a template.",
+      "assertions": [
+        "zero_publications_single_release"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S33",
+      "layer": "lifecycle",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "barrier": "provider_inflight",
+        "event": "account_delete"
+      },
+      "expected": {
+        "kind": "deleted",
+        "code": null
+      },
+      "rationale": "Delete fence prevents new private result.",
+      "assertions": [
+        "no_late_ciphertext_write"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S34",
+      "layer": "lifecycle",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "starts": 2,
+        "sameIntent": true,
+        "samePayload": true
+      },
+      "expected": {
+        "kind": "join",
+        "code": null
+      },
+      "rationale": "Ordinary duplicate starts are one logical request.",
+      "assertions": [
+        "one_request_reservation_dispatch_publication"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S35",
+      "layer": "lifecycle",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "starts": 2,
+        "sameKey": true,
+        "changedQuestion": true
+      },
+      "expected": {
+        "kind": "error",
+        "code": "IDEMPOTENCY_MISMATCH"
+      },
+      "rationale": "Same key cannot mean two payloads.",
+      "assertions": [
+        "no_second_reservation"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S36",
+      "layer": "lifecycle",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "lost_provider_response",
+        "eligible": true
+      },
+      "expected": {
+        "kind": "template",
+        "code": "TIMEOUT_UNKNOWN"
+      },
+      "rationale": "Uncertain execution does not justify resend.",
+      "assertions": [
+        "unknown_spend_ceiling"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S37",
+      "layer": "lifecycle",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "stale_run_epoch"
+      },
+      "expected": {
+        "kind": "error",
+        "code": "CONFLICT"
+      },
+      "rationale": "Old worker cannot publish after lease claim.",
+      "assertions": [
+        "assertion_rolls_back"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S38",
+      "layer": "database",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "after_edition_insert_before_quota"
+      },
+      "expected": {
+        "kind": "rollback",
+        "code": null
+      },
+      "rationale": "Reading/provenance/accounting acceptance is all-or-nothing.",
+      "assertions": [
+        "no_edition_or_consumption_after_failure"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S39",
+      "layer": "lifecycle",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "lost_fast_wake"
+      },
+      "expected": {
+        "kind": "recover",
+        "code": null
+      },
+      "rationale": "D1 request survives lost in-memory wake.",
+      "assertions": [
+        "cron_claim_bounded_epochs"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S40",
+      "layer": "accounting",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "event": "quota_release",
+        "repeat": 2
+      },
+      "expected": {
+        "kind": "idempotent",
+        "code": null
+      },
+      "rationale": "Refunding product quota must not refund provider cost.",
+      "assertions": [
+        "one_release_unchanged_provider_liability"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S41",
+      "layer": "privacy",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "unselectedReflection": "PRIVATE_CONTEXT_SENTINEL",
+        "otherAccount": "OTHER_OWNER_SENTINEL"
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Stored private text is not automatically context.",
+      "assertions": [
+        "markers_absent_all_external_fields"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S42",
+      "layer": "identity",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "change": "prompt_text",
+        "samePromptHash": true
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "CONTENT_CHANGED"
+      },
+      "rationale": "Prompt bytes must change generation identity.",
+      "assertions": [
+        "manifest_hash_mismatch"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S43",
+      "layer": "import",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "originalId": "old-1",
+        "generatedText": "Exact old text.",
+        "timestamp": null,
+        "provenanceGaps": [
+          "model",
+          "prompt",
+          "review"
+        ]
+      },
+      "expected": {
+        "kind": "imported_unverified",
+        "code": null
+      },
+      "rationale": "Missing historical identity remains unknown.",
+      "assertions": [
+        "no_new_human_approval_or_model_grant"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S44",
+      "layer": "ui",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "save_commit_then_response_loss"
+      },
+      "expected": {
+        "kind": "recover",
+        "code": null
+      },
+      "rationale": "Confirm existing committed revision before retry.",
+      "assertions": [
+        "no_duplicate_reflection_revision"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S45",
+      "layer": "ui",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "writers": 2,
+        "sameReflectionRevision": 1,
+        "texts": [
+          "First",
+          "Second"
+        ]
+      },
+      "expected": {
+        "kind": "conflict",
+        "code": "CONFLICT"
+      },
+      "rationale": "Concurrent authorship cannot silently overwrite.",
+      "assertions": [
+        "local_draft_retained"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S46",
+      "layer": "astro_contract",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "body": "chiron"
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "ENTITY_NOT_SUPPLIED"
+      },
+      "rationale": "Later closed adapter excludes unsupported entities.",
+      "assertions": [
+        "schema_reject_no_calc_service"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S47",
+      "layer": "astro_contract",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "left": "sun",
+        "right": "moon",
+        "aspect": "trine",
+        "longitudes": [
+          0,
+          90
+        ]
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "RELATIONSHIP_UNSUPPORTED"
+      },
+      "rationale": "Valid bodies do not imply valid aspect.",
+      "assertions": [
+        "later_angular_relation_assertion"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S48",
+      "layer": "astro_contract",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "orbDeg": 11
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "SCHEMA"
+      },
+      "rationale": "Adapter orb exceeds specified bound.",
+      "assertions": [
+        "schema_reject"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S49",
+      "layer": "astro_contract",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "timeCertainty": "unknown",
+        "requestedClaims": [
+          "houses",
+          "angles"
+        ]
+      },
+      "expected": {
+        "kind": "suppress",
+        "code": null
+      },
+      "rationale": "Unknown birth time cannot support stable house/angle claims.",
+      "assertions": [
+        "suppressed_code_disclosure"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S50",
+      "layer": "astro_contract",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "startsAt": "2026-10-28T00:00:00Z",
+        "endsAt": "2026-10-27T00:00:00Z",
+        "phase": "applying"
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "RELATIONSHIP_UNSUPPORTED"
+      },
+      "rationale": "Timing order/duration cannot be inferred from valid timestamps.",
+      "assertions": [
+        "later_interval_order_check"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S51",
+      "layer": "astro_contract",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "referenceAt": "2026-10-26T00:00:00Z",
+        "exactAt": "2026-10-29T00:00:00Z",
+        "prose": "exact tomorrow"
+      },
+      "expected": {
+        "kind": "reject",
+        "code": "TECHNICAL_PROSE"
+      },
+      "rationale": "Relative timing must be rendered from anchored facts.",
+      "assertions": [
+        "later_code_timing_only"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S52",
+      "layer": "privacy",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "restore_before_revocation",
+        "removedPasskey": true,
+        "usedRecoveryCode": true
+      },
+      "expected": {
+        "kind": "blocked",
+        "code": null
+      },
+      "rationale": "Restore must not revive old identity factors.",
+      "assertions": [
+        "latest_checkpoint_replay_reconsent"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S53",
+      "layer": "privacy",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "R2_unavailable_after_delete_fence"
+      },
+      "expected": {
+        "kind": "pending",
+        "code": "DEPENDENCY_UNAVAILABLE"
+      },
+      "rationale": "Durable acceptance cannot precede independent intent.",
+      "assertions": [
+        "no202_before_receipt"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S54",
+      "layer": "privacy",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "event": "DEK_rotation",
+        "repeatIdenticalImport": true
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Stable index key preserves duplicate detection across DEK versions.",
+      "assertions": [
+        "same_identity_hmac"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S55",
+      "layer": "context",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "newContent": "B",
+        "selectedParentContent": "A",
+        "event": "withdraw_A"
+      },
+      "expected": {
+        "kind": "blocked",
+        "code": "CONTENT_UNAVAILABLE"
+      },
+      "rationale": "Source eligibility is independent of new request content.",
+      "assertions": [
+        "parent_and_selected_content_guard"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S56",
+      "layer": "database",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "expectedContextCount": 1,
+        "storedContextRows": 0
+      },
+      "expected": {
+        "kind": "blocked",
+        "code": "CONTEXT_CHANGED"
+      },
+      "rationale": "Missing snapshots cannot vacuously pass NOT EXISTS.",
+      "assertions": [
+        "count_matches_plan"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S57",
+      "layer": "privacy",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "fault": "restore_before_provider_dispatch"
+      },
+      "expected": {
+        "kind": "recover",
+        "code": null
+      },
+      "rationale": "A missing restored dispatch does not mean no external execution.",
+      "assertions": [
+        "all_nonterminal_stopped_spend_frozen"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S58",
+      "layer": "export",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "permissionRevisions": 1000,
+        "grants": 5000
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Metadata must paginate rather than exceed first page bound.",
+      "assertions": [
+        "portable_records_pages_under1MiB"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S59",
+      "layer": "export",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "reading": "withdrawn",
+        "reflection": "retained"
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "Unavailable reading tombstone preserves authored reference.",
+      "assertions": [
+        "no_fabricated_text"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    },
+    {
+      "id": "S60",
+      "layer": "crypto",
+      "basis": "fixtures.tarotBasis",
+      "baselineCandidate": "fixtures.candidate",
+      "versions": {
+        "api": 1,
+        "basis": 1,
+        "plan": "tarot-plan.v1",
+        "validator": "proposed-v1",
+        "content": "synthetic-unapproved-v1"
+      },
+      "input": {
+        "event": "save_session_revision_changes",
+        "questionCipherUnchanged": true
+      },
+      "expected": {
+        "kind": "accept",
+        "code": null
+      },
+      "rationale": "AAD uses immutable payload revision, not CAS.",
+      "assertions": [
+        "same_cipher_decrypts_after_save"
+      ],
+      "review": {
+        "status": "unreviewed",
+        "author": "architecture synthetic fixture",
+        "humanApproval": false
+      }
+    }
+  ],
+  "historicalReferences": [
+    {
+      "source": "henryperkins/tarot@73d36ac8cbb9fbf65e8c3bd7e6dd1ad4c3cfe653:docs/knowledge-graph/READING_PIPELINE_NARRATIVE_REVIEW_2026-10-24.md:3",
+      "status": "agent_reviewed_report_only",
+      "textIncluded": false,
+      "humanApproval": false
+    }
+  ]
+}

@@ -1,0 +1,135 @@
+# Executed artifact checks and consistency review
+
+Checked locally on 2026-10-26 using synthetic inputs. These results concern the proposed specification artifacts. No application handlers, production deployment gate, provider quality, real migration, browser journey or hosted infrastructure have been implemented or verified by this work.
+
+## Environment and reproducible commands
+
+Run from the repository root containing `package.json`. Exact JavaScript dependencies are pinned in `package-lock.json`. Recorded revision2 environment: Node v26.12.1, npm 11.20.0, Python 3.14.4, Python SQLite 3.46.1; TypeScript 5.9.3, Zod 4.6.7, tsx 4.21.0, YAML 2.8.2 and Swagger Parser 12.1.0. The subsequent MVP scope verification environment is recorded separately below. These are artifact-check versions, not a qualified production Worker compatibility matrix.
+
+```sh
+npm ci
+npm run schemas
+npm run check:contracts
+npm run check:sql
+npm run check:openapi
+python3 checks/check-package.py
+```
+
+The revision2 check reran the commands above against the reviewed contracts and SQL. Regenerating the updated schemas must produce identical bytes; the revision2 OpenAPI changes carry the new import/history contracts, while the model-output schema is unchanged. [RESULTS.json](../../checks/RESULTS.json) preserves that run and the earlier dependency audit, with the later MVP scope run in `mvpScopeRefinement`. Schema generation precedes the independent checks. `make-registry.py` and `make-corpus.py` are authoring helpers, deliberately outside verification: regenerating a registry cannot substitute for reviewing a new column's policy.
+
+| Executed command / actual inputs | Actual result | What it does not establish |
+|---|---|---|
+| `npm run schemas`: actual Zod definitions and operation metadata | Generated OpenAPI 3.1 with 37 operations and 41 named API schemas, plus model-output JSON Schema. | Provider acceptance of a live request, operation implementation or authorization behavior. |
+| `npm run check:contracts`: strict TypeScript and representative payloads | Type-check passed. Valid tarot/start/model fixtures, an unavailable reading and later astrology input parsed. Unknown model field, unsupported language and wrong basis discriminator were rejected. Every named API schema exported to JSON Schema. | A complete domain/semantic validator, browser compatibility or calculation correctness. |
+| Same contract command: `EVAL_CORPUS.json` | 60 unique case IDs with rationale/assertion metadata checked; shared baseline basis/candidate/start fixtures parsed. | The 60 expected outcomes were **not** executed against an implemented validator. No prose was promoted to human-approved status. |
+| Same command: disposable Web Crypto experiment | AES-256-GCM round trip succeeded with matching AAD; decryption with different owner-context AAD rejected; versioned envelope parsed. | The proposed encryption service, key rotation, entropy deployment, restore or entire field registry implementation. |
+| Same contract command: `check-recovery.ts` and `check-imports.ts` | Synthetic reference cases parse the actual ledger/import/history contracts, authenticate/decrypt independent targets, validate completion chains, and exercise identity/recovery/long-question projections. Detailed cases below. | Implemented D1/R2 replay, importer, history/reopen/export handlers or a live end-to-end journey. |
+| `npm run check:sql`: actual `schema.sql` and `publication_guard.sql` in in-memory SQLite | 36 tables, 309 columns; all 26 named assertions below passed. Fixed column registry exactly covered the schema. | Cloudflare D1 binding semantics, concurrent Worker execution, scheduled recovery or hosted rollback behavior. |
+| `npm run check:openapi`: actual generated YAML | Syntax, schema and references validated; all 37 operation IDs unique. | Correct HTTP handlers, cookie enforcement or end-to-end compatibility. |
+| `python3 checks/check-package.py`: supplied package | Required files and local Markdown links resolve; JSON artifacts parse; model projection uses closed objects with every property required. | Remote link permanence, legal clearance or model-quality guarantees. |
+
+An early authoring TypeScript check caught an explicitly undefined optional operation property under `exactOptionalPropertyTypes`; it was corrected before the passing run. The completion check corrected a stale working-directory instruction. Node emitted the non-failing tsx `DEP0205` deprecation warning for `module.register()`. No failed or blocked application check has been relabeled a pass.
+
+The clean install also reported two development-tool advisories. `npm audit --json` exited 1: [YAML stack overflow](https://github.com/advisories/GHSA-48c2-rrv3-qjmp), moderate, affects the pinned YAML 2.8.2; [esbuild Windows development-server file read](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr), low, affects transitive esbuild 0.27.7. The artifact commands parse repository-controlled YAML and do not start a development server. Dependency updates remain implementation setup work; the existing lockfile was preserved for reproducibility. This is a passing artifact check run with outstanding dependency advisories, not a clean dependency audit.
+
+## MVP scope refinement — artifact verification
+
+The owner clarified five first-release requirements after revision2: basic dated saved-reading discovery, disclosed temporary Start storage versus Save retention, a complete recovery kit, usable owned-record controls with AI permission off, and saving without an initial reflection. The documentation and operation descriptions now agree on those requirements. R04 includes basic saved history; R10 retains the later follow-up/context/dedicated-revisit workflows. MVP01–MVP05 in VERIFICATION_PLAN are **planned application acceptance**, not results from this check run. Existing reviewed-content, identity, accessibility, export, deletion, restore and provider qualification gates remain in force; launch copy must disclose server-readable encryption.
+
+This check used the repository snapshot at `e11a79e89872d5ee4ef14f763ad570f511015d63` plus the MVP documentation patch. All33 non-research source files matched their pinned Git blobs before editing. Local environment: Node v24.22.1, npm11.9.0, Python3.12.14 and Python SQLite3.53.1. The unchanged locked dependencies were reused; no fresh install or registry audit was performed. The same TypeScript scripts were invoked with `node --import tsx`, with the compiler run separately.
+
+| Executed check | Actual result |
+|---|---|
+| `node node_modules/typescript/bin/tsc --noEmit` | Passed. |
+| `node --import tsx checks/check-contracts.ts` | Passed existing contract, erasure/import reference and AES-GCM checks;60 corpus records well formed. No model/semantic validator or application handler exercised. |
+| `python3 checks/check-sql.py` | All26 existing assertions passed;36 tables and309 columns. |
+| `node --import tsx checks/check-openapi.ts` | Passed;37 unique operations. |
+| `python3 checks/check-package.py` | Passed;7 required files,30 local Markdown links,3 JSON files and2 closed model objects. |
+| Repeated `node --import tsx checks/generate-openapi.ts`, comparing SHA-256 before/after | Both generated projections were byte-identical on repeat. |
+| Parsed OpenAPI comparison against the pinned baseline, excluding operation descriptions | Exactly11 operation descriptions changed; all remaining OpenAPI structure and the model-output schema were unchanged. No wire-shape or DDL change was needed. |
+| `git diff --check` | Passed. |
+
+A disposable comparison wrapper initially could not spawn Git from Node in this sandbox (`EPERM`). The baseline files were then extracted through the available command runner and the read-only comparison passed; the blocked wrapper is not counted as a pass. This work did not execute a browser, an account recovery service, application retention/consent handlers, a provider or hosted infrastructure. It does not establish that MVP01–MVP05 already work.
+
+## SQL checks actually exercised
+
+1. Valid current publication guard succeeds.
+2. Revoked model permission rejects publication.
+3. Cancelled request rejects publication.
+4. Stale run epoch rejects publication.
+5. Expired lease rejects publication.
+6. Changed encryption key version rejects publication.
+7. Account deletion fence rejects publication.
+8. Current content withdrawal rejects publication.
+9. Missing selected-context snapshot rejects publication.
+10. Approved content with null reviewed hash fails its CHECK.
+11. Cross-owner basis reference fails its composite foreign key.
+12. Duplicate owner/intent fails uniqueness.
+13. A failed assertion after an edition insert rolls back the preceding insert in the harness's SQLite transaction.
+14. Withdrawal of an older parent edition's content rejects a request using newer content.
+15. Deleting an account with populated parent-edition relationships satisfies the actual cascade constraints.
+16. Withdrawal of selected older-edition content rejects publication.
+17. Deleting an account with populated selected-edition relationships satisfies the actual cascade constraints.
+18. Quota held plus consumed exceeding allowance fails its CHECK.
+19. Table and column sets exactly match the fixed lifecycle registry.
+20. Expired absolute request deadline rejects publication independently of the lease.
+21. A worker timestamp from before the deadline cannot authorize SQL executing after both deadlines.
+22. Equality with the database-clock deadline rejects publication (clock frozen only for this boundary fixture).
+23. Execution-time expiry in the actual guard rolls back a preceding edition insert in the SQLite transaction.
+24. An erased import alias cannot retain a private body or entity FK.
+25. A detached erased alias survives deletion of its source session.
+26. The erased source key still rejects a duplicate alias insert.
+
+These are selected probes, not exhaustive tests of every enum, statement, race or retention process. The future workerd/hosted tests must use the same SQL and verify D1 `batch()` failure and rollback directly.
+
+## Focused resolution of the e505ca3 review
+
+Both reported reproductions were confirmed before editing: the old guard accepted expired deadlines with a stale :now; a501-unit question passed LegacyRecord and failed HistoryItem. The patch resolves all four findings without changing the architecture or implementation sequence:
+
+| Finding | Specification change and focused evidence |
+|---|---|
+| Stale publication timestamp | Guard now uses SQLite execution-time milliseconds. Dispatch/publication share strict deadline predicates, repeated on the final authorization update. Actual SQL checks cover stale time, absolute/lease expiry, equality and rollback. Hosted scheduling/clock behavior remains A07 qualification. |
+| Incomplete erasure replay/completion | Independent authenticated encrypted targets identify each scope without a D1 job. Immutable numbered passes/completions bind intent/previous-completion hashes, retain named older keys, and extend deadlines on restore. Synthetic reference checks cover a missing job, exact reflection revision/owner, missing and retained older keys, tampering, pending replay, reordered/gapped chains and two subsequent restores. No recovery service is claimed implemented. |
+| Unexpressible import recovery | ImportSource/ImportRecordIdentity/ImportRecovery appear in request, preview, commit and portable records. Confirmation is bound to previewHash; source-entity tombstones cannot be bypassed by a revision label. Reference cases cover identical/chunk-stable re-import, changed content, confirmed new revision, colliding dataset IDs, erasure after preview, explicit new namespace and preserved old tombstone. SQL checks exercise alias detachment/constraints. |
+| Imported question/history mismatch | HistoryItem has questionPreview/questionTruncated; SessionRecord and imported/exported records preserve full nullable text. Reference import → history → reopen → portable-export projections retain a501-unit question and Unicode boundary text exactly, with a bounded preview. Handler/browser execution remains milestone3 work. |
+
+The new TypeScript cases use synthetic in-memory reference state and local cryptography around the real schemas. They do not implement or qualify application services. The two added SQL columns and erasure-envelope policy were individually updated in the reviewed registry; the authoring generator was not used to fill coverage automatically.
+
+## Independent review and resolution
+
+Three bounded native reviews examined the draft: data/concurrency, privacy/operations, and product/contracts. The author integrated the material findings below and checked the resulting artifacts. This is not a claim that those reviewers re-reviewed or formally approved the final package.
+
+| Finding | Resolution in the delivered specification |
+|---|---|
+| Mutable row revisions would break ciphertext AAD; DEK rotation would change duplicate hashes. | Immutable `Ciphertext.aadRevision`; separately wrapped stable account index key; exact encrypted-field bindings in registry. |
+| Restore could replay work or revive revoked credentials/used recovery codes. | Independent encrypted identity checkpoints, serialized security saga, restore invalidation of sessions/permissions/grants and all nonterminal work; financial admission frozen until reconciliation. |
+| A deletion accepted before its independent intent could disappear on restore; request-time backup expiry was unsafe. | HTTP 202 only after durable R2 intent; client-generated receipt capability handles lost responses; backup deadline begins at completed active erasure and is null while pending. |
+| Parent/selected content could be withdrawn under a newer request edition; a missing context row could pass a vacuous check. | Guard joins cover older source content; captured count must match actual selected snapshots. Negative SQL probes exercise both. |
+| Nullable approval checks could admit unreviewed content. | Explicit non-null reviewer/hash conditions, with a rejecting SQL probe. |
+| Import aliases did not identify exact entities or retain sufficient original data. | Typed owned entity/revision links and encrypted original source records; erased aliases prevent silent re-import resurrection. |
+| Unsave lacked a retention deadline; unavailable/history/export shapes were incomplete. | Explicit unsave expiry; nullable history edition with request status; unavailable reading tombstones; paginated permissions, grants and metadata export. |
+| Hash-only CSRF/recovery storage could not recreate a promised response. | Derivable session-bound CSRF; recovery handle returned only on provisioning/rotation and nullable otherwise. |
+| UI promised unsupported server-saved notes and lacked source/grant retrieval. | Unsupported-input drafts remain RAM-only with explicit copy/download; accepted readings carry exact source snapshots; paginated grant GET added. |
+| Cost reconciliation could be applied twice. | Unique adjustment identities and atomic state/bucket CAS; actual liabilities retained even above admission caps. |
+| Simplified auth API descriptions still omitted the new checkpoint ordering. | Registration, recovery, acknowledgement, credential removal and code rotation now describe the same durable saga as SECURITY_RESTORE. |
+
+## Six cross-layer traces reviewed
+
+The following traces are consistency walkthroughs of the specification, **not executed journeys**. API paths below have `/api/v1` prefix. Component and test IDs resolve through ARCHITECTURE and VERIFICATION_PLAN.
+
+| Scenario | UI → API → services/state → storage → egress → observable result |
+|---|---|
+| First session | `/new` previews question, independent model permission and temporary storage → POST `/requests` → GenerationService authenticates, admits and reserves; driver prepares, dispatches, validates and publishes → owned session/basis/request, quota and spend reservations, unique dispatch, guarded edition/event commit → one permitted payload with exact facts/canon/question → polling exposes only progress and an accepted edition; basis/source panel is inspectable. PUT session save keeps the reading without requiring a reflection. Sign out/in → GET saved history → reopen the same edition without inference; a later explicit POST/PUT reflection saves authored text independently. A01–A09 and MVP01/MVP05. |
+| Follow-up | Exact parent and selected excerpts in ContextSelector → grants/list/preview then POST `/requests` with parent ID and new intent → same session/basis, current source/grant revisions and bounded PreparedPlan → new request/context snapshots and later edition with immutable parent link → only explicitly previewed fragments plus current question/basis/canon → original text remains available, new result is distinct and user reflection remains separately authored. A06/A11. |
+| Duplicate start | Double-click or lost response keeps intent/key → repeated POST or GET `/requests?intentId=…` → compare owned canonical payload HMAC → unique owner/intent and rollback of losing reservation batch → unique dispatch prevents a second deliberate call → both callers resolve the same request/edition; changed payload conflicts. A07/A14. |
+| Revoked-context race | User revokes grant in settings while writing runs → DELETE grant with current revision → PermissionService revokes/fences dependent work → current publication assertion fails and quota release occurs once → authorization before revocation may already have transmitted text; no recall promise → no accepted result from the revoked context, and UI asks for a new explicit selection. A06/A07. |
+| Account deletion | Recent authentication and explicit delete with receipt capability → DELETE `/account` → account/auth/work fence, durable independent intent, active-store erasure, completion → registry families, copies and keys erased; detached cost links scrubbed; R2 intent survives DB restore → no new inference; previous transmission retention remains disclosed → 202 only after durable intent, receipt reports pending/complete and backup deadline; lost response remains resolvable without a session. A08/A14. |
+| Import with incomplete provenance | ImportPreview shows known text and gaps → POST `/imports`, then selected commit → bounded version adapter preserves original JSON/IDs/time/roles and validates parent graph → atomic per-session group, typed owned aliases, `legacy.imported.v1`, no new context grant → no provider call → unverified historical text and explicit unknowns reopen/export unchanged; unresolved parent group fails visibly; re-import is idempotent. A12. |
+
+## Outstanding qualification, not missing specification
+
+The specification is complete: all seven required deliverables are present, local links resolve, and the current contracts, generated schemas, SQL assertions and field registry checks pass. The recorded design and evidence are sufficient for the next implementation milestone. No additional optional source investigation or approval is required to finish this specification. The qualifications below remain future implementation and rollout work; none is claimed complete by the artifact checks.
+
+Implementation starts with milestone 1's local contracts, deterministic composition, actual D1 harness, intercepted provider and release-gate implementation. Real-user rollout still requires qualified passkey/runtime behavior; approved launch content and rights; authorized live-provider quality/latency/retention checks; browser/accessibility and fault/egress tests; actual main-branch failed-test/preview isolation proof; and full synthetic erasure/security/spend restore. Geography/age policy, domain/resource identifiers and accepted financial limits remain explicit owner/environment inputs. Legacy user/subscription inventory blocks retirement decisions, not writing the successor.
+
+No paid inference, hosted resource mutation, real private record access, predecessor implementation change, remote repository creation, subscription action or shutdown was performed. Predecessor code/tests/reports were inspected at recorded revisions; their test suites were not run. Optional inaccessible sessions and the missing synthesis document are identified in ARCHITECTURE. Current vendor documentation establishes only the narrow documented facts cited there.

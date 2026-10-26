@@ -1,0 +1,10 @@
+import SwaggerParser from '@apidevtools/swagger-parser';
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import YAML from 'yaml';
+const file='docs/architecture/openapi.yaml';
+const parsed=YAML.parse(readFileSync(file,'utf8')) as {paths:Record<string,Record<string,{operationId:string}>>};
+const operations=Object.values(parsed.paths).flatMap(p=>Object.values(p));
+assert.equal(new Set(operations.map(o=>o.operationId)).size,operations.length);
+await SwaggerParser.validate(file);
+console.log(`OpenAPI syntax/schema/references validated; ${operations.length} unique operations. This does not prove handler behavior.`);

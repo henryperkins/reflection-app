@@ -1,0 +1,2700 @@
+{
+  "version": 1,
+  "classes": {
+    "P": "public content/configuration",
+    "M": "sensitive operational metadata",
+    "E": "AES-GCM encrypted personal field",
+    "S": "secret verifier/hash; no plaintext export",
+    "K": "wrapped account key; KEK external"
+  },
+  "tables": {
+    "account_keys": {
+      "retention": "account lifetime and rotation references",
+      "erasure": "destroy after encrypted bodies removed; backup limits apply",
+      "columns": {
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "wrap_key_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "wrapped_key_enc": {
+          "aadRule": "[env,account-wrap,owner_id,version,wrap_key_id,wrapped_key_enc]",
+          "class": "K",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "wrapped_index_key_enc": {
+          "aadRule": "[env,account-wrap,owner_id,version,wrap_key_id,wrapped_index_key_enc]",
+          "class": "K",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "accounts": {
+      "retention": "account lifetime",
+      "erasure": "delete after erasure ledger receipt",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "profile metadata"
+        },
+        "status": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": "'active'",
+          "export": "profile metadata"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "profile metadata"
+        },
+        "data_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "profile metadata"
+        },
+        "auth_epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "profile metadata"
+        },
+        "permission_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "profile metadata"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "profile metadata"
+        },
+        "write_fence": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "profile metadata"
+        },
+        "recovery_handle_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "recovery_ack_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "profile metadata"
+        },
+        "storage_bytes": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "profile metadata"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "profile metadata"
+        },
+        "updated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "profile metadata"
+        }
+      }
+    },
+    "assertion_probe": {
+      "retention": "empty",
+      "erasure": "never contains a successful row",
+      "columns": {
+        "ok": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "none"
+        }
+      }
+    },
+    "auth_challenges": {
+      "retention": "5 minutes; purge within 1 hour",
+      "erasure": "expiry or account cascade",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "purpose": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "challenge_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "browser_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "auth_epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "consumed_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "auth_sessions": {
+      "retention": "7 days absolute; 24h idle",
+      "erasure": "logout/epoch change/account cascade",
+      "columns": {
+        "token_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "csrf_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "auth_epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "authenticated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "idle_expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "basis_snapshots": {
+      "retention": "with session",
+      "erasure": "null body on session erase; cascade on account erase",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed basis"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed basis"
+        },
+        "session_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed basis"
+        },
+        "kind": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed basis"
+        },
+        "schema_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed basis"
+        },
+        "body_enc": {
+          "aadRule": "[env,basis_snapshots,body_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted typed basis"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed basis"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed basis"
+        }
+      }
+    },
+    "content_editions": {
+      "retention": "public content until withdrawal policy",
+      "erasure": "withdraw bytes when rights/safety policy requires; keep hash/status",
+      "columns": {
+        "hash": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "policy_revision": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "public source provenance"
+        },
+        "bundle_json": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "reviewed_hash": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "reviewer_kind": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "reviewer_id": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "rights_status": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "approved_at": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "public source provenance"
+        },
+        "withdrawn_at": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "public source provenance"
+        }
+      }
+    },
+    "context_grants": {
+      "retention": "with owner/source; revisions retained as snapshot",
+      "erasure": "revoke on source correction/erase; account cascade",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        },
+        "edition_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        },
+        "reflection_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        },
+        "reflection_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "current grant and captured historical metadata"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        },
+        "updated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "current grant and captured historical metadata"
+        }
+      }
+    },
+    "cost_adjustments": {
+      "retention": "90d or unresolved liability",
+      "erasure": "cascade cost row; no personal content",
+      "columns": {
+        "idempotency_key": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned usage projection before detachment"
+        },
+        "cost_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned usage projection before detachment"
+        },
+        "before_microusd": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "owned usage projection before detachment"
+        },
+        "after_microusd": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "owned usage projection before detachment"
+        },
+        "reason": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned usage projection before detachment"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "owned usage projection before detachment"
+        }
+      }
+    },
+    "cost_reservations": {
+      "retention": "90d; unresolved financial totals may remain aggregate",
+      "erasure": "detach owner_id and dispatch_id before account erase",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "dispatch_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "day_period": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "month_period": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "reserved_microusd": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "actual_microusd": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "price_basis_json": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "owned numeric usage only"
+        },
+        "settled_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "owned numeric usage only"
+        }
+      }
+    },
+    "credentials": {
+      "retention": "until removed/account erased",
+      "erasure": "cascade account; revoke on recovery",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "metadata only"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "metadata only"
+        },
+        "public_key": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "BLOB",
+          "nullable": false,
+          "default": null,
+          "export": "metadata only"
+        },
+        "sign_count": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "metadata only"
+        },
+        "backed_up": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "metadata only"
+        },
+        "transports_json": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "metadata only"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "metadata only"
+        }
+      }
+    },
+    "deletion_jobs": {
+      "retention": "45 days after completed erasure; pending never purged",
+      "erasure": "null target_enc on completion; remove identifiers at retention end",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "scope": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "target_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "target_enc": {
+          "aadRule": "JCS([env,'erasure-target.v1',jobId,scope,subjectHmac,targetHmac,hmacKeyId,requestedAt,target.keyId]); same RecoveryCiphertext as R2 intent",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "receipt_token_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "ledger_key": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "attempts": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "receipt status only"
+        },
+        "next_run_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "completed_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "receipt status only"
+        },
+        "backup_expires_by": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "receipt status only"
+        }
+      }
+    },
+    "export_tickets": {
+      "retention": "60 minutes",
+      "erasure": "expiry/account cascade; no export bodies stored",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "snapshot_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "generation_attempts": {
+      "retention": "30d then retain minimal epoch in accepted provenance",
+      "erasure": "cascade when owner/request removed",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted provenance only"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted provenance only"
+        },
+        "request_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted provenance only"
+        },
+        "run_epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "accepted provenance only"
+        },
+        "lease_token": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted provenance only"
+        },
+        "started_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "accepted provenance only"
+        },
+        "finished_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "accepted provenance only"
+        },
+        "outcome": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "accepted provenance only"
+        }
+      }
+    },
+    "generation_context": {
+      "retention": "with request/accepted provenance",
+      "erasure": "null fragment on source-copy erase; account cascade",
+      "columns": {
+        "request_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        },
+        "ordinal": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        },
+        "grant_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        },
+        "grant_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        },
+        "fragment_enc": {
+          "aadRule": "[env,generation_context,fragment_enc,owner_id,request_id || : || ordinal,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        },
+        "fragment_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted exact selected fragment or redaction"
+        }
+      }
+    },
+    "generation_requests": {
+      "retention": "published skeleton with edition; failures metadata30d/private24h",
+      "erasure": "null input/plan on target-copy erase; account cascade",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "session_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "client_intent_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "parent_edition_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "basis_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "operation": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "payload_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "safe state and accepted provenance"
+        },
+        "run_epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "safe state and accepted provenance"
+        },
+        "lease_token": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "lease_expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "next_run_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "permission_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "content_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "content_policy_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "policy_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "input_enc": {
+          "aadRule": "[env,generation_requests,input_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "plan_enc": {
+          "aadRule": "[env,generation_requests,plan_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "plan_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "context_count": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "safe state and accepted provenance"
+        },
+        "next_event": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "safe state and accepted provenance"
+        },
+        "error_code": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "fallback_reason": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        },
+        "finished_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "safe state and accepted provenance"
+        }
+      }
+    },
+    "idempotency_keys": {
+      "retention": "7 days",
+      "erasure": "expiry/account cascade",
+      "columns": {
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "key_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "operation": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "payload_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "resource_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "import_batches": {
+      "retention": "preview24h; committed metadata30d",
+      "erasure": "expiry/owner cascade",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "import origin projected from editions"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "import origin projected from editions"
+        },
+        "source_format": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "import origin projected from editions"
+        },
+        "document_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "import origin projected from editions"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "import origin projected from editions"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "import origin projected from editions"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "import origin projected from editions"
+        }
+      }
+    },
+    "import_identities": {
+      "retention": "with imported records; erased alias tombstone while account lives",
+      "erasure": "set erased_at; null body and entity FKs before deletion; retain both identity HMACs to prevent silent reimport; account cascade",
+      "columns": {
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "source_key_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "original_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "session_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "entity_kind": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "edition_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "reflection_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "reflection_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "revisit_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "source_record_enc": {
+          "aadRule": "[env,import_identities,source_record_enc,owner_id,source_key_hmac,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "source_entity_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "erased_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        }
+      }
+    },
+    "import_items": {
+      "retention": "preview raw24h; completed body purged after copy into edition",
+      "erasure": "purge preview after24h; raw original in edition also erased",
+      "columns": {
+        "batch_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "item_index": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "source_key_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "original_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "body_enc": {
+          "aadRule": "[env,import_items,body_enc,owner_id,batch_id || : || item_index,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "session_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "only committed original in edition"
+        },
+        "error_code": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "only committed original in edition"
+        }
+      }
+    },
+    "permission_revisions": {
+      "retention": "account lifetime",
+      "erasure": "account cascade",
+      "columns": {
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "permission history"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "permission history"
+        },
+        "model_allowed": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "permission history"
+        },
+        "policy_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "permission history"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "permission history"
+        }
+      }
+    },
+    "provider_dispatches": {
+      "retention": "accepted payload with saved edition; rejected candidate24h; failed metadata30d",
+      "erasure": "null payload/candidate/response ID on copy erase; account cascade",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "request_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "attempt_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "provider": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "requested_model": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "returned_model": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "provider_response_id_enc": {
+          "aadRule": "[env,provider_dispatches,provider_response_id_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "transmission_enc": {
+          "aadRule": "[env,provider_dispatches,transmission_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "transmission_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "candidate_enc": {
+          "aadRule": "[env,provider_dispatches,candidate_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "prompt_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "validator_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "content_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "parameters_json": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "input_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "output_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "duration_ms": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "authorized_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "received_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        }
+      }
+    },
+    "quota_buckets": {
+      "retention": "current plus previous month; referenced periods retained",
+      "erasure": "account cascade; never delete referenced bucket",
+      "columns": {
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "allowance/usage projection"
+        },
+        "period": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "allowance/usage projection"
+        },
+        "allowance": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "allowance/usage projection"
+        },
+        "held": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "allowance/usage projection"
+        },
+        "consumed": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "allowance/usage projection"
+        }
+      }
+    },
+    "quota_events": {
+      "retention": "with request; numeric history",
+      "erasure": "account cascade; no provider refund implied",
+      "columns": {
+        "request_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "event": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        }
+      }
+    },
+    "quota_reservations": {
+      "retention": "with request",
+      "erasure": "account cascade after compensation",
+      "columns": {
+        "request_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "day_period": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "month_period": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "usage projection"
+        }
+      }
+    },
+    "rate_buckets": {
+      "retention": "48 hours",
+      "erasure": "expiry; rotating HMAC prevents durable network tracking",
+      "columns": {
+        "scope_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "window_start": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "count": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "reading_editions": {
+      "retention": "saved lifetime; unsaved24h; unavailable shell as referenced",
+      "erasure": "null body on delete/required withdrawal; preserve reference shell",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "session_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "edition_number": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "request_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "basis_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "parent_edition_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "status": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "mode": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "body_enc": {
+          "aadRule": "[env,reading_editions,body_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "content_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "accepted_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        },
+        "invalidated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted typed body and availability"
+        }
+      }
+    },
+    "reading_sessions": {
+      "retention": "saved lifetime; unsaved 24h; tombstone as referenced",
+      "erasure": "null body; retain broken reference shell",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "session metadata and decrypted question"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "session metadata and decrypted question"
+        },
+        "status": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": "'open'",
+          "export": "session metadata and decrypted question"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "session metadata and decrypted question"
+        },
+        "question_enc": {
+          "aadRule": "[env,reading_sessions,question_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "session metadata and decrypted question"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "session metadata and decrypted question"
+        },
+        "saved_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "session metadata and decrypted question"
+        },
+        "deleted_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "session metadata and decrypted question"
+        },
+        "retention_expires_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "session metadata and decrypted question"
+        }
+      }
+    },
+    "recovery_codes": {
+      "retention": "until used/rotated/account erased",
+      "erasure": "delete on rotation/account erase",
+      "columns": {
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "code_hash": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "used_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "reflection_revisions": {
+      "retention": "saved lifetime unless explicitly erased",
+      "erasure": "null body and record erased_at; erase downstream copies",
+      "columns": {
+        "reflection_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored revision"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored revision"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored revision"
+        },
+        "body_enc": {
+          "aadRule": "[env,reflection_revisions,body_enc,owner_id,reflection_id || : || revision,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted authored revision"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored revision"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored revision"
+        },
+        "erased_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "decrypted authored revision"
+        }
+      }
+    },
+    "reflections": {
+      "retention": "with session",
+      "erasure": "mark deleted/null revision bodies; account cascade",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "metadata and revisions"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "metadata and revisions"
+        },
+        "session_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "metadata and revisions"
+        },
+        "edition_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "metadata and revisions"
+        },
+        "current_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "metadata and revisions"
+        },
+        "deleted_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "metadata and revisions"
+        }
+      }
+    },
+    "request_events": {
+      "retention": "7 days",
+      "erasure": "purge by age/account cascade",
+      "columns": {
+        "request_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        },
+        "sequence": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        },
+        "code": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        },
+        "edition_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        },
+        "error_code": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "none; authoritative status still exported"
+        }
+      }
+    },
+    "revisits": {
+      "retention": "with owned saved edition",
+      "erasure": "delete when target/session/account erased",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored note"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored note"
+        },
+        "edition_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored note"
+        },
+        "note_enc": {
+          "aadRule": "[env,revisits,note_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored note"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored note"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "decrypted authored note"
+        }
+      }
+    },
+    "security_operations": {
+      "retention": "D1 applied operation30d; R2 current checkpoint until superseded; old45d; pending indefinite",
+      "erasure": "account deletion removes checkpoint after durable erasure; details in SECURITY_RESTORE",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "snapshot_enc": {
+          "aadRule": "[env,identity-checkpoint,HMAC(subjectId),epoch,id,1] under RECOVERY_KEK",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "ledger_key": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "next_run_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "applied_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "spend_buckets": {
+      "retention": "90d or while unresolved liability",
+      "erasure": "no owner linkage",
+      "columns": {
+        "period": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "aggregate operational only"
+        },
+        "ceiling_microusd": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "aggregate operational only"
+        },
+        "committed_microusd": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "aggregate operational only"
+        }
+      }
+    },
+    "system_state": {
+      "retention": "current configuration",
+      "erasure": "no personal data",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "none"
+        },
+        "schema_version": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "none"
+        },
+        "active_content_hash": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "none"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "none"
+        },
+        "generation_enabled": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "none"
+        },
+        "dispatch_mode": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": "'off'",
+          "export": "none"
+        },
+        "provider_policy_hash": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "none"
+        },
+        "updated_at": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "none"
+        }
+      }
+    }
+  }
+}
