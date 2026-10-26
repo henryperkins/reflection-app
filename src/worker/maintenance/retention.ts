@@ -9,10 +9,11 @@ export class RetentionMaintenance {
   private ids(table: string, eligible: string, order: string) {
     return `SELECT rowid FROM ${table} WHERE ${eligible} ORDER BY ${order},rowid LIMIT 100`;
   }
-  private invalidate(table: string, ids: string) {
+  private invalidate(table: string, ids: string, ...values: number[]) {
     return q(
       this.db,
       `UPDATE accounts SET data_revision=data_revision+1 WHERE id IN (SELECT owner_id FROM ${table} WHERE rowid IN (${ids}))`,
+      ...values,
     );
   }
   async run() {
@@ -71,20 +72,28 @@ export class RetentionMaintenance {
 
     const failed = `state IN ('blocked','failed','expired','cancelled') AND NOT EXISTS(SELECT 1 FROM reading_editions e WHERE e.request_id=generation_requests.id AND e.owner_id=generation_requests.owner_id) AND NOT EXISTS(SELECT 1 FROM generation_context gc WHERE gc.request_id=generation_requests.id)`;
     const oldFailure = `${failed} AND coalesce(finished_at,expires_at)<=${DB_NOW}-${DAY}`;
-    const bodies = this.ids(
+    const bodyCandidates = this.ids(
       'generation_requests',
       `${oldFailure} AND (input_enc IS NOT NULL OR plan_enc IS NOT NULL OR EXISTS(SELECT 1 FROM provider_dispatches d WHERE d.request_id=generation_requests.id AND (d.transmission_enc IS NOT NULL OR d.candidate_enc IS NOT NULL OR d.provider_response_id_enc IS NOT NULL)))`,
       'coalesce(finished_at,expires_at)',
     );
+    // Freeze only the bounded row identities. Recheck terminal/deadline/reference eligibility
+    // in every statement; changing a body must not pull the next owner's row into this batch.
+    const bodyIds = (await q(this.db, bodyCandidates).all<{ rowid: number }>()).results.map(
+      (r) => r.rowid,
+    );
+    const bodies = `SELECT rowid FROM generation_requests WHERE rowid IN (${bodyIds.map(() => '?').join(',') || 'NULL'}) AND ${oldFailure}`;
     await batch('failed_bodies', [
-      this.invalidate('generation_requests', bodies),
+      this.invalidate('generation_requests', bodies, ...bodyIds),
       q(
         this.db,
         `UPDATE generation_requests SET input_enc=NULL,plan_enc=NULL,revision=revision+1 WHERE rowid IN (${bodies})`,
+        ...bodyIds,
       ),
       q(
         this.db,
         `UPDATE provider_dispatches SET transmission_enc=NULL,candidate_enc=NULL,provider_response_id_enc=NULL WHERE request_id IN (SELECT id FROM generation_requests WHERE rowid IN (${bodies}))`,
+        ...bodyIds,
       ),
     ]);
 

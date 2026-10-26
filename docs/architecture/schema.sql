@@ -794,3 +794,6 @@ CREATE INDEX dispatch_retention ON provider_dispatches(received_at);
 CREATE INDEX security_retention ON security_operations(state,applied_at);
 CREATE INDEX cost_retention ON cost_reservations(state,settled_at);
 CREATE INDEX deleted_session_retention ON reading_sessions(status,deleted_at);
+
+-- A verified independent cleanup receipt rejects snapshots below this recovery floor.
+ALTER TABLE system_state ADD COLUMN recovery_epoch INTEGER NOT NULL DEFAULT 0 CHECK(recovery_epoch>=0);

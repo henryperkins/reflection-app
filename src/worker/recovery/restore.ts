@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Env } from '../index.ts';
-import { Id, IdentityCheckpoint } from '../../contracts/index.ts';
+import { IdentityCheckpoint } from '../../contracts/index.ts';
 import { sha256Json } from '../../domain/json.ts';
 import { statement as q, DB_NOW } from '../db/core.ts';
 import {
@@ -13,9 +13,10 @@ import { localIdentity } from '../identity/routes.ts';
 import { RecordBase } from '../readings/base.ts';
 import { SessionErasure } from '../readings/erasure.ts';
 import { syntheticBundle } from '../readings/local-content.ts';
-import { objects, type Chain } from './ledger.ts';
+import { objects, erasureJobIds, type Chain } from './ledger.ts';
+import { recoveryExclusive, type RecoveryLease } from './coordination.ts';
+import { CleanupJournal, CLEANUP_STATE_KEY } from './cleanup-state.ts';
 
-const active = new WeakSet<D1Database>();
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 /** Local operator service only. No HTTP route imports this module. One offline runner owns D1/R2. */
 export class OfflineRestore {
@@ -42,7 +43,7 @@ export class OfflineRestore {
     );
     this.now = options.now ?? Date.now;
   }
-  private async fence() {
+  async fence() {
     await this.env.DB.batch([
       q(
         this.env.DB,
@@ -55,26 +56,22 @@ export class OfflineRestore {
       ),
     ]);
   }
-  private async exclusive<T>(work: () => Promise<T>): Promise<T> {
-    if (active.has(this.env.DB)) throw new Error('An offline restore operation is already running');
-    active.add(this.env.DB);
-    try {
-      return await work();
-    } finally {
-      active.delete(this.env.DB);
-    }
+  private async exclusive<T>(work: (lease: RecoveryLease) => Promise<T>): Promise<T> {
+    return recoveryExclusive(this.base.identity.crypt.secrets.environment, work);
   }
   /** Flush accessible operations before taking the database back to an older bookmark. */
   async prepare() {
-    return this.exclusive(async () => {
+    return this.exclusive(async (lease) => {
       await this.fence();
+      await new CleanupJournal(this.erasure.ledger).requireRestorable(this.env.DB);
       for (;;) {
         const pending = await q(
           this.env.DB,
           "SELECT id FROM security_operations WHERE state!='applied' ORDER BY created_at LIMIT 100",
         ).all<{ id: string }>();
         if (!pending.results.length) break;
-        for (const row of pending.results) await this.base.identity.checkpoints.apply(row.id);
+        for (const row of pending.results)
+          await this.base.identity.checkpoints.apply(row.id, lease);
       }
       for (;;) {
         const pending = await q(
@@ -82,7 +79,7 @@ export class OfflineRestore {
           "SELECT id FROM deletion_jobs WHERE state!='complete' ORDER BY created_at LIMIT 100",
         ).all<{ id: string }>();
         if (!pending.results.length) break;
-        for (const row of pending.results) await this.erasure.resume(row.id);
+        for (const row of pending.results) await this.erasure.resume(row.id, lease);
       }
       return { status: 'offline' as const };
     });
@@ -90,22 +87,9 @@ export class OfflineRestore {
   async replay() {
     return this.exclusive(async () => {
       await this.fence();
+      await new CleanupJournal(this.erasure.ledger).requireRestorable(this.env.DB);
       const inventory = await this.inventory();
-      const jobs = [
-        ...new Set(
-          inventory.erasures.map((item) => {
-            // Older accepted receipts may contain uppercase UUID digits. Preserve their exact
-            // signed identities; new DeleteRequest admission permits canonical lowercase only.
-            const match =
-              /^erasures\/v1\/([^/]+)\/(intent\.json|passes\/[1-9][0-9]*\/(start|complete)\.json)$/.exec(
-                item.key,
-              );
-            if (!match || !Id.safeParse(match[1]).success)
-              throw new Error('Unexpected erasure object');
-            return match[1]!;
-          }),
-        ),
-      ];
+      const jobs = erasureJobIds(inventory.erasures);
       const chains: Chain[] = [];
       for (const id of jobs) chains.push(await this.erasure.ledger.load(id));
       const erasedAccounts = new Set(
@@ -145,24 +129,7 @@ export class OfflineRestore {
         if (!checkpoint || checkpoint.epoch < account.auth_epoch)
           throw new Error('Missing current identity checkpoint');
         await this.applyCheckpoint(checkpoint);
-        const keys = (
-          await q(
-            this.env.DB,
-            'SELECT version,wrapped_key_enc,wrapped_index_key_enc FROM account_keys WHERE owner_id=?',
-            account.id,
-          ).all<{ version: number; wrapped_key_enc: string; wrapped_index_key_enc: string }>()
-        ).results;
-        if (!keys.some((k) => k.version === account.key_version))
-          throw new Error('Missing account data key');
-        for (const key of keys) {
-          if (key.version !== 1) throw new Error('Unsupported account key version');
-          await this.base.identity.crypt.unwrapAccountKey(account.id, key.wrapped_key_enc, 'data');
-          await this.base.identity.crypt.unwrapAccountKey(
-            account.id,
-            key.wrapped_index_key_enc,
-            'index',
-          );
-        }
+        await this.validateAccountKeys(account.id, account.key_version);
       }
       await this.resetRuntime();
       await this.checkContent();
@@ -186,20 +153,31 @@ export class OfflineRestore {
       };
     });
   }
-  private async inventory() {
+  async inventory() {
     const normalize = (items: R2Object[]) =>
       items
         .map((i) => ({ key: i.key, etag: i.etag, size: i.size }))
         .sort((a, b) => a.key.localeCompare(b.key));
+    const all = await objects(this.env.RECOVERY!, '');
+    if (
+      all.some(
+        (o) =>
+          o.key !== CLEANUP_STATE_KEY &&
+          !o.key.startsWith('erasures/') &&
+          !o.key.startsWith('identity/'),
+      )
+    )
+      throw new Error('Unexpected recovery object');
     return {
-      erasures: normalize(await objects(this.env.RECOVERY!, 'erasures/')),
-      identity: normalize(await objects(this.env.RECOVERY!, 'identity/')),
+      erasures: normalize(all.filter((o) => o.key.startsWith('erasures/'))),
+      identity: normalize(all.filter((o) => o.key.startsWith('identity/'))),
     };
   }
-  private async checkpoints(
+  async checkpoints(
     entries: Array<{ key: string; etag: string; size: number }>,
     owners: string[],
     erased: Set<string>,
+    all?: Map<string, Checkpoint>,
   ) {
     const result = new Map<string, Checkpoint>();
     const byPrefix = new Map<string, { owner: string; crypt: IdentityCrypto }>();
@@ -221,6 +199,7 @@ export class OfflineRestore {
       const snapshot = IdentityCheckpoint.parse(
         await expected.crypt.openCheckpoint(expected.owner, Number(match[2]), match[3]!, raw),
       );
+      all?.set(entry.key, snapshot);
       const epoch = `${snapshot.subjectId}:${snapshot.epoch}`;
       if (epochs.has(epoch)) throw new Error('Ambiguous identity checkpoint epoch');
       epochs.add(epoch);
@@ -230,6 +209,21 @@ export class OfflineRestore {
         result.set(snapshot.subjectId, snapshot);
     }
     return result;
+  }
+  async validateAccountKeys(owner: string, version: number) {
+    const keys = (
+      await q(
+        this.env.DB,
+        'SELECT version,wrapped_key_enc,wrapped_index_key_enc FROM account_keys WHERE owner_id=?',
+        owner,
+      ).all<{ version: number; wrapped_key_enc: string; wrapped_index_key_enc: string }>()
+    ).results;
+    if (!keys.some((k) => k.version === version)) throw new Error('Missing account data key');
+    for (const key of keys) {
+      if (key.version !== 1) throw new Error('Unsupported account key version');
+      await this.base.identity.crypt.unwrapAccountKey(owner, key.wrapped_key_enc, 'data');
+      await this.base.identity.crypt.unwrapAccountKey(owner, key.wrapped_index_key_enc, 'index');
+    }
   }
   private async applyCheckpoint(snapshot: Checkpoint) {
     const owner = snapshot.subjectId;

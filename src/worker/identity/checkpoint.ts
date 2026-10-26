@@ -1,3 +1,4 @@
+import { recoveryWrite, type RecoveryLease } from '../recovery/coordination.ts';
 import { IdentityCheckpoint } from '../../contracts/index.ts';
 import { type Checkpoint, decode, type IdentityCrypto, type WrappedKeys } from './crypto.ts';
 
@@ -32,12 +33,23 @@ export class IdentityCheckpoints {
     input: Checkpoint,
     options: { initialKeys?: WrappedKeys; expected?: Checkpoint; guards?: D1PreparedStatement[] },
   ): Promise<void> {
+    return recoveryWrite(this.crypt.secrets.environment, () =>
+      this.commitOperation(input, options),
+    );
+  }
+  private async commitOperation(
+    input: Checkpoint,
+    options: { initialKeys?: WrappedKeys; expected?: Checkpoint; guards?: D1PreparedStatement[] },
+  ): Promise<void> {
     const snapshot = IdentityCheckpoint.parse(input);
     const encrypted = await this.crypt.sealCheckpoint(snapshot);
     const key = await this.crypt.checkpointKey(snapshot);
     const now = Date.now(),
       fence = `security:${snapshot.operationId}`;
-    const writes = [...(options.guards ?? [])];
+    const writes = [
+      assertion(this.db, 'NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1)'),
+      ...(options.guards ?? []),
+    ];
     if (options.initialKeys) {
       if (snapshot.epoch !== 1) throw new Error('Invalid initial epoch');
       writes.push(
@@ -133,7 +145,19 @@ export class IdentityCheckpoints {
     await this.db.batch(writes);
     await this.apply(snapshot.operationId);
   }
-  async apply(id: string): Promise<void> {
+  async apply(id: string, lease?: RecoveryLease): Promise<void> {
+    return recoveryWrite(
+      this.crypt.secrets.environment,
+      () => this.applyOperation(id, lease),
+      lease,
+    );
+  }
+  private async applyOperation(id: string, lease?: RecoveryLease): Promise<void> {
+    if (
+      !lease &&
+      (await statement(this.db, 'SELECT 1 FROM system_state WHERE restore_in_progress=1').first())
+    )
+      throw new Error('Recovery database is offline');
     const op = await statement(
       this.db,
       'SELECT * FROM security_operations WHERE id=?',

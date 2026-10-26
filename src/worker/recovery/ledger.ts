@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import {
+  Id,
   ErasureIntent,
   ErasureTarget,
   ErasurePass,
@@ -42,6 +43,22 @@ export async function objects(bucket: R2Bucket, prefix: string) {
     cursors.add(cursor);
   } while (cursor !== undefined);
   return entries;
+}
+
+/** Preserve exact signed UUID case for legacy receipts; new admission is lowercase. */
+export function erasureJobIds(entries: Array<{ key: string }>) {
+  return [
+    ...new Set(
+      entries.map((item) => {
+        const match =
+          /^erasures\/v1\/([^/]+)\/(intent\.json|passes\/[1-9][0-9]*\/(start|complete)\.json)$/.exec(
+            item.key,
+          );
+        if (!match || !Id.safeParse(match[1]).success) throw new Error('Unexpected erasure object');
+        return match[1]!;
+      }),
+    ),
+  ];
 }
 
 /** Existing local ledger encoding, authenticated independently of account DEKs. */

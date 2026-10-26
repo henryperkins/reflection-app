@@ -2709,6 +2709,13 @@
           "nullable": false,
           "default": "0",
           "export": "never"
+        },
+        "recovery_epoch": {
+          "class": "M",
+          "export": "excluded",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0"
         }
       }
     }

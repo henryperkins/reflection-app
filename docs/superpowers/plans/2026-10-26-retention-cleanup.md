@@ -56,8 +56,8 @@
 
 **Interfaces:** Recovery writer/exclusive coordination is keyed by the local recovery environment. `OfflineCleanup(env, backupAdapter, retainedKeys?).run()` requires explicit offline bindings. The backup adapter captures and verifies actual epoch-stamped D1 state. Independent signed cleanup state has pending/complete phases, epoch, verified backup hash and bounded exact object/ETag candidates; complete state drops object identifiers. Restore checks this state and rejects pending cleanup or a database epoch below its floor.
 
-- [ ] Write failing D1/R2 scenarios for completed/expired chain purge, latest pending/deadline extension, superseded versus current checkpoints, deleted-account empty markers, unknown keys/corruption, >100-object pagination, fresh-backup failure and old-snapshot rejection.
-- [ ] Add delayed checkpoint writer, overlapping cleanup/restore, interrupted deletion and same-plan retry cases. Run targeted tests; expect missing service/behavior.
-- [ ] Implement shared exclusion, independent authenticated journal and recovery epoch, backup verification, exact candidate deletion/resume and terminal receipt; keep private routes and Cron offline throughout. Recheck target erasure before retiring evidence. Keep over-bound groups retained.
-- [ ] Run targeted tests and `npm test`; expect green. Document exact limits, backup-boundary consequence and remaining gates; commit locally.
+- [x] Write failing D1/R2 scenarios for completed/expired chain purge, latest pending/deadline extension, superseded versus current checkpoints, deleted-account empty markers, unknown keys/corruption, >100-object pagination, fresh-backup failure and old-snapshot rejection.
+- [x] Add delayed checkpoint writer, overlapping cleanup/restore, interrupted deletion and same-plan retry cases. Run targeted tests; expect missing service/behavior.
+- [x] Implement shared exclusion, independent authenticated journal and recovery epoch, backup verification, exact candidate deletion/resume and terminal receipt; keep private routes and Cron offline throughout. Recheck target erasure before retiring evidence. Keep over-bound groups retained.
+- [x] Run targeted tests and `npm test`; expect green. Document exact limits, backup-boundary consequence and remaining gates; commit locally.
 - [ ] Run full `npm run verify` and `npm run release -- --check`; expect all stages/tests pass and `deploymentAllowed:false`. Obtain one fresh whole-branch review; fix material findings with RED→GREEN regressions in one pass, rerun the full gate and commit locally.

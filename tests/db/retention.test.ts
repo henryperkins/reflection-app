@@ -306,3 +306,64 @@ test('a cleanup batch delayed until restore fencing commits cannot remove expire
   await expect(pending).rejects.toThrow();
   expect(await count('export_tickets')).toBe(1);
 });
+
+test('a bounded failed-body batch cannot drift into a different owner after nulling its first page', async () => {
+  const first = await failed(),
+    next = await failed();
+  await env.DB.prepare(`UPDATE generation_requests SET finished_at=${DB_NOW}-${2 * DAY} WHERE id=?`)
+    .bind(first.started.requestId)
+    .run();
+  await env.DB.prepare(
+    'UPDATE provider_dispatches SET transmission_enc=NULL,candidate_enc=NULL,provider_response_id_enc=NULL WHERE request_id=?',
+  )
+    .bind(first.started.requestId)
+    .run();
+  const source = (await env.DB.prepare('SELECT * FROM generation_requests WHERE id=?')
+    .bind(first.started.requestId)
+    .first<Record<string, string | number | null>>())!;
+  const columns = Object.keys(source);
+  await env.DB.batch(
+    Array.from({ length: 99 }, () => {
+      const row: Record<string, string | number | null> = {
+        ...source,
+        id: crypto.randomUUID(),
+        client_intent_id: crypto.randomUUID(),
+      };
+      return env.DB.prepare(
+        `INSERT INTO generation_requests (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`,
+      ).bind(...columns.map((c) => row[c]!));
+    }),
+  );
+  await env.DB.prepare(`UPDATE generation_requests SET finished_at=${DB_NOW}-${DAY}-1 WHERE id=?`)
+    .bind(next.started.requestId)
+    .run();
+  const before = await env.DB.prepare(
+    'SELECT transmission_enc,candidate_enc FROM provider_dispatches WHERE request_id=?',
+  )
+    .bind(next.started.requestId)
+    .first();
+  const { ticket } = await exportRecords(next.client);
+  await run();
+  expect(
+    await env.DB.prepare(
+      'SELECT transmission_enc,candidate_enc FROM provider_dispatches WHERE request_id=?',
+    )
+      .bind(next.started.requestId)
+      .first(),
+  ).toEqual(before);
+  expect((await next.client.request(`/exports/${ticket.id}`)).status).toBe(200);
+  await run();
+  expect(
+    await env.DB.prepare('SELECT input_enc,plan_enc FROM generation_requests WHERE id=?')
+      .bind(next.started.requestId)
+      .first(),
+  ).toEqual({ input_enc: null, plan_enc: null });
+  expect(
+    await env.DB.prepare(
+      'SELECT transmission_enc,candidate_enc FROM provider_dispatches WHERE request_id=?',
+    )
+      .bind(next.started.requestId)
+      .first(),
+  ).toEqual({ transmission_enc: null, candidate_enc: null });
+  expect((await next.client.request(`/exports/${ticket.id}`)).status).toBe(409);
+});

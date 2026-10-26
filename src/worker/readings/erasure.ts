@@ -1,3 +1,4 @@
+import { recoveryWrite, type RecoveryLease } from '../recovery/coordination.ts';
 import type { z } from 'zod';
 import { apiSchemas } from '../../contracts/index.ts';
 import { canonicalJson } from '../../domain/json.ts';
@@ -154,7 +155,9 @@ export class SessionErasure {
     mutation?: D1PreparedStatement,
   ) {
     const intent = await this.ledger.create(target, id, hash, Date.now());
-    const statements: D1PreparedStatement[] = [];
+    const statements: D1PreparedStatement[] = [
+      assertion(this.base.db, 'NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1)'),
+    ];
     if (session)
       statements.push(this.base.identity.sessions.guard(session, target.scope === 'account'));
     if (target.scope === 'session') {
@@ -289,7 +292,7 @@ export class SessionErasure {
     for (const prefix of prefixes)
       for (const object of await objects(this.bucket, prefix)) await retire(object.key);
     // Markers must remain while delayed writers or supported backups can reference their keys.
-    // General ledger/marker purge is a separate, currently disabled qualification gate.
+    // Only the exclusive offline cleanup runner may later retire these keys after a verified backup.
   }
   async project(intent: Intent, target: Target, completion: Completion | null) {
     const owner = await q(
@@ -313,7 +316,19 @@ export class SessionErasure {
       completion ? Date.parse(completion.backupExpiresBy) : null,
     ).run();
   }
-  async resume(id: string) {
+  async resume(id: string, lease?: RecoveryLease): Promise<void> {
+    return recoveryWrite(
+      this.base.identity.crypt.secrets.environment,
+      () => this.resumeOperation(id, lease),
+      lease,
+    );
+  }
+  private async resumeOperation(id: string, lease?: RecoveryLease): Promise<void> {
+    if (
+      !lease &&
+      (await q(this.base.db, 'SELECT 1 FROM system_state WHERE restore_in_progress=1').first())
+    )
+      throw new Error('Recovery database is offline');
     const job = await this.job(id);
     if (!job || job.state === 'complete') return;
     try {
@@ -332,7 +347,7 @@ export class SessionErasure {
           chain.target.subjectId,
           id,
         ).all<{ id: string }>();
-        for (const child of children.results) await this.resume(child.id);
+        for (const child of children.results) await this.resume(child.id, lease);
       }
       await this.eraseTarget(id, chain.target);
       const erased = (await this.job(id))!;
