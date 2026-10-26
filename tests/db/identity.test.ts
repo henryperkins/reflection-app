@@ -277,3 +277,14 @@ test('rotating a kit invalidates every prior handle/code and requires recent aut
   await env.DB.prepare('UPDATE auth_sessions SET authenticated_at=0').run();
   expect((await client.request('/auth/recovery-codes', {})).status).toBe(401);
 });
+
+test('scheduled maintenance removes expired auth/rate records without changing active accounts', async () => {
+  const { result } = await register();
+  await env.DB.prepare('UPDATE auth_challenges SET expires_at=0').run();
+  await env.DB.prepare('UPDATE auth_sessions SET idle_expires_at=0').run();
+  await env.DB.prepare('UPDATE rate_buckets SET expires_at=0').run();
+  await worker.scheduled({} as ScheduledController, bindings, {} as ExecutionContext);
+  for (const table of ['auth_challenges', 'auth_sessions', 'rate_buckets'])
+    expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n')).toBe(0);
+  expect(await env.DB.prepare('SELECT id FROM accounts').first('id')).toBe(result.subjectId);
+});

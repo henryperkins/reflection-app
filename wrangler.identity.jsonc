@@ -1,0 +1,44 @@
+// Public synthetic test keys. This configuration is ONLY for loopback local development.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "reflection-local-identity",
+  "main": "src/worker/index.ts",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "dev": {
+    "ip": "127.0.0.1",
+    "port": 8787
+  },
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": true
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "reflection-identity-local",
+      "migrations_dir": "src/worker/db/migrations"
+    }
+  ],
+  "observability": {
+    "enabled": false
+  },
+  "send_metrics": false,
+  "r2_buckets": [
+    {
+      "binding": "RECOVERY",
+      "bucket_name": "reflection-identity-local-checkpoints"
+    }
+  ],
+  "vars": {
+    "IDENTITY_MODE": "synthetic-local",
+    "IDENTITY_ORIGIN": "http://localhost:8787",
+    "IDENTITY_SECRETS": "{\"environment\":\"synthetic-local\",\"keyId\":\"synthetic-v1\",\"wrapKey\":\"AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE\",\"recoveryKey\":\"AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI\",\"hmacKey\":\"AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM\"}"
+  }
+}

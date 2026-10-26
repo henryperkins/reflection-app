@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { projectRoot } from './schemas.ts';
 import { sourceDigest } from './verification-state.ts';
 import { assertNoLocalSecrets, verificationEnvironment } from './verification-environment.ts';
-import { requireExecutedTests } from './test-evidence.ts';
+import { requireBrowserTests, requireExecutedTests } from './test-evidence.ts';
 
 const deadlineMs = 540_000;
 const stages = [
@@ -56,6 +56,7 @@ const stages = [
       'dist/worker',
     ],
   ],
+  ['identity recovery browser journey', 'node', ['node_modules/@playwright/test/cli.js', 'test']],
   ['specification package links', 'python3', ['checks/check-package.py']],
 ] as const;
 
@@ -134,15 +135,19 @@ export async function verify(): Promise<void> {
         const report =
           name === 'workerd D1 batches'
             ? 'db-tests.json'
-            : name === 'domain and verification behavior'
-              ? 'domain-tests.json'
-              : null;
+            : name === 'identity recovery browser journey'
+              ? 'browser-tests.json'
+              : name === 'domain and verification behavior'
+                ? 'domain-tests.json'
+                : null;
         if (report) rmSync(resolve(projectRoot, 'artifacts', report), { force: true });
         await run(command, args, remaining);
         if (report) {
-          const evidence = requireExecutedTests(
-            JSON.parse(readFileSync(resolve(projectRoot, 'artifacts', report), 'utf8')),
-          );
+          const evidence = (
+            name === 'identity recovery browser journey'
+              ? requireBrowserTests
+              : requireExecutedTests
+          )(JSON.parse(readFileSync(resolve(projectRoot, 'artifacts', report), 'utf8')));
           console.log(
             `[verify] confirmed ${evidence.passed} executed tests across ${evidence.files} files; zero skipped`,
           );
@@ -174,7 +179,7 @@ export async function verify(): Promise<void> {
       deadlineMs,
       stages: results,
       scope: 'synthetic-local-only',
-      applicationBrowserAcceptance: 'not-run',
+      applicationBrowserAcceptance: passed ? 'local-identity-recovery-only' : 'not-passed',
       hostedQualification: 'not-run',
     };
     mkdirSync(resolve(projectRoot, 'artifacts'), { recursive: true });

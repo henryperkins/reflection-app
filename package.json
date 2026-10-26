@@ -22,7 +22,9 @@
     "test:db": "vitest run --config vitest.db.config.ts",
     "build": "vite build && wrangler deploy --dry-run --env-file scripts/verification.env --outdir dist/worker",
     "verify": "tsx scripts/verify.ts",
-    "release": "tsx scripts/release.ts"
+    "release": "tsx scripts/release.ts",
+    "dev:identity": "tsx scripts/local-identity.ts",
+    "test:browser": "playwright test"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",

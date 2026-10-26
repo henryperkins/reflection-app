@@ -6,6 +6,16 @@ export interface Env extends IdentityBindings {
 }
 
 const app = new Hono<{ Bindings: Env }>();
+app.use('*', async (c, next) => {
+  await next();
+  c.header(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+  );
+  c.header('Referrer-Policy', 'no-referrer');
+  c.header('X-Content-Type-Options', 'nosniff');
+  c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+});
 app.get('/health', (c) => c.json({ status: 'ok', milestone: 1, mode: 'synthetic-only' }));
 app.all('/api/v1/*', async (c, next) => {
   const response = await identityRoute(c.req.raw, c.env);
@@ -19,7 +29,7 @@ app.get('*', (c) =>
 
 export default {
   fetch: app.fetch,
-  async scheduled(_controller, env) {
-    await localIdentity(env)?.checkpoints.resumePending();
+  async scheduled(_controller, env, _ctx) {
+    await localIdentity(env)?.maintenance();
   },
 } satisfies ExportedHandler<Env>;
