@@ -87,16 +87,14 @@ export class RecordBase {
       throw error;
     }
   }
-  async atomic(session: Session, statements: D1PreparedStatement[], bytes = 0, recent = false) {
+  async atomic(session: Session, statements: D1PreparedStatement[], allowAtCapacity = false) {
     await this.db.batch([
-      this.identity.sessions.guard(session, recent),
+      this.identity.sessions.guard(session),
       ...statements,
       q(
         this.db,
-        `UPDATE accounts SET data_revision=data_revision+1,storage_bytes=max(0,storage_bytes+?),updated_at=${DB_NOW} WHERE id=? AND storage_bytes+?<=20971520`,
-        bytes,
+        `UPDATE accounts SET data_revision=data_revision+1,updated_at=${DB_NOW} WHERE id=?${allowAtCapacity ? '' : ' AND storage_bytes<=20971520'}`,
         session.subjectId,
-        bytes,
       ),
       assertion(this.db, 'changes()=1'),
     ]);

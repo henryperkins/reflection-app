@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test } from 'vitest';
@@ -14,6 +14,48 @@ function temp() {
   temporary.push(root);
   return root;
 }
+
+test.each(['missing trigger', 'unaccounted encrypted field'])(
+  'storage policy rejects %s',
+  (failure) => {
+    const root = temp();
+    const migrations = join(projectRoot, 'src/worker/db/migrations');
+    let schema = readdirSync(migrations)
+      .filter((name) => name.endsWith('.sql'))
+      .sort()
+      .map((name) => readFileSync(join(migrations, name), 'utf8'))
+      .join('\n');
+    const registry = JSON.parse(
+      readFileSync(join(projectRoot, 'src/worker/db/column-registry.json'), 'utf8'),
+    );
+    if (failure === 'missing trigger') schema += '\nDROP TRIGGER storage_auth_sessions_delete;';
+    else {
+      schema += '\nALTER TABLE reading_sessions ADD COLUMN private_note_enc TEXT;';
+      registry.tables.reading_sessions.columns.private_note_enc = {
+        ...registry.tables.reading_sessions.columns.question_enc,
+        aadRule: 'synthetic-accounting-coverage',
+        export: 'never',
+      };
+    }
+    const schemaPath = join(root, 'schema.sql'),
+      registryPath = join(root, 'registry.json');
+    writeFileSync(schemaPath, schema);
+    writeFileSync(registryPath, JSON.stringify(registry));
+    expect(() =>
+      execFileSync(
+        'python3',
+        [
+          join(projectRoot, 'scripts/check-registry.py'),
+          '--schema',
+          schemaPath,
+          '--registry',
+          registryPath,
+        ],
+        { stdio: 'pipe' },
+      ),
+    ).toThrow();
+  },
+);
 
 test('generated API drift fails without rewriting the edited artifact', () => {
   const root = temp();

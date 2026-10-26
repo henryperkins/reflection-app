@@ -13,7 +13,6 @@ import {
   type Completion,
 } from '../recovery/ledger.ts';
 import { iso, type RecordBase, RecordError } from './base.ts';
-import { encryptedBytes } from './crypto.ts';
 import { EraseData } from './erase-data.ts';
 
 interface Job {
@@ -199,8 +198,7 @@ export class SessionErasure {
     statements.push(
       q(
         this.base.db,
-        `UPDATE accounts SET data_revision=data_revision+1,storage_bytes=storage_bytes+?,updated_at=${DB_NOW} WHERE id=?`,
-        encryptedBytes(canonicalJson(intent.target)) + (mutation ? 2048 : 1024),
+        `UPDATE accounts SET data_revision=data_revision+1,updated_at=${DB_NOW} WHERE id=?`,
         target.subjectId,
       ),
     );
@@ -340,13 +338,6 @@ export class SessionErasure {
       const erased = (await this.job(id))!;
       const completion = await this.ledger.finish(chain, pass, erased.completed_at ?? Date.now());
       await this.base.db.batch([
-        q(
-          this.base.db,
-          'UPDATE accounts SET storage_bytes=max(0,storage_bytes-CASE WHEN (SELECT target_enc FROM deletion_jobs WHERE id=?) IS NOT NULL THEN ? ELSE 0 END) WHERE id=?',
-          id,
-          encryptedBytes(job.target_enc),
-          chain.target.subjectId,
-        ),
         q(
           this.base.db,
           "UPDATE deletion_jobs SET state='complete',target_enc=NULL,completed_at=?,backup_expires_by=? WHERE id=?",

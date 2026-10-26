@@ -474,12 +474,7 @@ export class SyntheticGenerationPrototype {
         ),
         assertChanges(this.db, 1),
         ...this.event(h.ownerId, h.requestId, 'published', 'ACCEPTED', editionId),
-        q(
-          this.db,
-          'UPDATE accounts SET data_revision=data_revision+1,storage_bytes=storage_bytes+? WHERE id=?',
-          new TextEncoder().encode(PLACEHOLDER).byteLength,
-          h.ownerId,
-        ),
+        q(this.db, 'UPDATE accounts SET data_revision=data_revision+1 WHERE id=?', h.ownerId),
         q(
           this.db,
           `UPDATE generation_attempts SET outcome='complete',finished_at=${DB_NOW} WHERE owner_id=? AND id=?`,

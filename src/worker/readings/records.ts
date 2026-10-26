@@ -212,7 +212,7 @@ export class ReadingRecords {
         ),
         mutation.insert(id),
       ],
-      1024,
+      true,
     );
     return this.session(session, id);
   }
@@ -247,7 +247,7 @@ export class ReadingRecords {
         ...(!allowed ? this.base.stopStatements(session.subjectId) : []),
         mutation.insert(String(revision + 1)),
       ],
-      2048,
+      !allowed,
     );
     return apiSchemas.Permission.parse({
       revision: revision + 1,

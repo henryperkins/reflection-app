@@ -33,8 +33,23 @@ def validate(schema, registry):
                 assert field['class'] in ('E', 'K'), f'{table}.{name}: encrypted field misclassified'
         columns += len(actual)
     assert not db.execute('PRAGMA foreign_key_check').fetchall()
+    triggers = dict(db.execute("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'storage_%'"))
+    owned = {t for t,p in registry['tables'].items() if 'owner_id' in p['columns']} | {'cost_adjustments'}
+    expected = {'storage_accounts_insert'} | {f'storage_{t}_{op}' for t in owned for op in ('insert','update','delete')}
+    assert set(triggers) == expected, 'Storage accounting trigger coverage drift'
+    for table in owned:
+        for op in ('insert','update','delete'):
+            source = triggers[f'storage_{table}_{op}']
+            assert '1024' in source, f'{table}: missing owned-row overhead'
+            aliases = ('NEW',) if op == 'insert' else ('OLD',) if op == 'delete' else ('OLD','NEW')
+            for name, field in registry['tables'][table]['columns'].items():
+                if field['class'] in ('E','K'):
+                    for alias in aliases:
+                        assert f'length(CAST({alias}."{name}" AS BLOB))' in source, f'{table}.{name}: missing UTF-8 storage accounting'
+    assert 'cost_adjustments' in triggers['storage_cost_reservations_delete']
+    assert 'cost_reservations' in triggers['storage_cost_adjustments_insert']
     db.close()
-    return {'tables': len(tables), 'columns': columns, 'coverage': 'complete'}
+    return {'tables': len(tables), 'columns': columns, 'coverage': 'complete', 'storageTriggers': len(triggers)}
 
 
 if __name__ == '__main__':

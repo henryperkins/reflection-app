@@ -43,12 +43,6 @@ export class ReadingExports {
           session.subjectId,
         ),
         mutation.insert(id),
-        q(
-          this.base.db,
-          'UPDATE accounts SET storage_bytes=storage_bytes+2048 WHERE id=? AND storage_bytes+2048<=20971520',
-          session.subjectId,
-        ),
-        assertion(this.base.db, 'changes()=1'),
       ]);
     }
     const ticket = await this.ticket(session, id);

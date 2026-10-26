@@ -238,6 +238,11 @@ test('known provider usage settles cost separately from product quota', async ()
 test('an injected mid-publication statement failure rolls the entire actual D1 batch back', async () => {
   const f = await validating();
   const beforeEvents = await count('request_events');
+  const beforeStorage = await sql(
+    env.DB,
+    'SELECT storage_bytes FROM accounts WHERE id=?',
+    OWNER,
+  ).first();
   const failingDb = {
     prepare: env.DB.prepare.bind(env.DB),
     batch: (statements: D1PreparedStatement[]) =>
@@ -254,7 +259,7 @@ test('an injected mid-publication statement failure rolls the entire actual D1 b
   expect(await count('request_events')).toBe(beforeEvents);
   expect(await quota()).toEqual({ held: 2, consumed: 0 });
   expect(await sql(env.DB, 'SELECT storage_bytes FROM accounts WHERE id=?', OWNER).first()).toEqual(
-    { storage_bytes: 0 },
+    beforeStorage,
   );
   expect(await f.service.publish(f.lease)).toBeTypeOf('string');
 });

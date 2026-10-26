@@ -36,14 +36,7 @@ export class EraseData {
         id,
         revision,
       ),
-      q(
-        this.base.db,
-        `UPDATE accounts SET storage_bytes=max(0,storage_bytes-coalesce((SELECT length(CAST(body_enc AS BLOB)) FROM reflection_revisions WHERE owner_id=? AND reflection_id=? AND revision=?),0)),data_revision=data_revision+1 WHERE id=?`,
-        owner,
-        id,
-        revision,
-        owner,
-      ),
+      q(this.base.db, `UPDATE accounts SET data_revision=data_revision+1 WHERE id=?`, owner),
       q(
         this.base.db,
         `UPDATE reflection_revisions SET body_enc=NULL,erased_at=coalesce(erased_at,${DB_NOW}) WHERE owner_id=? AND reflection_id=? AND revision=?`,
@@ -73,31 +66,6 @@ export class EraseData {
     const editions = 'SELECT id FROM reading_editions WHERE owner_id=? AND session_id=?';
     // This integration creates no selected context/imports. Refuse completion if future unsupported copies exist.
     const unsupported = `NOT EXISTS(SELECT 1 FROM generation_context gc JOIN context_grants g ON g.id=gc.grant_id AND g.owner_id=gc.owner_id JOIN generation_requests r ON r.id=gc.request_id AND r.owner_id=gc.owner_id WHERE g.owner_id=? AND (g.edition_id IN (${editions}) OR g.reflection_id IN (${reflections})) AND r.session_id!=?) AND NOT EXISTS(SELECT 1 FROM import_identities WHERE owner_id=?) AND NOT EXISTS(SELECT 1 FROM import_items WHERE owner_id=?)`;
-    const fields: Array<[string, string[], string]> = [
-      ['reading_sessions', ['question_enc'], 'id=?'],
-      ['basis_snapshots', ['body_enc'], 'session_id=?'],
-      ['reading_editions', ['body_enc'], 'session_id=?'],
-      ['generation_requests', ['input_enc', 'plan_enc'], 'session_id=?'],
-      [
-        'provider_dispatches',
-        ['transmission_enc', 'candidate_enc', 'provider_response_id_enc'],
-        `request_id IN (${requests})`,
-      ],
-      ['reflection_revisions', ['body_enc'], `reflection_id IN (${reflections})`],
-      ['generation_context', ['fragment_enc'], `request_id IN (${requests})`],
-      ['revisits', ['note_enc'], `edition_id IN (${editions})`],
-    ];
-    const totals = await this.base.db.batch<{ bytes: number }>(
-      fields.map(([table, columns, filter]) =>
-        q(
-          this.base.db,
-          `SELECT coalesce(sum(${columns.map((column) => `coalesce(length(CAST(${column} AS BLOB)),0)`).join('+')}),0) AS bytes FROM ${table} WHERE owner_id=? AND ${filter}`,
-          owner,
-          ...(filter.includes('SELECT') ? [owner, id] : [id]),
-        ),
-      ),
-    );
-    const bytes = totals.reduce((sum, result) => sum + (result.results[0]?.bytes ?? 0), 0);
     await this.base.db.batch([
       // Completion is terminal. Check inside the atomic batch, not only at resume entry.
       assertion(
@@ -112,14 +80,8 @@ export class EraseData {
         id,
       ),
       assertion(this.base.db, unsupported, owner, owner, id, owner, id, id, owner, owner),
-      // Serialize concurrent resume calls: only the first erasure decrements private-byte accounting.
-      q(
-        this.base.db,
-        `UPDATE accounts SET storage_bytes=max(0,storage_bytes-CASE WHEN (SELECT completed_at FROM deletion_jobs WHERE id=?) IS NULL THEN ? ELSE 0 END),data_revision=data_revision+1 WHERE id=?`,
-        job.id,
-        bytes,
-        owner,
-      ),
+      // Trigger accounting releases only ciphertext that this transaction actually nulls.
+      q(this.base.db, `UPDATE accounts SET data_revision=data_revision+1 WHERE id=?`, owner),
       q(
         this.base.db,
         `UPDATE deletion_jobs SET state='erasing',completed_at=coalesce(completed_at,${DB_NOW}) WHERE id=?`,

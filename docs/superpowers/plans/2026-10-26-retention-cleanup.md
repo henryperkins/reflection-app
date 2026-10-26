@@ -34,10 +34,10 @@
 
 **Interfaces:** Triggers account for `accounts.id` and every registered `owner_id` row and every E/K column. SQL publication/admission reads the resulting `accounts.storage_bytes`; callers no longer supply estimates. Add a structural coverage check for all relevant tables/columns.
 
-- [ ] Write tests for literal UTF-8/1 KiB deltas, rollback, owner detachment/cascade, exact initial identity costs, repeated body erasure and operation retry, capacity rejection and export/deletion at capacity. Update the existing rollback test to compare the pre-batch balance instead of assuming uncharged seed rows.
-- [ ] Run `npm run test:db -- tests/db/storage-accounting.test.ts`; observe accounting failures before implementation.
-- [ ] Add the forward migration/backfill and coverage check. Remove manual counter updates, retain data-revision changes and atomic admission guards. Generate schema mirrors.
-- [ ] Run targeted tests then `npm test` and TypeScript; expect green. Commit locally.
+- [x] Write tests for literal UTF-8/1 KiB deltas, rollback, owner detachment/cascade, exact initial identity costs, repeated body erasure and operation retry, capacity rejection and export/deletion at capacity. Update the existing rollback test to compare the pre-batch balance instead of assuming uncharged seed rows.
+- [x] Run `npm run test:db -- tests/db/storage-accounting.test.ts`; observe accounting failures before implementation.
+- [x] Add the forward migration/backfill and coverage check. Remove manual counter updates, retain data-revision changes and atomic admission guards. Generate schema mirrors.
+- [x] Run targeted tests then `npm test` and TypeScript; expect green. Commit locally.
 
 ### Task 2: Bounded D1 retention
 
