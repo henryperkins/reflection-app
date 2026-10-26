@@ -1,8 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, type AcceptedReading, type Reflection } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
 import { signIn } from './passkeys.ts';
+import {
+  RequestProgress,
+  requestFromPath,
+  requestPath,
+  type ReadingRequest,
+} from './request-progress.tsx';
 import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
@@ -30,10 +36,22 @@ export function ReadingWorkspace({
   onSession: (value: View) => void;
   onExpired: () => void;
 }) {
-  const [mode, setMode] = useState<'history' | 'new' | 'reading'>('history');
+  const [request, setRequest] = useState<ReadingRequest | null>(requestFromPath);
+  const [requestPending, setRequestPending] = useState(Boolean(request));
+  const [mode, setMode] = useState<'history' | 'new' | 'reading' | 'request'>(
+    request ? 'request' : 'history',
+  );
+  const resultHeading = useRef<HTMLHeadingElement>(null);
+  const focusResultOnCommit = useRef(false);
   const [history, setHistory] = useState<History>({ items: [], nextCursor: null });
   const [record, setRecord] = useState<RecordView | null>(null);
   const [reading, setReading] = useState<z.infer<typeof AcceptedReading> | null>(null);
+  useLayoutEffect(() => {
+    if (mode === 'reading' && reading && focusResultOnCommit.current) {
+      focusResultOnCommit.current = false;
+      if (!document.hidden) resultHeading.current?.focus();
+    }
+  }, [mode, reading]);
   const [reflection, setReflection] = useState<Thought | null>(null);
   const [latestReflection, setLatestReflection] = useState<Thought | null>(null);
   const [revisionChoice, setRevisionChoice] = useState(1),
@@ -73,6 +91,7 @@ export function ReadingWorkspace({
     !dirtyReflection ||
     window.confirm('Discard your unsaved reflection? Choose Cancel to stay and keep editing.');
   const clearReading = () => {
+    focusResultOnCommit.current = false;
     setRecord(null);
     setReading(null);
     setReflection(null);
@@ -123,7 +142,13 @@ export function ReadingWorkspace({
           : result,
       );
   };
-  const open = async (id: string, current: Current, keepDraft = false, requireReview = false) => {
+  const open = async (
+    id: string,
+    current: Current,
+    keepDraft = false,
+    requireReview = false,
+    focusResult = false,
+  ) => {
     const session = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
     if (!current()) return;
     const editionId = session.editionIds.at(-1);
@@ -140,6 +165,8 @@ export function ReadingWorkspace({
     setRecord(session);
     setReading(content);
     setMode('reading');
+    window.history.replaceState(null, '', `/requests/${content.provenance.requestId}`);
+    focusResultOnCommit.current = focusResult;
     if (keepDraft && (dirtyReflection || conflict || requireReview)) {
       // Keep the draft's base revision until the user explicitly reconciles a newer version.
       if (note?.id !== reflection?.id || note?.revision !== reflection?.revision || requireReview) {
@@ -182,6 +209,7 @@ export function ReadingWorkspace({
       if (error instanceof ApiFailure && error.status === 410) {
         clearReading();
         setMode('history');
+        window.history.replaceState(null, '', '/account');
         await loadHistory(current).catch(() => undefined);
       }
       if (error instanceof ApiFailure && error.code === 'CONSENT_REQUIRED')
@@ -201,8 +229,10 @@ export function ReadingWorkspace({
   historyRef.current = loadHistory;
   useEffect(() => {
     alive.current = true;
-    void runRef.current((current) => historyRef.current(current));
+    if (currentMode.current === 'history')
+      void runRef.current((current) => historyRef.current(current));
     const focus = () => {
+      if (currentMode.current === 'request') return;
       void runRef.current((current) =>
         currentMode.current === 'reading' && selected.current
           ? openRef.current(selected.current.id, current, true)
@@ -440,6 +470,7 @@ export function ReadingWorkspace({
         }
         clearReading();
         setMode('history');
+        window.history.replaceState(null, '', '/account');
         deletion.current = null;
         await loadHistory(current);
         if (current())
@@ -472,6 +503,7 @@ export function ReadingWorkspace({
               await loadHistory(current);
               if (current()) {
                 setMode('history');
+                window.history.replaceState(null, '', '/account');
                 clearReading();
               }
             });
@@ -481,11 +513,13 @@ export function ReadingWorkspace({
         </button>
         <button
           type="button"
-          disabled={busy || !user.permission.modelAllowed}
+          disabled={busy || !user.permission.modelAllowed || requestPending}
           onClick={() => {
             if (!canLeave()) return;
             clearReading();
             setMode('new');
+            setRequest(null);
+            window.history.replaceState(null, '', '/new');
             setMessage('');
           }}
         >
@@ -539,52 +573,63 @@ export function ReadingWorkspace({
           )}
         </section>
       )}
-      {mode === 'new' && (
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
+      {mode === 'history' && request && (
+        <button
+          type="button"
+          className="secondary"
+          onClick={() => {
+            setRequest({ target: request.target, focus: false });
+            window.history.replaceState(null, '', requestPath(request.target));
+            setMode('request');
+          }}
+        >
+          Resume reading request
+        </button>
+      )}
+      {mode === 'request' && request && (
+        <RequestProgress
+          key={request.target.id}
+          request={request}
+          user={user}
+          onSession={onSession}
+          onExpired={onExpired}
+          onAllowNew={() => setRequestPending(false)}
+          onAccepted={(id, focus) =>
             void run(async (current) => {
-              const view = currentUser.current;
-              const values = {
-                question: question.trim(),
-                languageConfirmed: 'en' as const,
-                reversals,
-                permissionRevision: view.permission.revision,
-                parentEditionId: null,
-                selection: [],
-              };
-              const intent = actionKey('start', values);
-              const started = await api(
-                '/requests',
-                apiSchemas.StartResponse,
-                { ...values, clientIntentId: intent.intent },
-                view.csrfToken,
-                { key: intent.key },
-              );
-              let status = started.status;
-              for (
-                let attempt = 0;
-                !['published', 'blocked', 'failed', 'expired', 'cancelled'].includes(
-                  status.state,
-                ) && attempt < 20;
-                attempt++
-              ) {
-                await new Promise((resolve) => setTimeout(resolve, 2000));
-                if (!current()) return;
-                status = await api(`/requests/${started.requestId}`, apiSchemas.RequestStatus);
-              }
-              if (!current()) return;
-              if (status.state !== 'published')
-                throw new Error(
-                  'This reading could not be completed. Your existing saved readings remain available.',
-                );
-              await open(started.sessionId, current);
+              await open(id, current, false, false, focus);
               if (current()) {
                 intents.current.delete('start');
                 setQuestion('');
                 await refreshUser(current);
               }
+            })
+          }
+        />
+      )}
+      {mode === 'new' && (
+        <form
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (inFlight.current || requestPending) return;
+            const values = {
+              question: question.trim(),
+              languageConfirmed: 'en' as const,
+              reversals,
+              permissionRevision: currentUser.current.permission.revision,
+              parentEditionId: null,
+              selection: [],
+            };
+            const intent = actionKey('start', values);
+            const target = { kind: 'intent' as const, id: intent.intent };
+            window.history.replaceState(null, '', requestPath(target));
+            setRequest({
+              target,
+              start: { input: { ...values, clientIntentId: intent.intent }, key: intent.key },
+              focus: true,
             });
+            setRequestPending(true);
+            setMode('request');
+            setMessage('');
           }}
         >
           <h2>A new reading</h2>
@@ -640,18 +685,28 @@ export function ReadingWorkspace({
           <p className="eyebrow">Local simulated reading</p>
           <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
           <article data-testid="accepted-reading" className="accepted-reading">
-            <h2>{reading.question}</h2>
+            <h2 ref={resultHeading} tabIndex={-1}>
+              {reading.question}
+            </h2>
             {reading.units.map((unit) => (
               <section key={unit.position}>
                 <h3>{unit.position}</h3>
+                <h4>Drawn card</h4>
                 <p className="basis-text">{unit.basisText}</p>
+                <h4>Interpretation</h4>
                 <p>{unit.interpretation}</p>
+                <h4>Reflection prompt</h4>
                 <p>{unit.reflectionQuestion}</p>
               </section>
             ))}
             <p>{reading.closing}</p>
             <details>
               <summary>Cards and sources</summary>
+              <h3>Traditional source material</h3>
+              <p>
+                These source snapshots are separate from the generated interpretation and your own
+                reflection. This local build uses synthetic source text.
+              </p>
               {reading.basis.cards.map((card, index) => (
                 <div key={card.id} className="source">
                   <h3>

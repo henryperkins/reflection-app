@@ -8,6 +8,8 @@ The [local privacy and restore slice](docs/PRIVACY_RESTORE_RESULTS.md) adds acco
 
 The [local retention and cleanup slice](docs/RETENTION_CLEANUP_RESULTS.md) adds transactional storage accounting, bounded expiry and offline recovery-record purge with a verified new backup boundary. See the [cleanup runbook](docs/LOCAL_CLEANUP_RUNBOOK.md) and [remaining Milestone 2 acceptance](docs/MILESTONE_2_ACCEPTANCE.md).
 
+The [local request lifecycle](docs/REQUEST_LIFECYCLE_RESULTS.md) adds early Start acknowledgement, resumable progress, cancellation and distinct stopped outcomes. Reload or sign in at the same request URL to recover the result without starting again. Reading headings separate drawn cards, interpretation, source snapshots and personal reflection.
+
 Use Node 26.12.1 and Python 3 with SQLite supporting `unixepoch('subsec')` (3.42 or newer):
 
 ```sh

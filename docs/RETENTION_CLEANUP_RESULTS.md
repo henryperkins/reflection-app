@@ -28,7 +28,7 @@ A fresh reviewer inspected `894f7a7..4e2c5d7`, ran the 39-case cleanup rehearsal
 
 All **11 review regressions** were observed failing before the corrections and passing afterward; the combined 34 cleanup/review tests passed. The full post-correction gate passed all **13 stages and 260 tests** (84 domain/tooling, 160 D1, 16 browser; zero skipped) in **37.34 seconds**. The release check confirmed `deploymentAllowed:false`. No material finding remains unresolved in this local slice; the single minor below remains deferred. The final source-bound receipt includes subsequent evidence-only documentation updates.
 
-Deferred minor: retention between separate request-status queries can transiently regress `nextSequence`. This does not affect current saved-reading history/reopening, but the request-status cursor needs a later consistency fix. It remains disclosed rather than included in this material-finding correction pass.
+Historical deferred minor (addressed subsequently in [request lifecycle evidence](REQUEST_LIFECYCLE_RESULTS.md)): retention between separate request-status queries can transiently regress `nextSequence`. This does not affect current saved-reading history/reopening, but the request-status cursor needs a later consistency fix. It remains disclosed rather than included in this material-finding correction pass.
 
 ## Boundaries and next gates
 

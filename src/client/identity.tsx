@@ -4,6 +4,7 @@ import { apiSchemas, type AuthResult } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
 import { enroll, signIn } from './passkeys.ts';
 import { ReadingWorkspace } from './readings.tsx';
+import { requestFromPath } from './request-progress.tsx';
 import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
@@ -166,7 +167,7 @@ export function IdentityApp() {
     if (!isCurrent()) return;
     setSession(current);
     setGrant(null);
-    navigate('/account');
+    if (!requestFromPath()) navigate('/account');
   };
   const download = () => {
     if (!kit) return;
