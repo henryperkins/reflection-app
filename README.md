@@ -4,6 +4,8 @@ Complete proposed architecture package, prepared 2026-10-26 from the supplied br
 
 Specification work is complete. The selected design and recorded evidence are sufficient to start milestone 1 in IMPLEMENTATION_PLAN. Remaining runtime, editorial, provider and deployment qualifications have defined checks and rollout gates; they do not leave the specification awaiting approval or optional research.
 
+The first release includes sign-in and a complete recovery kit, separate AI permission, one three-card reading with card/source inspection, Save reading with an optional personal reflection, a basic dated saved-reading list, export and deletion. Start permits disclosed temporary processing/recovery storage for an unsaved reading for 24 hours; Save keeps it until deletion or an explicitly disclosed Unsave. Users can sign out, sign back in, find a saved reading and reopen its unchanged text without a new AI call. With AI permission off, saved records and their reflection/export/deletion controls remain available. Encryption is server-readable, not end-to-end encryption. Follow-ups, selected-context controls, imports and separate dated revisit notes remain later scope; the acceptance journeys are specified, not implemented or executed by these artifact checks.
+
 Start with [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md), which supplies the reading order, scope, decisions, source ledger and bounded unknowns. The seven required deliverables are:
 
 - [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)

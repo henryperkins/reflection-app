@@ -2,7 +2,7 @@
 
 Prepared 2026-10-26. **Specification only. No application, hosted infrastructure, model qualification, live migration, or deployment has been implemented or proven.** “Reflection” is a neutral working name. The three predecessors are retired as foundations by owner decision.
 
-Revision2 resolves the review of e505ca3: database-clock deadline eligibility, independent encrypted erasure targets and completion revisions, explicit import source/recovery identity, and bounded history previews. These are refinements to the pre-implementation v1 contracts; the architecture and milestone scope remain as specified.
+Revision2 resolves the review of e505ca3: database-clock deadline eligibility, independent encrypted erasure targets and completion revisions, explicit import source/recovery identity, and bounded history previews. Those corrections remain in force. The first-slice product scope below also incorporates the owner's subsequent MVP clarifications; these are specification decisions, not implemented behavior.
 
 ## Reading order and authority
 
@@ -34,26 +34,26 @@ Research copies are read-only evidence under `../../research`, never product fou
 
 ## Confirmed constraints
 
-C01 new strict TypeScript; C02 owner-controlled Cloudflare Worker and direct D1 bindings; C03 one origin, secure cookie; C04 D1 authoritative; C05 GitHub, no GitHub Actions; C06 authorized service API for production inference; C07 one operator assisted by coding agents; C08 no predecessor adoption; C09 no real-data work, paid inference or hosted changes in this task. Every working default is retained. The authentication, model, recovery and retention choices below resolve open defaults; they do not assert business facts.
+C01 new strict TypeScript; C02 owner-controlled Cloudflare Worker and direct D1 bindings; C03 one origin, secure cookie; C04 D1 authoritative; C05 GitHub, no GitHub Actions; C06 authorized service API for production inference; C07 one operator assisted by coding agents; C08 no predecessor adoption; C09 no real-data work, paid inference or hosted changes in this task. Working defaults apply except where the clarified first-slice scope below supersedes them. The authentication, model, recovery and retention choices below resolve open defaults; they do not assert business facts.
 
 ## Product hypotheses, scope and requirements
 
 Audience assumption: English-speaking individuals who want a private reflective exercise. Tarot is an interpretive tradition, not evidence of events or a diagnostic instrument. A concise reading is an invitation to respond, including disagreement. No claims about market size, current users or willingness to pay.
 
-Hypotheses: H1 inspecting the basis improves understanding without creating false certainty; H2 separately authored reflections preserve agency; H3 returning to an unchanged reading helps people notice changes; H4 explicit context selection makes follow-ups useful without unwanted memory. Evaluate H1–H4 separately from correctness and editorial quality. The primary journey is begin → read → inspect → write → save → reopen/update.
+Hypotheses: H1 inspecting the basis improves understanding without creating false certainty; H2 separately authored reflections preserve agency; H3 returning to an unchanged reading helps people notice changes; H4 explicit context selection makes later follow-ups useful without unwanted memory. Evaluate H1–H4 separately from correctness and editorial quality. The first-slice journey is begin → read → inspect → save with or without a reflection → sign out → sign in → find in Saved readings → reopen unchanged → optionally add or edit a reflection. A written response is never required to retain a reading.
 
 | ID | Requirement and enforceable acceptance | Scope |
 |---|---|---|
 | R01 | Authenticated, owner-scoped records from first persistence; foreign-owner reads are 404; composite FKs reject cross-owner links. | Slice |
 | R02 | One three-card RWS-identity spread, no replacement, exact position/orientation snapshots, code-rendered facts. | Slice |
 | R03 | Fully validated result only; progress never contains candidate prose. Immutable accepted text is reopened without inference. | Slice |
-| R04 | Separate reflection revisions; explicit confirmed save, conflict-safe update, disagreement preserved. | Slice |
-| R05 | Distinct storage, model permission, per-source eligibility, selection, actual egress; current guards at dispatch and publication. | Slice; selection UI v1 |
+| R04 | Distinct Save reading action with an optional reflection; a simple dated Saved readings list supports save → sign out → sign in → find → reopen the same accepted text without inference. After reopening, reflection add/edit uses separate revisions, confirmed saves and conflict-safe updates; disagreement is preserved. | Slice |
+| R05 | Start authorizes disclosed temporary processing/recovery storage for 24 hours; Save authorizes retention until deletion. AI permission is separate. Declining/revoking it preserves owned saved-record access and edits while denying new generation and consent-bypassing fallback. Current guards apply at dispatch/publication; selected-source controls arrive later. | Slice; selected-source controls completed v1 |
 | R06 | Idempotent starts, unique publication, bounded work, cancellation, uncertain execution and cost accounting. | Slice |
 | R07 | Export and erasure, key rotation, restore erasure replay, no private offline caches. | Slice |
 | R08 | Exact content/source/prompt/validator/provider identity; semantic limits disclosed. | Slice |
 | R09 | Accessible mobile web/PWA and safe interruption/recovery; WCAG 2.2 AA journey checks. | Slice |
-| R10 | History and intentional revisits; follow-ups name exact parent and selected transmitted fragments. | Completed v1 |
+| R10 | Separate dated revisit notes and follow-ups name the exact parent edition; context controls distinguish eligibility, selection and actual transmitted fragments. Basic saved-reading discovery/reopening is already R04. | Completed v1 |
 | R11 | Versioned import, preview, exact old text and explicit provenance gaps; no implicit generation grant. | Completed v1 |
 | R12 | Hosted deterministic deployment gate under ten minutes target; isolated previews and fail-test proof before real users. | Slice |
 | R13 | Quotas, conservative provider-spend reservations, content-free telemetry and incident procedures. | Slice |
@@ -62,7 +62,11 @@ Hypotheses: H1 inspecting the basis improves understanding without creating fals
 | R16 | Typed later astrology boundary with uncertain time and licensing gates; no astrology execution in v1. | Later contract only |
 | R17 | All changes versioned together; registry detects private fields without export/erasure policy. | Slice |
 
-First slice includes identity/recovery, permission, limits, reading/basis, saved reflection, exact reopening, deletion and export, even in a small private rollout. Until those are ready all prototypes use synthetic local data and an intercepted provider. Completed v1 adds history, revisits, selected-context follow-ups, and selected imports. Later: astrology, MCP, billing, richer coaching, check-ins, narration, recognition, Time Travel, astrocartography and portraits. No shared accounts, reader practice management, collaboration, journal search, embeddings, automatic biography or silent memory.
+First slice includes identity/recovery, permission, limits, reading/basis, a distinct Save reading action, optional reflection add/edit, a simple dated Saved readings list, exact reopening, deletion and export, even in a small private rollout. Returning users can find saved readings after signing in without remembering an old URL or retaining browser state. Until those are ready all prototypes use synthetic local data and an intercepted provider. Completed v1 adds separate dated revisit notes, selected-context follow-ups, and selected imports; none is required for the basic saved list. Later: astrology, MCP, billing, richer coaching, check-ins, narration, recognition, Time Travel, astrocartography and portraits. No shared accounts, reader practice management, collaboration, journal search, embeddings, automatic biography or silent memory.
+
+Before Start, disclose that its accepted request stores the question and processing/recovery records temporarily for 24 hours from session creation, even before Save. Save reading retains the accepted reading and its saved basis/provenance until the user deletes it; saving a reflection is a separate explicit action and can also mark an unsaved session saved atomically. Neither action grants AI permission. Existing erasure, content-withdrawal and explicit Unsave rules still apply; backup/provider retention limits are disclosed separately from the active recovery window.
+
+With AI permission declined or revoked, authenticated users can still list/reopen their existing saved readings, save available readings, add/edit their own reflections, export and delete. New AI generation is disabled, affected in-flight work is fenced under the existing permission rules, and a template must not bypass missing consent. Privacy copy states that storage is encrypted but server-readable: authorized Worker code and a sufficiently privileged operator can decrypt it. Do not describe this design as end-to-end encrypted.
 
 ## Proposed budgets, not measurements
 
@@ -81,7 +85,7 @@ Planning envelope: **100 active accounts**, 1,000 generation starts/month, 100,0
 | Accessibility | WCAG 2.2 AA, 320 CSS px and 200% text without lost functions; 44×44 CSS px target controls; keyboard and VoiceOver/NVDA manual gates. |
 | Verification | Repository gate p95 ≤8 minutes, abort locally at 9 minutes; hosted Builds hard timeout currently 20 minutes. No live inference in this gate. |
 
-Product study proposal: opt-in synthetic/usability sessions first, then explicit participant consent; 8–12 participants is a qualitative starting sample, not a power calculation. Ask readers to distinguish fact/source/interpretation, author a response, and explain a revisit after 7–14 days. Record whether authorship remained separate, whether disagreement felt safe, and whether revisiting was useful; no journal-content analytics. Proposed signals: ≥80% correctly distinguish evidence roles, ≥70% complete save/reopen unassisted, ≥60% of consenting participants report a useful revisit. Failure changes the journey/editorial approach, not safety thresholds. Never infer willingness to pay from usage alone.
+Product study proposal: opt-in synthetic/usability sessions first, then explicit participant consent; 8–12 participants is a qualitative starting sample, not a power calculation. Ask readers to distinguish fact/source/interpretation, save without being required to write, find the reading after signing out/in, optionally author a response, and explain reopening it after 7–14 days. Record whether authorship remained separate, whether disagreement felt safe, and whether returning was useful; no journal-content analytics. Proposed signals: ≥80% correctly distinguish evidence roles, ≥70% complete save/sign-out/sign-in/find/reopen unassisted, ≥60% of consenting participants report a useful return. Failure changes the journey/editorial approach, not safety thresholds. Never infer willingness to pay from usage alone.
 
 ## System and deployment boundaries
 
@@ -149,7 +153,7 @@ Generate `openapi.yaml` and provider JSON Schema from Zod. Model schema uses a s
 |---|---|---|
 | D01 / C01–04,R01 | One Worker, Hono/React/Vite/Zod, primary D1, single repo. Fits operator and ownership transaction needs. | Global DB round trips; reject generic HTTP SQL proxy. Moderate repository-layer change if measured latency/scale breaches budget. |
 | D02 / R06 | D1 leases + waitUntil fast wake + Cron recovery. Durable truth remains in one DB. | Recovery can add a minute; reject DO/Queue initially. Add Queue only if timeout/latency proof fails; requests/guards unchanged. |
-| D03 / R01,R07 | Passkeys using maintained SimpleWebAuthn server/browser, own opaque cookie, recovery codes. | No email recovery; losing all factors loses access. Reject passwords/email vendor dependency. Moderate auth adapter migration; workerd/browser proof blocks real users. |
+| D03 / R01,R07 | Passkeys using maintained SimpleWebAuthn server/browser, own opaque cookie, downloadable recovery kit containing both handle and codes. | No email recovery; losing all usable factors loses access. The kit uses the existing handle-plus-unused-code recovery flow, not new credentials or cryptography. Moderate auth adapter migration; workerd/browser and cleared-browser recovery proofs block real users. |
 | D04 / R05,R07 | Server-readable per-account envelope encryption. | Worker/owner can decrypt; reject client-only because selected generation/recovery/exports need server access. High reversal cost; revisit if end-to-end encryption becomes a product requirement. |
 | D05 / R03,R08 | Code-render precise facts; model writes bounded interpretation/questions, never placeholders. | Less fluid technical prose; reject universal tokens and unconstrained fact prose. Moderate schema/prompt change if offline qualification shows structured assertions read better with equal safety. |
 | D06 / R06,R13 | One OpenAI `gpt-5.6-terra` request, reasoning none, structured output, no provider retry. | Timeout may waste spend and yield a template. Reject subscription runners, cross-provider failover and quality chains. Low adapter cost but full requalification on model change. |
@@ -167,7 +171,7 @@ Chosen architecture can be coded now; **qualification is not optional launch pap
 | Item / category | Dependencies and bounded resolving check | Blocks |
 |---|---|---|
 | Model writing quality, latency, actual token use (provisional D06) | Frozen 240-case balanced corpus, up to 720 calls, $40 hard evaluation cap; gates in VERIFICATION_PLAN. No evaluation run here. | Provider activation/real-user launch, not local contracts. |
-| Passkey workerd compatibility (provisional D03) | Pinned SimpleWebAuthn verification in Cloudflare test pool, platform/cross-device passkeys on iOS/Android/desktop and recovery exercise. Docs describe Node/Deno, not a guarantee for this Worker. | Real identity rollout. If incompatible, first adapt documented Web Crypto usage; redesign auth only by recorded ADR. |
+| Passkey workerd compatibility (provisional D03) | Pinned SimpleWebAuthn verification in Cloudflare test pool, platform/cross-device passkeys on iOS/Android/desktop, and recovery using a downloaded handle-and-codes kit after all browser state is cleared and the original passkey is unavailable. Docs describe Node/Deno, not a guarantee for this Worker. | Real identity rollout. If incompatible, first adapt documented Web Crypto usage; redesign auth only by recorded ADR. |
 | Hosted release isolation/enforcement | Actual configured main and preview builds with intentional failing test, attempted non-main deploy, synthetic resource markers; inspect token privileges. | First real-user slice. |
 | Current/legacy users and subscriptions (business unknown) | Owner-supplied inventory by project and provider, read-only reconciliation separately authorized; branch retirement plan. | Retirement, not new app coding/launch. |
 | Asset/canon rights and exact human approvals (business unknown) | Per selected asset hash/source/territory evidence; owner reviews exact launch bundle. Text card presentation works without art. | Affected content/art launch; not architecture. |
