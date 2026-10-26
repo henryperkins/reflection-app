@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { identityRoute, localIdentity, type IdentityBindings } from './identity/routes.ts';
+import { readingRoute, type ReadingBindings } from './readings/routes.ts';
 
-export interface Env extends IdentityBindings {
+export interface Env extends IdentityBindings, ReadingBindings {
   ASSETS?: Fetcher;
 }
 
@@ -20,6 +21,8 @@ app.get('/health', (c) => c.json({ status: 'ok', milestone: 1, mode: 'synthetic-
 app.all('/api/v1/*', async (c, next) => {
   const response = await identityRoute(c.req.raw, c.env);
   if (response) return response;
+  const reading = await readingRoute(c.req.raw, c.env);
+  if (reading) return reading;
   await next();
 });
 app.all('/api/*', (c) => c.json({ error: 'Private application routes are not enabled.' }, 503));

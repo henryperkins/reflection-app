@@ -85,10 +85,10 @@ export class IdentitySessions {
       writeFence: row.write_fence,
     };
   }
-  guard(session: Session, recent = false): D1PreparedStatement {
+  guard(session: Session, recent = false, writable = true): D1PreparedStatement {
     return assertion(
       this.db,
-      `EXISTS(SELECT 1 FROM auth_sessions s JOIN accounts a ON a.id=s.owner_id WHERE s.token_hash=? AND s.owner_id=? AND s.auth_epoch=? AND a.auth_epoch=s.auth_epoch AND a.status='active' AND a.write_fence IS NULL AND s.expires_at>${DB_NOW} AND s.idle_expires_at>${DB_NOW}${recent ? ` AND s.authenticated_at>${DB_NOW}-300000` : ''})`,
+      `EXISTS(SELECT 1 FROM auth_sessions s JOIN accounts a ON a.id=s.owner_id WHERE s.token_hash=? AND s.owner_id=? AND s.auth_epoch=? AND a.auth_epoch=s.auth_epoch AND a.status='active' ${writable ? 'AND a.write_fence IS NULL' : ''} AND s.expires_at>${DB_NOW} AND s.idle_expires_at>${DB_NOW}${recent ? ` AND s.authenticated_at>${DB_NOW}-300000` : ''})`,
       session.tokenHash,
       session.subjectId,
       session.epoch,
@@ -110,10 +110,27 @@ export class IdentitySessions {
         modelAllowed: Boolean(permission.model_allowed),
         policyVersion: 'egress.v1',
       },
-      remainingDay: 0,
-      remainingMonth: 0,
+      remainingDay: await this.remaining(
+        session.subjectId,
+        'day:' + new Date().toISOString().slice(0, 10),
+        3,
+      ),
+      remainingMonth: await this.remaining(
+        session.subjectId,
+        'month:' + new Date().toISOString().slice(0, 7),
+        30,
+      ),
       recentAuthUntil: new Date(session.authenticatedAt + 300_000).toISOString(),
     });
+  }
+  private async remaining(owner: string, period: string, allowance: number) {
+    const row = await statement(
+      this.db,
+      'SELECT allowance-held-consumed AS remaining FROM quota_buckets WHERE owner_id=? AND period=?',
+      owner,
+      period,
+    ).first<{ remaining: number }>();
+    return row?.remaining ?? allowance;
   }
   async logout(session: Session) {
     await statement(
