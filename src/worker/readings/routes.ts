@@ -221,6 +221,24 @@ export async function readingRoute(
         ),
         202,
       );
+    const eraseRevision = match(/^\/reflections\/([^/]+)\/revisions\/([1-9][0-9]*)$/);
+    if (method === 'DELETE' && eraseRevision)
+      return recordResponse(
+        await erasure.removeReflection(
+          session,
+          Id.parse(eraseRevision[1]),
+          z.coerce.number().int().min(1).max(100).parse(eraseRevision[2]),
+          revision(),
+          key(),
+          apiSchemas.DeleteRequest.parse(body),
+        ),
+        202,
+      );
+    if (method === 'DELETE' && path === '/account')
+      return recordResponse(
+        await erasure.removeAccount(session, key(), apiSchemas.DeleteRequest.parse(body)),
+        202,
+      );
     throw new RecordError(503, 'DEPENDENCY_UNAVAILABLE');
   } catch (error) {
     let failure =

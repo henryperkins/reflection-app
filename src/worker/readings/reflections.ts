@@ -12,7 +12,7 @@ export class Reflections {
     const account = await this.base.account(session);
     const row = await q(
       this.base.db,
-      `SELECT f.session_id,f.edition_id,f.current_revision,f.deleted_at,r.revision,r.body_enc,r.key_version FROM reflections f JOIN reflection_revisions r ON r.reflection_id=f.id AND r.owner_id=f.owner_id AND r.revision=${revision === undefined ? 'f.current_revision' : '?'} WHERE f.owner_id=? AND f.id=?`,
+      `SELECT f.session_id,f.edition_id,f.current_revision,f.deleted_at,r.erased_at,r.revision,r.body_enc,r.key_version FROM reflections f JOIN reflection_revisions r ON r.reflection_id=f.id AND r.owner_id=f.owner_id AND r.revision=${revision === undefined ? 'f.current_revision' : '?'} WHERE f.owner_id=? AND f.id=?`,
       ...(revision === undefined ? [] : [revision]),
       session.subjectId,
       id,
@@ -21,12 +21,14 @@ export class Reflections {
       edition_id: string;
       revision: number;
       deleted_at: number | null;
+      erased_at: number | null;
       body_enc: string | null;
       key_version: number;
     }>();
     if (!row) throw new RecordError(404, 'NOT_FOUND');
     await this.base.ownedSession(session, row.session_id);
-    if (row.deleted_at || !row.body_enc) throw new RecordError(410, 'CONTENT_UNAVAILABLE');
+    if ((revision === undefined && row.deleted_at) || row.erased_at || !row.body_enc)
+      throw new RecordError(410, 'CONTENT_UNAVAILABLE');
     const value = await this.base.opened<z.infer<typeof Reflection>>(
       session.subjectId,
       'reflection_revisions',

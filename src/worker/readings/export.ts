@@ -127,7 +127,7 @@ export class ReadingExports {
       FROM reading_editions e JOIN reading_sessions s ON s.id=e.session_id AND s.owner_id=e.owner_id LEFT JOIN content_editions c ON c.hash=e.content_hash WHERE e.owner_id=? AND ${availableSession}
       UNION ALL
       SELECT 'reflection',f.id,r.revision,f.session_id,r.body_enc,r.key_version,json_object('editionId',f.edition_id)
-      FROM reflection_revisions r JOIN reflections f ON f.id=r.reflection_id AND f.owner_id=r.owner_id JOIN reading_sessions s ON s.id=f.session_id AND s.owner_id=f.owner_id WHERE f.owner_id=? AND f.deleted_at IS NULL AND r.erased_at IS NULL AND ${availableSession}
+      FROM reflection_revisions r JOIN reflections f ON f.id=r.reflection_id AND f.owner_id=r.owner_id JOIN reading_sessions s ON s.id=f.session_id AND s.owner_id=f.owner_id WHERE f.owner_id=? AND r.erased_at IS NULL AND ${availableSession}
       UNION ALL
       SELECT 'generation_receipt',r.id,r.revision,r.session_id,d.transmission_enc,r.key_version,
         json_object('state',r.state,'createdAt',r.created_at,'dispatchId',d.id,'inputTokens',d.input_tokens,'outputTokens',d.output_tokens)

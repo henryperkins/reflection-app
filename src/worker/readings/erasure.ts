@@ -1,22 +1,25 @@
 import type { z } from 'zod';
-import {
-  apiSchemas,
-  ErasureTarget,
-  ErasureIntent,
-  ErasurePass,
-  ErasureCompletion,
-  RecoveryCiphertext,
-} from '../../contracts/index.ts';
-import { canonicalJson, sha256Json } from '../../domain/json.ts';
+import { apiSchemas } from '../../contracts/index.ts';
+import { canonicalJson } from '../../domain/json.ts';
 import { statement as q, DB_NOW } from '../db/core.ts';
 import { assertion } from '../identity/checkpoint.ts';
+import type { IdentityCrypto } from '../identity/crypto.ts';
 import type { Session } from '../identity/types.ts';
+import {
+  ErasureLedger,
+  objects,
+  type Intent,
+  type Target,
+  type Completion,
+} from '../recovery/ledger.ts';
 import { iso, type RecordBase, RecordError } from './base.ts';
 import { encryptedBytes } from './crypto.ts';
+import { EraseData } from './erase-data.ts';
 
 interface Job {
   id: string;
-  owner_id: string;
+  owner_id: string | null;
+  scope: string;
   target_hmac: string;
   target_enc: string | null;
   receipt_token_hash: string | null;
@@ -26,102 +29,96 @@ interface Job {
   completed_at: number | null;
   backup_expires_by: number | null;
 }
-type Target = Extract<z.infer<typeof ErasureTarget>, { scope: 'session' }>;
-const DAY = 86400000;
+type Receipt = z.infer<typeof apiSchemas.DeleteRequest>;
 export class SessionErasure {
+  readonly ledger: ErasureLedger;
   constructor(
     readonly base: RecordBase,
     readonly bucket: R2Bucket,
-  ) {}
-  private token(id: string, value: string) {
-    return this.base.identity.crypt.hash('erasure-receipt.v1', [id, value]);
-  }
-  private async targetHash(target: Target) {
-    return this.base.identity.crypt.hash('erasure-target.v1', target);
-  }
-  private async subjectHash(owner: string) {
-    return this.base.identity.crypt.hash('erasure-subject.v1', owner);
-  }
-  private async mac(kind: string, value: unknown) {
-    return this.base.identity.crypt.hash(kind, [
-      this.base.identity.crypt.secrets.environment,
-      value,
-    ]);
-  }
-  private async signed<T extends object>(kind: string, value: T) {
-    return { ...value, operationMac: await this.mac(kind, value) };
-  }
-  private async verified<T extends { operationMac: string }>(
-    kind: string,
-    schema: z.ZodType<T>,
-    raw: string,
+    retained: IdentityCrypto[] = [],
   ) {
-    const result = schema.parse(JSON.parse(raw));
-    const { operationMac, ...rest } = result;
-    if (
-      raw.length > 16384 ||
-      operationMac !== (await this.mac(kind, rest)) ||
-      canonicalJson(result) !== raw
-    )
-      throw new Error('Invalid erasure ledger');
-    return result;
+    this.ledger = new ErasureLedger(bucket, base.identity.crypt, retained);
   }
-  private aad(job: Pick<Job, 'id' | 'target_hmac' | 'created_at'>, subjectHmac: string) {
-    const secrets = this.base.identity.crypt.secrets;
-    return [
-      secrets.environment,
-      'erasure-target.v1',
-      job.id,
-      'session',
-      subjectHmac,
-      job.target_hmac,
-      secrets.keyId,
-      iso(job.created_at),
-      secrets.keyId,
-    ];
-  }
-  private async putExact(key: string, raw: string) {
-    const result = await this.bucket.put(key, raw, { onlyIf: { etagDoesNotMatch: '*' } });
-    if (!result && (await (await this.bucket.get(key))?.text()) !== raw)
-      throw new Error('Erasure ledger conflict');
-  }
-  private async immutable(key: string, proposed: string) {
-    const existing = await this.bucket.get(key);
-    if (existing) return existing.text();
-    const written = await this.bucket.put(key, proposed, { onlyIf: { etagDoesNotMatch: '*' } });
-    if (written) return proposed;
-    const raced = await this.bucket.get(key);
-    if (!raced) throw new Error('Erasure ledger unavailable');
-    return raced.text();
-  }
-  private async job(id: string) {
+  private job(id: string) {
     return q(this.base.db, 'SELECT * FROM deletion_jobs WHERE id=?', id).first<Job>();
   }
-  async remove(
+  private async matches(job: Job, target: Target, receipt: Receipt) {
+    return (
+      job.receipt_token_hash === (await this.ledger.token(job.id, receipt.receiptToken)) &&
+      job.target_hmac === (await this.ledger.targetHash(target))
+    );
+  }
+  async remove(session: Session, id: string, revision: number, key: string, receipt: Receipt) {
+    return this.removeTarget(
+      session,
+      { scope: 'session', subjectId: session.subjectId, sessionId: id },
+      key,
+      receipt,
+      revision,
+    );
+  }
+  async removeReflection(
     session: Session,
     id: string,
-    revision: number,
+    targetRevision: number,
+    currentRevision: number,
     key: string,
-    receipt: z.infer<typeof apiSchemas.DeleteRequest>,
+    receipt: Receipt,
   ) {
-    const target: Target = { scope: 'session', subjectId: session.subjectId, sessionId: id };
-    const existing = await this.job(receipt.receiptId),
-      hash = await this.token(receipt.receiptId, receipt.receiptToken);
+    return this.removeTarget(
+      session,
+      {
+        scope: 'reflection_revision',
+        subjectId: session.subjectId,
+        reflectionId: id,
+        revision: targetRevision,
+      },
+      key,
+      receipt,
+      currentRevision,
+    );
+  }
+  async removeAccount(session: Session, key: string, receipt: Receipt) {
+    if (session.authenticatedAt <= Date.now() - 300_000)
+      throw new RecordError(401, 'UNAUTHENTICATED');
+    return this.removeTarget(
+      session,
+      { scope: 'account', subjectId: session.subjectId },
+      key,
+      receipt,
+    );
+  }
+  private async removeTarget(
+    session: Session,
+    target: Target,
+    key: string,
+    receipt: Receipt,
+    revision?: number,
+  ) {
+    const existing = await this.job(receipt.receiptId);
     if (existing) {
-      if (
-        existing.owner_id !== session.subjectId ||
-        existing.receipt_token_hash !== hash ||
-        existing.target_hmac !== (await this.targetHash(target))
-      )
-        throw new RecordError(404, 'NOT_FOUND');
-      await this.resume(existing.id);
+      if (!(await this.matches(existing, target, receipt))) throw new RecordError(404, 'NOT_FOUND');
     } else {
       try {
-        const row = await this.base.ownedSession(session, id);
-        if (row.revision !== revision) throw new RecordError(409, 'CONFLICT', row.revision);
-        const mutation = await this.base.mutation(session, key, 'session.delete', {
-          id,
-          revision,
+        if (target.scope === 'session') {
+          const row = await this.base.ownedSession(session, target.sessionId);
+          if (row.revision !== revision) throw new RecordError(409, 'CONFLICT', row.revision);
+        } else if (target.scope === 'reflection_revision') {
+          const row = await q(
+            this.base.db,
+            'SELECT f.current_revision,f.session_id FROM reflections f JOIN reflection_revisions r ON r.owner_id=f.owner_id AND r.reflection_id=f.id AND r.revision=? WHERE f.owner_id=? AND f.id=?',
+            target.revision,
+            target.subjectId,
+            target.reflectionId,
+          ).first<{ current_revision: number; session_id: string }>();
+          if (!row) throw new RecordError(404, 'NOT_FOUND');
+          await this.base.ownedSession(session, row.session_id);
+          if (row.current_revision !== revision)
+            throw new RecordError(409, 'CONFLICT', row.current_revision);
+        }
+        const mutation = await this.base.mutation(session, key, `${target.scope}.delete`, {
+          target,
+          revision: revision ?? null,
           receipt,
         });
         if (mutation.existing && mutation.existing !== receipt.receiptId)
@@ -129,27 +126,21 @@ export class SessionErasure {
         await this.queue(
           target,
           receipt.receiptId,
-          hash,
+          await this.ledger.token(receipt.receiptId, receipt.receiptToken),
           session,
           revision,
           mutation.insert(receipt.receiptId),
         );
       } catch (error) {
         const raced = await this.job(receipt.receiptId);
-        if (
-          !raced ||
-          raced.owner_id !== session.subjectId ||
-          raced.receipt_token_hash !== hash ||
-          raced.target_hmac !== (await this.targetHash(target))
-        )
-          throw error;
+        if (!raced || !(await this.matches(raced, target, receipt))) throw error;
       }
-      await this.resume(receipt.receiptId);
     }
+    await this.resume(receipt.receiptId);
+    if (target.scope !== 'account') await this.base.checked(session);
     const current = (await this.job(receipt.receiptId))!;
-    await this.base.checked(session);
     return apiSchemas.DeletionReceipt.parse({
-      receiptId: current.id,
+      receiptId: receipt.receiptId,
       receiptToken: receipt.receiptToken,
       state: current.state,
       backupExpiresBy: current.backup_expires_by === null ? null : iso(current.backup_expires_by),
@@ -158,330 +149,208 @@ export class SessionErasure {
   private async queue(
     target: Target,
     id: string,
-    receiptHash: string | null,
+    hash: string | null,
     session?: Session,
     revision?: number,
     mutation?: D1PreparedStatement,
   ) {
-    const now = Date.now(),
-      subjectHmac = await this.subjectHash(target.subjectId),
-      targetHmac = await this.targetHash(target);
-    const encrypted = await this.base.identity.crypt.seal(
-      target,
-      this.aad({ id, target_hmac: targetHmac, created_at: now }, subjectHmac),
-      this.base.identity.crypt.secrets.recoveryKey,
-    );
-    const statements = [
-      ...(session
-        ? [
-            this.base.identity.sessions.guard(session),
-            this.base.sessionGuard(session, target.sessionId, revision),
-          ]
-        : [
-            assertion(
+    const intent = await this.ledger.create(target, id, hash, Date.now());
+    const statements: D1PreparedStatement[] = [];
+    if (session)
+      statements.push(this.base.identity.sessions.guard(session, target.scope === 'account'));
+    if (target.scope === 'session') {
+      statements.push(
+        session
+          ? this.base.sessionGuard(session, target.sessionId, revision)
+          : assertion(
               this.base.db,
               `EXISTS(SELECT 1 FROM reading_sessions WHERE owner_id=? AND id=? AND status='open' AND retention_expires_at<=${DB_NOW})`,
               target.subjectId,
               target.sessionId,
             ),
-          ]),
-      ...this.base.stopStatements(target.subjectId, target.sessionId),
+      );
+    } else if (target.scope === 'reflection_revision') {
+      statements.push(
+        assertion(
+          this.base.db,
+          `EXISTS(SELECT 1 FROM reflections f JOIN reading_sessions s ON s.owner_id=f.owner_id AND s.id=f.session_id WHERE f.owner_id=? AND f.id=? AND f.current_revision=? AND (s.status='saved' OR (s.status='open' AND s.retention_expires_at>${DB_NOW})))`,
+          target.subjectId,
+          target.reflectionId,
+          revision ?? null,
+        ),
+      );
+    }
+    statements.push(...this.fence(target));
+    statements.push(
       q(
         this.base.db,
-        `UPDATE reading_sessions SET status='deleted',saved_at=NULL,deleted_at=${DB_NOW},retention_expires_at=NULL,revision=revision+1 WHERE owner_id=? AND id=?`,
-        target.subjectId,
-        target.sessionId,
-      ),
-      q(
-        this.base.db,
-        `INSERT INTO deletion_jobs(id,owner_id,scope,target_hmac,target_enc,receipt_token_hash,state,ledger_key,next_run_at,created_at) VALUES (?,?,'session',?,?,?,'ledger_pending',?,${DB_NOW},?)`,
+        `INSERT INTO deletion_jobs(id,owner_id,scope,target_hmac,target_enc,receipt_token_hash,state,ledger_key,next_run_at,created_at) VALUES (?,?,?,?,?,?,'ledger_pending',?,${DB_NOW},?)`,
         id,
         target.subjectId,
-        targetHmac,
-        encrypted,
-        receiptHash,
+        target.scope,
+        intent.targetHmac,
+        canonicalJson(intent.target),
+        hash,
         `erasures/v1/${id}/intent.json`,
-        now,
+        Date.parse(intent.requestedAt),
       ),
-      ...(mutation ? [mutation] : []),
+    );
+    if (mutation) statements.push(mutation);
+    statements.push(
       q(
         this.base.db,
         `UPDATE accounts SET data_revision=data_revision+1,storage_bytes=storage_bytes+?,updated_at=${DB_NOW} WHERE id=?`,
-        encryptedBytes(encrypted) + (mutation ? 2048 : 1024),
+        encryptedBytes(canonicalJson(intent.target)) + (mutation ? 2048 : 1024),
         target.subjectId,
       ),
-    ];
+    );
     await this.base.db.batch(statements);
+  }
+  /** Idempotent privacy fence used both at live admission and offline replay. */
+  fence(target: Target): D1PreparedStatement[] {
+    const owner = target.subjectId;
+    if (target.scope === 'account')
+      return [
+        ...this.base.stopStatements(owner),
+        q(
+          this.base.db,
+          `UPDATE accounts SET status='deleting',write_fence='erasure',auth_epoch=auth_epoch+1,data_revision=data_revision+1 WHERE id=? AND status!='deleting'`,
+          owner,
+        ),
+        q(this.base.db, 'DELETE FROM auth_sessions WHERE owner_id=?', owner),
+        q(this.base.db, 'DELETE FROM auth_challenges WHERE owner_id=?', owner),
+      ];
+    if (target.scope === 'session')
+      return [
+        ...this.base.stopStatements(owner, target.sessionId),
+        q(
+          this.base.db,
+          `UPDATE reading_sessions SET status='deleted',saved_at=NULL,deleted_at=coalesce(deleted_at,${DB_NOW}),retention_expires_at=NULL,revision=revision+1 WHERE owner_id=? AND id=? AND status!='deleted'`,
+          owner,
+          target.sessionId,
+        ),
+      ];
+    if (target.scope === 'reflection_revision')
+      return [
+        ...this.base.stopStatements(owner),
+        q(
+          this.base.db,
+          `UPDATE reflection_revisions SET erased_at=coalesce(erased_at,${DB_NOW}) WHERE owner_id=? AND reflection_id=? AND revision=?`,
+          owner,
+          target.reflectionId,
+          target.revision,
+        ),
+        q(
+          this.base.db,
+          `UPDATE reflections SET deleted_at=coalesce(deleted_at,${DB_NOW}) WHERE owner_id=? AND id=? AND current_revision=?`,
+          owner,
+          target.reflectionId,
+          target.revision,
+        ),
+      ];
+    throw new Error('Unsupported erasure family');
+  }
+  async eraseTarget(id: string, target: Target) {
+    const data = new EraseData(this.base);
+    if (target.scope === 'session') await data.session({ id }, target);
+    else if (target.scope === 'reflection_revision') await data.reflection({ id }, target);
+    else if (target.scope === 'account') {
+      await data.account(target);
+      for (const key of this.ledger.keys.values()) {
+        const prefix = `identity/v1/${await key.hash('identity-subject', target.subjectId)}/`;
+        for (const object of await objects(this.bucket, prefix))
+          await this.bucket.delete(object.key);
+      }
+    } else throw new Error('Unsupported erasure family');
+  }
+  async project(intent: Intent, target: Target, completion: Completion | null) {
+    const owner = await q(
+      this.base.db,
+      'SELECT id FROM accounts WHERE id=?',
+      target.subjectId,
+    ).first<string>('id');
+    await q(
+      this.base.db,
+      `INSERT INTO deletion_jobs(id,owner_id,scope,target_hmac,target_enc,receipt_token_hash,state,ledger_key,next_run_at,created_at,completed_at,backup_expires_by) VALUES (?,?,?,?,?,?,?,?,${DB_NOW},?,?,?) ON CONFLICT(id) DO UPDATE SET owner_id=excluded.owner_id,target_enc=excluded.target_enc,state=excluded.state,completed_at=excluded.completed_at,backup_expires_by=excluded.backup_expires_by`,
+      intent.jobId,
+      owner,
+      intent.scope,
+      intent.targetHmac,
+      completion ? null : canonicalJson(intent.target),
+      intent.receiptTokenHmac,
+      completion ? 'complete' : 'erasing',
+      `erasures/v1/${intent.jobId}/intent.json`,
+      Date.parse(intent.requestedAt),
+      completion ? Date.parse(completion.erasedAt) : null,
+      completion ? Date.parse(completion.backupExpiresBy) : null,
+    ).run();
   }
   async resume(id: string) {
     const job = await this.job(id);
     if (!job || job.state === 'complete') return;
     try {
-      if (!job.target_enc) throw new Error('Missing erasure target');
-      const subjectHmac = await this.subjectHash(job.owner_id);
-      const target = ErasureTarget.parse(
-        await this.base.identity.crypt.open(
-          job.target_enc,
-          this.aad(job, subjectHmac),
-          this.base.identity.crypt.secrets.recoveryKey,
-        ),
-      );
-      if (
-        target.scope !== 'session' ||
-        target.subjectId !== job.owner_id ||
-        (await this.targetHash(target)) !== job.target_hmac
-      )
-        throw new Error('Erasure identity mismatch');
-      const intent = ErasureIntent.parse(
-        await this.signed('erasure-intent.v1', {
-          v: 1 as const,
-          jobId: job.id,
-          scope: 'session' as const,
-          subjectHmac,
-          targetHmac: job.target_hmac,
-          hmacKeyId: this.base.identity.crypt.secrets.keyId,
-          target: RecoveryCiphertext.parse(JSON.parse(job.target_enc)),
-          receiptTokenHmac: job.receipt_token_hash,
-          requestedAt: iso(job.created_at),
-        }),
-      );
-      await this.putExact(job.ledger_key, canonicalJson(intent));
-      const intentSha256 = await sha256Json(intent),
-        prefix = `erasures/v1/${job.id}/passes/1`;
-      const pass = await this.verified(
-        'erasure-pass.v1',
-        ErasurePass,
-        await this.immutable(
-          `${prefix}/start.json`,
-          canonicalJson(
-            await this.signed('erasure-pass.v1', {
-              v: 1,
-              jobId: job.id,
-              revision: 1,
-              intentSha256,
-              previousCompletionSha256: null,
-              startedAt: iso(Date.now()),
-              hmacKeyId: this.base.identity.crypt.secrets.keyId,
-            }),
-          ),
-        ),
-      );
-      if (
-        pass.jobId !== job.id ||
-        pass.revision !== 1 ||
-        pass.intentSha256 !== intentSha256 ||
-        pass.previousCompletionSha256 !== null
-      )
-        throw new Error('Invalid erasure pass');
-      await this.erase(job, target);
-      const erased = (await this.job(job.id))!,
-        erasedAt = erased.completed_at!;
-      const completion = await this.verified(
-        'erasure-completion.v1',
-        ErasureCompletion,
-        await this.immutable(
-          `${prefix}/complete.json`,
-          canonicalJson(
-            await this.signed('erasure-completion.v1', {
-              v: 1,
-              jobId: job.id,
-              revision: 1,
-              passSha256: await sha256Json(pass),
-              erasedAt: iso(erasedAt),
-              backupExpiresBy: iso(erasedAt + 30 * DAY),
-              purgeAfter: iso(erasedAt + 45 * DAY),
-              intentSha256,
-              hmacKeyId: this.base.identity.crypt.secrets.keyId,
-            }),
-          ),
-        ),
-      );
-      if (
-        completion.jobId !== job.id ||
-        completion.intentSha256 !== intentSha256 ||
-        completion.passSha256 !== (await sha256Json(pass)) ||
-        completion.revision !== 1 ||
-        Date.parse(completion.backupExpiresBy) < erasedAt + 30 * DAY ||
-        Date.parse(completion.purgeAfter) < erasedAt + 45 * DAY
-      )
-        throw new Error('Invalid erasure completion');
+      const existing = await this.bucket.get(job.ledger_key);
+      if (!existing) await this.ledger.putIntent(await this.ledger.fromPending(job));
+      const chain = await this.ledger.load(id);
+      if (chain.completion && !chain.pending) {
+        await this.project(chain.intent, chain.target, chain.completion);
+        return;
+      }
+      const pass = await this.ledger.begin(chain);
+      if (chain.target.scope === 'account') {
+        const children = await q(
+          this.base.db,
+          "SELECT id FROM deletion_jobs WHERE owner_id=? AND id!=? AND state!='complete'",
+          chain.target.subjectId,
+          id,
+        ).all<{ id: string }>();
+        for (const child of children.results) await this.resume(child.id);
+      }
+      await this.eraseTarget(id, chain.target);
+      const erased = (await this.job(id))!;
+      const completion = await this.ledger.finish(chain, pass, erased.completed_at ?? Date.now());
       await this.base.db.batch([
         q(
           this.base.db,
           'UPDATE accounts SET storage_bytes=max(0,storage_bytes-CASE WHEN (SELECT target_enc FROM deletion_jobs WHERE id=?) IS NOT NULL THEN ? ELSE 0 END) WHERE id=?',
-          job.id,
+          id,
           encryptedBytes(job.target_enc),
-          job.owner_id,
+          chain.target.subjectId,
         ),
         q(
           this.base.db,
-          "UPDATE deletion_jobs SET state='complete',target_enc=NULL,backup_expires_by=? WHERE id=?",
+          "UPDATE deletion_jobs SET state='complete',target_enc=NULL,completed_at=?,backup_expires_by=? WHERE id=?",
+          Date.parse(completion.erasedAt),
           Date.parse(completion.backupExpiresBy),
-          job.id,
+          id,
         ),
       ]);
     } catch (error) {
-      // Another resume may have durably completed while this one was paused or lost R2 access.
-      if ((await this.job(job.id))?.state === 'complete') return;
+      if ((await this.job(id))?.state === 'complete') return;
       await q(
         this.base.db,
         `UPDATE deletion_jobs SET attempts=attempts+1,next_run_at=${DB_NOW}+60000 WHERE id=? AND state!='complete'`,
-        job.id,
+        id,
       ).run();
       throw error;
     }
   }
-  private async erase(job: Job, target: Target) {
-    const owner = target.subjectId,
-      id = target.sessionId;
-    const requests = 'SELECT id FROM generation_requests WHERE owner_id=? AND session_id=?';
-    const reflections = 'SELECT id FROM reflections WHERE owner_id=? AND session_id=?';
-    const editions = 'SELECT id FROM reading_editions WHERE owner_id=? AND session_id=?';
-    // This integration creates no selected context/imports. Refuse completion if future unsupported copies exist.
-    const unsupported = `NOT EXISTS(SELECT 1 FROM generation_context gc JOIN context_grants g ON g.id=gc.grant_id AND g.owner_id=gc.owner_id JOIN generation_requests r ON r.id=gc.request_id AND r.owner_id=gc.owner_id WHERE g.owner_id=? AND (g.edition_id IN (${editions}) OR g.reflection_id IN (${reflections})) AND r.session_id!=?) AND NOT EXISTS(SELECT 1 FROM import_identities WHERE owner_id=?) AND NOT EXISTS(SELECT 1 FROM import_items WHERE owner_id=?)`;
-    const fields: Array<[string, string[], string]> = [
-      ['reading_sessions', ['question_enc'], 'id=?'],
-      ['basis_snapshots', ['body_enc'], 'session_id=?'],
-      ['reading_editions', ['body_enc'], 'session_id=?'],
-      ['generation_requests', ['input_enc', 'plan_enc'], 'session_id=?'],
-      [
-        'provider_dispatches',
-        ['transmission_enc', 'candidate_enc', 'provider_response_id_enc'],
-        `request_id IN (${requests})`,
-      ],
-      ['reflection_revisions', ['body_enc'], `reflection_id IN (${reflections})`],
-      ['generation_context', ['fragment_enc'], `request_id IN (${requests})`],
-      ['revisits', ['note_enc'], `edition_id IN (${editions})`],
-    ];
-    const totals = await this.base.db.batch<{ bytes: number }>(
-      fields.map(([table, columns, filter]) =>
-        q(
-          this.base.db,
-          `SELECT coalesce(sum(${columns.map((column) => `coalesce(length(CAST(${column} AS BLOB)),0)`).join('+')}),0) AS bytes FROM ${table} WHERE owner_id=? AND ${filter}`,
-          owner,
-          ...(filter.includes('SELECT') ? [owner, id] : [id]),
-        ),
-      ),
-    );
-    const bytes = totals.reduce((sum, result) => sum + (result.results[0]?.bytes ?? 0), 0);
-    await this.base.db.batch([
-      // Completion is terminal. Check inside the atomic batch, not only at resume entry.
-      assertion(
-        this.base.db,
-        "EXISTS(SELECT 1 FROM deletion_jobs WHERE id=? AND state!='complete' AND target_enc IS NOT NULL)",
-        job.id,
-      ),
-      assertion(
-        this.base.db,
-        "EXISTS(SELECT 1 FROM reading_sessions WHERE owner_id=? AND id=? AND status='deleted')",
-        owner,
-        id,
-      ),
-      assertion(this.base.db, unsupported, owner, owner, id, owner, id, id, owner, owner),
-      // Serialize concurrent resume calls: only the first erasure decrements private-byte accounting.
-      q(
-        this.base.db,
-        `UPDATE accounts SET storage_bytes=max(0,storage_bytes-CASE WHEN (SELECT completed_at FROM deletion_jobs WHERE id=?) IS NULL THEN ? ELSE 0 END),data_revision=data_revision+1 WHERE id=?`,
-        job.id,
-        bytes,
-        owner,
-      ),
-      q(
-        this.base.db,
-        `UPDATE deletion_jobs SET state='erasing',completed_at=coalesce(completed_at,${DB_NOW}) WHERE id=?`,
-        job.id,
-      ),
-      q(
-        this.base.db,
-        'UPDATE reading_sessions SET question_enc=NULL WHERE owner_id=? AND id=?',
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        'UPDATE basis_snapshots SET body_enc=NULL WHERE owner_id=? AND session_id=?',
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `UPDATE reading_editions SET body_enc=NULL,status='deleted',invalidated_at=coalesce(invalidated_at,${DB_NOW}) WHERE owner_id=? AND session_id=?`,
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        'UPDATE generation_requests SET input_enc=NULL,plan_enc=NULL WHERE owner_id=? AND session_id=?',
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `UPDATE provider_dispatches SET transmission_enc=NULL,candidate_enc=NULL,provider_response_id_enc=NULL WHERE owner_id=? AND request_id IN (${requests})`,
-        owner,
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `UPDATE generation_context SET fragment_enc=NULL WHERE owner_id=? AND request_id IN (${requests})`,
-        owner,
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `UPDATE reflection_revisions SET body_enc=NULL,erased_at=coalesce(erased_at,${DB_NOW}) WHERE owner_id=? AND reflection_id IN (${reflections})`,
-        owner,
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `UPDATE reflections SET deleted_at=coalesce(deleted_at,${DB_NOW}) WHERE owner_id=? AND session_id=?`,
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `UPDATE context_grants SET state='revoked',revision=revision+1,updated_at=${DB_NOW} WHERE owner_id=? AND (edition_id IN (${editions}) OR reflection_id IN (${reflections})) AND state='allowed'`,
-        owner,
-        owner,
-        id,
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `DELETE FROM revisits WHERE owner_id=? AND edition_id IN (${editions})`,
-        owner,
-        owner,
-        id,
-      ),
-      q(
-        this.base.db,
-        `UPDATE cost_reservations SET owner_id=NULL,dispatch_id=NULL WHERE owner_id=? AND dispatch_id IN (SELECT id FROM provider_dispatches WHERE owner_id=? AND request_id IN (${requests}))`,
-        owner,
-        owner,
-        owner,
-        id,
-      ),
-    ]);
-  }
   async status(id: string, token: string | null) {
     const job = await this.job(id);
+    if (!token || token.length !== 43) throw new RecordError(404, 'NOT_FOUND');
+    if (job && job.receipt_token_hash !== (await this.ledger.token(id, token)))
+      throw new RecordError(404, 'NOT_FOUND');
+    if (!(await this.bucket.head(`erasures/v1/${id}/intent.json`)))
+      throw new RecordError(job ? 503 : 404, job ? 'DEPENDENCY_UNAVAILABLE' : 'NOT_FOUND');
+    const chain = await this.ledger.load(id);
     if (
-      !job ||
-      !token ||
-      token.length !== 43 ||
-      job.receipt_token_hash !== (await this.token(id, token))
+      chain.intent.receiptTokenHmac !==
+      (await this.ledger.token(id, token, this.ledger.key(chain.intent.hmacKeyId)))
     )
       throw new RecordError(404, 'NOT_FOUND');
-    if (!(await this.bucket.head(job.ledger_key)))
-      throw new RecordError(503, 'DEPENDENCY_UNAVAILABLE');
     return apiSchemas.DeletionStatus.parse({
-      state: job.state,
-      backupExpiresBy: job.backup_expires_by === null ? null : iso(job.backup_expires_by),
+      state: chain.pending ? 'erasing' : chain.completion ? 'complete' : 'ledger_pending',
+      backupExpiresBy: chain.pending ? null : (chain.completion?.backupExpiresBy ?? null),
     });
   }
   async maintenance() {
@@ -497,18 +366,18 @@ export class SessionErasure {
           null,
         );
       } catch {
-        /* Another maintenance pass may have already fenced this row. */
+        /* Concurrent maintenance may already have fenced it. */
       }
     }
     const jobs = await q(
       this.base.db,
-      `SELECT id FROM deletion_jobs WHERE scope='session' AND state!='complete' AND next_run_at<=${DB_NOW} ORDER BY next_run_at LIMIT 20`,
+      `SELECT id FROM deletion_jobs WHERE state!='complete' AND next_run_at<=${DB_NOW} ORDER BY next_run_at LIMIT 20`,
     ).all<{ id: string }>();
     for (const row of jobs.results) {
       try {
         await this.resume(row.id);
       } catch {
-        /* Pending remains fenced; no private error is logged. */
+        /* Remains fenced for retry; no private error logging. */
       }
     }
   }
