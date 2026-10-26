@@ -6,23 +6,59 @@ Distinguish four results: deterministic artifact validation (executed results in
 
 | Requirement | Component / contract or lifecycle rule | Required tests/proof |
 |---|---|---|
-| R01 ownership/identity | identity service, Principal, composite owner FKs, challenge/session/epoch | A01 cross-owner graph/read/write, A02 single-use challenge/recovery and worker/browser passkey qualification |
+| R01 ownership/identity | identity service, Principal, composite owner FKs, challenge/session/epoch | A01 cross-owner graph/read/write, A02 single-use challenge/recovery and worker/browser passkey qualification; MVP03 recovery-file journey |
 | R02 tarot basis | domain/tarot, TarotBasis, versioned unbiased draw | A03 seeded golden draw/orientation vectors, rejection-sampling edge values, count/binding closure |
 | R03 accepted/reopen | ModelCandidate→AcceptedReading, unique request edition, content-free events | A04 rejected text never visible, reopen no provider calls, lost-delivery same edition |
-| R04 authorship/save | Reflection CAS/revisions, atomic save flag | A05 interrupted/lost acknowledgement/conflict/reopen/disagreement browser journey |
-| R05 permission/context | current permission/grant/source checks, SelectedFragment/transmission | A06 pre-dispatch revoke, post-dispatch prepublish revoke, missing snapshot, unselected-marker egress |
+| R04 authorship/save/basic history | Independent SaveWrite and Reflection CAS/revisions, atomic save flag, dated saved HistoryPage and keyset cursors in the first real-user slice | A05 interrupted/lost acknowledgement/conflict/reopen/disagreement browser journey; MVP01 find/reopen saved reading; MVP05 save without reflection, later add/edit |
+| R05 permission/context | Model permission gates generation, not owned-record access; current grant/source checks and SelectedFragment/transmission | MVP04 declined/revoked permission; A06 pre-dispatch revoke, post-dispatch prepublish revoke, missing snapshot, unselected-marker egress; selection controls remain Milestone 3 |
 | R06 lifecycle | request states/leases/attempts/dispatch uniqueness, guard SQL | A07 duplicate starts, stale epochs, crash matrix, timeout unknown, atomic publication/accounting |
-| R07 privacy/erasure | Ciphertext AAD/index key, registry, SECURITY_RESTORE sagas | A08 encrypt/rotate/erase, snapshot copies, erasure receipt ack, restore replay/security/spend fences |
+| R07 privacy/erasure | Ciphertext AAD/index key, registry, SECURITY_RESTORE sagas; distinct temporary Start and saved retention | A08 encrypt/rotate/erase, snapshot copies, erasure receipt ack, restore replay/security/spend fences; MVP02 disclosure and retention boundaries |
 | R08 provenance | plan/content/prompt/validator/policy hashes, source snapshots | A09 hash identity, source coverage does not confer support; exact saved text/render values |
 | R09 UI/a11y | routes and states in USER_EXPERIENCE | A10 keyboard, screen readers,320px/200% text, contrast, offline/privacy cache checks |
-| R10 history/follow-up | exact parent edition/source selection, keyset cursors | A11 no automatic biography, quiet/disagree follow-ups, parent withdrawal under new content |
-| R11 import/export | LegacyRecord/PortableRecord and typed alias mapping | A12 lossless original text/IDs/time/gaps/parents, partial group rollback, duplicate/import ownership, metadata pagination |
+| R10 dated revisits/follow-up/context | Dedicated Revisit notes and exact parent edition/source selection in Milestone 3 | A11 explicit dated notes without automatic tracking, no automatic biography, quiet/disagree follow-ups, parent withdrawal under new content |
+| R11 import/export | PortableRecord export in the first real-user slice; LegacyRecord and typed import alias mapping in Milestone 3 | MVP04 export without model permission; A12 lossless original text/IDs/time/gaps/parents, partial group rollback, duplicate/import ownership, metadata pagination, with import cases deferred to Milestone 3 |
 | R12 releases | verify command + main wrapper + account isolation | A13 deterministic gate local; hosted intentionally failing test/non-main/isolation proof before rollout |
 | R13 accounting/ops | quota CAS, unique cost adjustments, ceilings, monitoring | A14 midnight/period refunds, uncertain cost, duplicate reconciliation, cap/restore reconciliation |
 | R14 safe outcomes | local input/output analyzers, approved English non-reading copy | A15 balanced ordinary/metaphor/crisis/language/refusal corpus, no hidden inference |
 | R15 content/rights | CanonSource/ContentBundle, hash-bound approval, withdrawal | A16 null approval CHECK, concurrent activation, withdrawal and historical redaction; asset manifest gate |
 | R16 later astrology | AstrologyInput/Basis/CalculationService, no v1 runtime | A17 representative fixtures and contract contradictions only; later engine/licensing proof deferred |
 | R17 schema compatibility | generated schemas, registry, migration window | A18 strict TS/Zod/OpenAPI refs, schema generation drift, registry unknown-column fail, N/N−1 migrations |
+
+## First real-user slice: MVP acceptance to implement
+
+These five journeys are **planned application acceptance**, not executed artifact checks. They are required for Milestone 2, the first real-user slice. Use synthetic owned records, controlled time, intercepted providers, and a clean browser context; record UI behavior, durable state, and actual egress separately. Reset the provider spy after creating the accepted-reading fixture so a zero-call assertion measures the action under test. Existing schema/parser/reference checks do not establish any of these journeys.
+
+Basic dated saved history belongs to this slice. Follow-ups, context selection/grant controls, legacy imports, and dedicated dated revisit notes remain Milestone 3; none is a prerequisite for these five journeys. Opening a saved reading must not silently create a revisit note or invoke a later feature. This UI/handler staging does not reduce the existing launch-quality corpus or provider-qualification gates below.
+
+### MVP01 — Save, sign out, find, and reopen
+
+Create an accepted reading with known exact text, rendered facts, edition ID, and timestamps; explicitly save it. Sign out, discard the old page and its in-memory state, sign in through the normal account flow, find the entry in the basic saved-history list, and open it. The visible reading date must correctly represent its stored timestamp in the UI's stated display zone; distinguish a saved-at label from the reading date if both are shown. Exercise at least two dated entries so ordering and selection are observable.
+
+Pass when history returns the owned saved session, reopening returns the same accepted edition/text/basis/provenance, and neither navigation nor reopen creates a generation request, dispatch, quota charge, or provider call. An empty saved list has a usable empty state. A different signed-in account cannot list or reopen the fixture. A lost Save acknowledgement resolves the committed saved state without duplicate records or an inferred failure.
+
+### MVP02 — Disclose temporary processing separately from Save and model permission
+
+Before Start, verify the UI explains encrypted temporary processing/recovery storage for 24 hours, the separate Save action that retains the reading until deletion, and the independently chosen model permission. Starting must not be labeled as permanent Save or silently enable model permission. Inspect the persisted open-session deadline and confirm that reconnecting before expiry resolves the existing request/result rather than creating another model call.
+
+With controlled time, compare an unsaved fixture and an explicitly saved fixture. At the unsaved deadline, recovery access ends and the record enters the specified erasure path; it must not be served as available or regenerated. Run the planned cleanup and verify the covered active-store copies are erased. The saved fixture remains available beyond that deadline, with no routine 24-hour purge, until explicit deletion under the lifecycle policy. State any separate physical-erasure and backup windows accurately; do not equate logical expiry with instant erasure of every copy. Assert Start/Save never change the model-permission revision or value as an incidental side effect.
+
+### MVP03 — Recover using the downloaded handle and codes after browser state is gone
+
+Provision a synthetic account, explicitly download the recovery file, and acknowledge it through the required flow. Inspect that the file contains the recovery handle and the issued recovery codes, not codes alone, with the instructions needed to use the correct application. Save a known reading. Close the original browser context, clear cookies and all browser storage, and make the original test authenticator unavailable. Retain only the deliberately downloaded recovery file outside that browser context.
+
+Use the file's handle and one unused code to obtain the restricted recovery challenge, enroll a new passkey, sign in, and find/reopen the exact saved reading under the same account. No private record or full session may be returned by the recovery-code step before enrollment and checkpoint completion. Assert zero provider calls. Wrong handle/code pair, used or rotated-away code, expired/browser-mismatched challenge, and unavailable checkpoint storage must fail without granting record access; replay cannot consume the same code twice. Raw recovery factors must not appear in logs or automatic browser persistence. This is a future browser/authentication proof, distinct from the existing erasure-ledger reference exercise.
+
+### MVP04 — Declining or revoking model permission preserves owned-record access
+
+Exercise both a never-enabled permission and an allowed→revoked permission against an owned synthetic saved-reading fixture. History, exact reopen, reflection creation/editing, export, and deletion remain operable with their ordinary authentication, ownership, recent-authentication, concurrency, and availability checks. They must not ask for model consent or invoke a provider. The UI clearly disables new AI generation while keeping these record actions available.
+
+Bypass the UI and call the generation operation directly: current false permission must reject server-side with CONSENT_REQUIRED, without a new dispatch, quota hold, accepted result, or ordinary template. Repeat with configured outage/template mode to prove fallback cannot bypass consent. Revoke permission while an intercepted request is in flight; the late candidate and any template must fail publication, held product quota is released once, and no further egress occurs. Previously transmitted text is not represented as recalled. Saving, editing, exporting, deleting, or signing in must not silently re-enable permission.
+
+### MVP05 — Save with no reflection, then add and edit one later
+
+Accept a reading, leave reflection input untouched, and save. Confirm saved state only after commit; verify no blank placeholder reflection was manufactured and `reflectionIds` is empty. Sign out and back in, locate the saved reading in history, and reopen it with an empty, optional reflection editor. Its lack of a reflection must not prevent save, listing, retention, or reopen.
+
+Add a separately authored reflection later, then edit it with the existing revision/CAS contract. Reopen again and verify the latest user text and revision while the accepted reading's edition/text/basis remain unchanged. A stale edit returns the defined conflict and preserves the local draft. These actions cause no provider call, generation request, implicit context grant, or model-permission change. They do not require follow-up or dated-revisit functionality.
 
 ## Repository deterministic gate to implement
 

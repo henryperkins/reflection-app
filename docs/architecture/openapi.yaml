@@ -184,9 +184,11 @@ paths:
         proposed account/key/credential/false permission in D1; confirm
         independent identity checkpoint before final D1 apply and session
         issuance. Also completes add/recover purpose with bound current subject;
-        purpose cannot be substituted. Sets __Host-session; returns recovery
-        codes only when created/rotated. Uncertain checkpoint completion
-        returns503; never issues an uncommitted session.
+        purpose cannot be substituted. Sets __Host-session; returns
+        recoveryHandle and recoveryCodes together only when created/rotated, for
+        an explicitly downloaded/copied complete recovery kit. Other auth
+        results cannot reconstruct old plaintext factors. Uncertain checkpoint
+        completion returns503; never issues an uncommitted session.
       security: []
       parameters: []
       responses:
@@ -511,11 +513,14 @@ paths:
     post:
       operationId: recoverIdentity
       summary: recoverIdentity
-      description: 5 failures/hour/IP and handle. Verify unused recovery code, then
-        fence and checkpoint its consumption through the security saga. Final D1
-        apply revokes sessions and creates browser-bound registration challenge
-        only after independent checkpoint durability. Grants no data access. 401
-        generic failure;503 while durability is uncertain.
+      description: 5 failures/hour/IP and handle. Require the recovery kit handle plus
+        one unused code; no previously retained browser state or old passkey is
+        required to begin. Verify the pair, then fence and checkpoint code
+        consumption through the security saga. Final D1 apply revokes sessions
+        and creates a new browser-bound registration challenge only after
+        independent checkpoint durability. Grants no data access before
+        replacement passkey enrollment completes. 401 generic failure;503 while
+        durability is uncertain.
       security: []
       parameters: []
       responses:
@@ -676,8 +681,10 @@ paths:
     post:
       operationId: acknowledgeRecovery
       summary: acknowledgeRecovery
-      description: Checkpoint acknowledgement of saved recovery factors through the
-        security saga; required before first personal persistence/generation.
+      description: Checkpoint the user acknowledgement that the complete recovery kit
+        containing both handle and codes has been saved through the security
+        saga; required before first personal persistence/generation. This
+        acknowledges the user action, not proof of future recovery.
         Idempotent;503 if checkpoint durability cannot be confirmed.
       security:
         - sessionCookie: []
@@ -1493,10 +1500,12 @@ paths:
       operationId: rotateRecoveryCodes
       summary: rotateRecoveryCodes
       description: "Security saga checkpoints replacement code verifiers and handle
-        before invalidating old codes and returning ten new codes once. Never
-        retry after losing response: sign in with a passkey, reauthenticate and
-        rotate again. Secret response no-store. Recent passkey authentication
-        <=5 minutes."
+        before invalidating old codes and returning the new recoveryHandle plus
+        ten codes together once. Client offers a complete replacement recovery
+        kit by explicit download/copy. Never retry after losing response: sign
+        in with a passkey, reauthenticate and rotate again. Secret response
+        no-store; never persist factors silently in browser storage. Recent
+        passkey authentication <=5 minutes."
       security:
         - sessionCookie: []
       parameters:
@@ -1822,7 +1831,13 @@ paths:
       summary: setModelPermission
       description: If-Match permission revision. Append permission revision and update
         account pointer; revocation fences in-flight requests/releases quota in
-        same transaction. Saving is not consent.
+        same transaction. With model permission off, owned saved history,
+        reopening, saving existing readings, reflection editing, export and
+        deletion remain available under their ordinary auth/ownership guards.
+        New AI generation and ordinary fallback publication are disabled. Start
+        temporary storage and Save retention do not grant model permission;
+        revocation does not delete saved records or retract previous provider
+        transmissions.
       security:
         - sessionCookie: []
       parameters:
@@ -2712,11 +2727,17 @@ paths:
     post:
       operationId: startReading
       summary: startReading
-      description: Initial or follow-up intent. Admission before reservation. Atomic
-        request/session/quota/QUEUED event; async wake. Duplicates join.
-        5/min,20 starts/day/account, 2 active/account; 3/day and30/month
-        accepted model quota. 422 language/safety,403 consent,409 stale
-        context,429 quota,503 backlog/spend.
+      description: Initial intent in the first slice; follow-ups and selected context
+        are completed-v1 features. Start authorizes disclosed temporary
+        processing/recovery storage for an unsaved session for24h from creation,
+        separately from current model permission. Admission before reservation;
+        model permission off returns403 before a new personal session or
+        provider dispatch. Atomic request/session/quota/QUEUED event; async
+        wake. Duplicates join without extending retention. Save is a separate
+        durable-retention action and reflection is optional. 5/min,20
+        starts/day/account, 2 active/account; 3/day and30/month accepted model
+        quota. 422 language/safety,403 consent,409 stale context,429 quota,503
+        backlog/spend.
       security:
         - sessionCookie: []
       parameters:
@@ -3416,12 +3437,16 @@ paths:
     get:
       operationId: history
       summary: history
-      description: History saved by default; status=open resumes unsaved <=24h
-        sessions. questionPreview is the longest full-code-point prefix
-        within500 UTF-16 units; questionTruncated reports omission. Null
-        questions stay null; full text is available on reopen/export. Keyset
-        created_at DESC,id DESC, limit20 default/50 max. Cursor MAC binds
-        owner/filter/page; no plaintext search.
+      description: First slice includes a dated saved-reading list reachable after
+        sign-in, including with model permission off. Saved by default;
+        status=open can resolve unsaved <=24h sessions and does not require a
+        separate first-slice history screen. questionPreview is the longest
+        full-code-point prefix within500 UTF-16 units; questionTruncated reports
+        omission. Null questions stay null; full text is available on
+        reopen/export. Show createdAt as the reading date. Keyset created_at
+        DESC,id DESC, limit20 default/50 max. Cursor MAC binds
+        owner/filter/page; no provider call or plaintext search. Imports and
+        dedicated dated revisit notes remain completed-v1 features.
       security:
         - sessionCookie: []
       parameters:
@@ -3597,9 +3622,12 @@ paths:
     get:
       operationId: session
       summary: session
-      description: Owned available session, including full nullable imported question
+      description: "Owned available session, including full nullable imported question
         up to10000 UTF-16 units. Reopen references stored editions; no provider
-        call. Open sessions expire24h unless saved.
+        call or model-permission requirement. Saved readings can be found from
+        the first-slice saved list after logout/login. Open-session access ends
+        at the current retention deadline: initial creation plus24h, or explicit
+        Unsave plus24h. Reopening does not renew that window."
       security:
         - sessionCookie: []
       parameters:
@@ -3953,9 +3981,13 @@ paths:
     put:
       operationId: saveSession
       summary: saveSession
-      description: Set saved/unsaved with CAS. Confirm only after commit; no automatic
-        consent change. Unsave resets24h retention from explicit action. 30
-        mutations/min/account.
+      description: Set saved/unsaved with CAS. Save reading needs no reflection
+        payload or model permission and creates no blank reflection. It retains
+        the existing reading until user deletion or a separately disclosed
+        explicit Unsave; existing source-erasure/withdrawal rules still apply.
+        Confirm only after commit; saving does not call a provider or change
+        model permission. Unsave resets24h retention from that explicit action.
+        30 mutations/min/account.
       security:
         - sessionCookie: []
       parameters:
@@ -4308,9 +4340,12 @@ paths:
     post:
       operationId: createReflection
       summary: createReflection
-      description: Insert authored revision1 and mark session saved in one guarded
-        transaction; edition must belong to session/owner. No provider call.
-        <=10k chars, max10 reflections/edition.
+      description: Explicitly save an optional authored reflection now or after
+        reopening a previously saved reading. Insert revision1 and mark session
+        saved in one guarded transaction; edition must belong to session/owner.
+        Model permission is not required and no provider is called. The UI
+        discloses that saving a reflection also keeps an unsaved reading. <=10k
+        chars, max10 reflections/edition.
       security:
         - sessionCookie: []
       parameters:
@@ -4662,8 +4697,9 @@ paths:
       operationId: editReflection
       summary: editReflection
       description: CAS current revision; append immutable revision, update pointer,
-        revoke old grants and fence dependent requests, mark session saved. 409
-        returns currentRevision; never overwrite local draft.
+        revoke old grants and fence dependent requests, mark session saved.
+        Remains available with model permission off and makes no provider call.
+        409 returns currentRevision; never overwrite local draft.
       security:
         - sessionCookie: []
       parameters:

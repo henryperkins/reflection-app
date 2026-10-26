@@ -4,7 +4,7 @@ Checked locally on 2026-10-26 using synthetic inputs. These results concern the 
 
 ## Environment and reproducible commands
 
-Run from the repository root containing `package.json`. Exact JavaScript dependencies are pinned in `package-lock.json`. Observed environment: Node v26.12.1, npm 11.20.0, Python 3.14.4, Python SQLite 3.46.1; TypeScript 5.9.3, Zod 4.6.7, tsx 4.21.0, YAML 2.8.2 and Swagger Parser 12.1.0. These are artifact-check versions, not a qualified production Worker compatibility matrix.
+Run from the repository root containing `package.json`. Exact JavaScript dependencies are pinned in `package-lock.json`. Recorded revision2 environment: Node v26.12.1, npm 11.20.0, Python 3.14.4, Python SQLite 3.46.1; TypeScript 5.9.3, Zod 4.6.7, tsx 4.21.0, YAML 2.8.2 and Swagger Parser 12.1.0. The subsequent MVP scope verification environment is recorded separately below. These are artifact-check versions, not a qualified production Worker compatibility matrix.
 
 ```sh
 npm ci
@@ -15,7 +15,7 @@ npm run check:openapi
 python3 checks/check-package.py
 ```
 
-The revision2 check reruns the commands above against the reviewed contracts and SQL. Regenerating the updated schemas must produce identical bytes; the intended OpenAPI changes carry the new import/history contracts, while the model-output schema is unchanged. [RESULTS.json](../../checks/RESULTS.json) records the current command outputs and separately retains the earlier dependency audit (not rerun for this patch). Schema generation precedes the independent checks. `make-registry.py` and `make-corpus.py` are authoring helpers, deliberately outside verification: regenerating a registry cannot substitute for reviewing a new column's policy.
+The revision2 check reran the commands above against the reviewed contracts and SQL. Regenerating the updated schemas must produce identical bytes; the revision2 OpenAPI changes carry the new import/history contracts, while the model-output schema is unchanged. [RESULTS.json](../../checks/RESULTS.json) preserves that run and the earlier dependency audit, with the later MVP scope run in `mvpScopeRefinement`. Schema generation precedes the independent checks. `make-registry.py` and `make-corpus.py` are authoring helpers, deliberately outside verification: regenerating a registry cannot substitute for reviewing a new column's policy.
 
 | Executed command / actual inputs | Actual result | What it does not establish |
 |---|---|---|
@@ -31,6 +31,25 @@ The revision2 check reruns the commands above against the reviewed contracts and
 An early authoring TypeScript check caught an explicitly undefined optional operation property under `exactOptionalPropertyTypes`; it was corrected before the passing run. The completion check corrected a stale working-directory instruction. Node emitted the non-failing tsx `DEP0205` deprecation warning for `module.register()`. No failed or blocked application check has been relabeled a pass.
 
 The clean install also reported two development-tool advisories. `npm audit --json` exited 1: [YAML stack overflow](https://github.com/advisories/GHSA-48c2-rrv3-qjmp), moderate, affects the pinned YAML 2.8.2; [esbuild Windows development-server file read](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr), low, affects transitive esbuild 0.27.7. The artifact commands parse repository-controlled YAML and do not start a development server. Dependency updates remain implementation setup work; the existing lockfile was preserved for reproducibility. This is a passing artifact check run with outstanding dependency advisories, not a clean dependency audit.
+
+## MVP scope refinement — artifact verification
+
+The owner clarified five first-release requirements after revision2: basic dated saved-reading discovery, disclosed temporary Start storage versus Save retention, a complete recovery kit, usable owned-record controls with AI permission off, and saving without an initial reflection. The documentation and operation descriptions now agree on those requirements. R04 includes basic saved history; R10 retains the later follow-up/context/dedicated-revisit workflows. MVP01–MVP05 in VERIFICATION_PLAN are **planned application acceptance**, not results from this check run. Existing reviewed-content, identity, accessibility, export, deletion, restore and provider qualification gates remain in force; launch copy must disclose server-readable encryption.
+
+This check used the repository snapshot at `e11a79e89872d5ee4ef14f763ad570f511015d63` plus the MVP documentation patch. All33 non-research source files matched their pinned Git blobs before editing. Local environment: Node v24.22.1, npm11.9.0, Python3.12.14 and Python SQLite3.53.1. The unchanged locked dependencies were reused; no fresh install or registry audit was performed. The same TypeScript scripts were invoked with `node --import tsx`, with the compiler run separately.
+
+| Executed check | Actual result |
+|---|---|
+| `node node_modules/typescript/bin/tsc --noEmit` | Passed. |
+| `node --import tsx checks/check-contracts.ts` | Passed existing contract, erasure/import reference and AES-GCM checks;60 corpus records well formed. No model/semantic validator or application handler exercised. |
+| `python3 checks/check-sql.py` | All26 existing assertions passed;36 tables and309 columns. |
+| `node --import tsx checks/check-openapi.ts` | Passed;37 unique operations. |
+| `python3 checks/check-package.py` | Passed;7 required files,30 local Markdown links,3 JSON files and2 closed model objects. |
+| Repeated `node --import tsx checks/generate-openapi.ts`, comparing SHA-256 before/after | Both generated projections were byte-identical on repeat. |
+| Parsed OpenAPI comparison against the pinned baseline, excluding operation descriptions | Exactly11 operation descriptions changed; all remaining OpenAPI structure and the model-output schema were unchanged. No wire-shape or DDL change was needed. |
+| `git diff --check` | Passed. |
+
+A disposable comparison wrapper initially could not spawn Git from Node in this sandbox (`EPERM`). The baseline files were then extracted through the available command runner and the read-only comparison passed; the blocked wrapper is not counted as a pass. This work did not execute a browser, an account recovery service, application retention/consent handlers, a provider or hosted infrastructure. It does not establish that MVP01–MVP05 already work.
 
 ## SQL checks actually exercised
 
@@ -100,7 +119,7 @@ The following traces are consistency walkthroughs of the specification, **not ex
 
 | Scenario | UI → API → services/state → storage → egress → observable result |
 |---|---|
-| First session | `/new` previews question and permission → POST `/requests` → GenerationService authenticates, admits and reserves; driver prepares, dispatches, validates and publishes → owned session/basis/request, quota and spend reservations, unique dispatch, guarded edition/event commit → one permitted payload with exact facts/canon/question → polling exposes only progress and an accepted edition; basis/source panel is inspectable. POST session reflection atomically saves authored revision and session; reopen reads the same edition without inference. A01–A09. |
+| First session | `/new` previews question, independent model permission and temporary storage → POST `/requests` → GenerationService authenticates, admits and reserves; driver prepares, dispatches, validates and publishes → owned session/basis/request, quota and spend reservations, unique dispatch, guarded edition/event commit → one permitted payload with exact facts/canon/question → polling exposes only progress and an accepted edition; basis/source panel is inspectable. PUT session save keeps the reading without requiring a reflection. Sign out/in → GET saved history → reopen the same edition without inference; a later explicit POST/PUT reflection saves authored text independently. A01–A09 and MVP01/MVP05. |
 | Follow-up | Exact parent and selected excerpts in ContextSelector → grants/list/preview then POST `/requests` with parent ID and new intent → same session/basis, current source/grant revisions and bounded PreparedPlan → new request/context snapshots and later edition with immutable parent link → only explicitly previewed fragments plus current question/basis/canon → original text remains available, new result is distinct and user reflection remains separately authored. A06/A11. |
 | Duplicate start | Double-click or lost response keeps intent/key → repeated POST or GET `/requests?intentId=…` → compare owned canonical payload HMAC → unique owner/intent and rollback of losing reservation batch → unique dispatch prevents a second deliberate call → both callers resolve the same request/edition; changed payload conflicts. A07/A14. |
 | Revoked-context race | User revokes grant in settings while writing runs → DELETE grant with current revision → PermissionService revokes/fences dependent work → current publication assertion fails and quota release occurs once → authorization before revocation may already have transmitted text; no recall promise → no accepted result from the revoked context, and UI asks for a new explicit selection. A06/A07. |
