@@ -5,6 +5,9 @@ import { localIdentity, type IdentityBindings } from '../identity/routes.ts';
 import { LocalGeneration } from './generation.ts';
 import { RecordBase, RecordError } from './base.ts';
 import { ReadingRecords } from './records.ts';
+import { Reflections } from './reflections.ts';
+import { ReadingExports } from './export.ts';
+import { SessionErasure } from './erasure.ts';
 
 export interface ReadingBindings extends IdentityBindings {
   READING_MODE?: string;
@@ -77,6 +80,13 @@ export async function readingRoute(
     if (request.headers.get('Sec-Fetch-Site') === 'cross-site')
       throw new RecordError(403, 'FORBIDDEN');
     base = new RecordBase(env.DB, identity);
+    const erasure = new SessionErasure(base, env.RECOVERY!);
+    const deletionMatch = path.match(/^\/deletions\/([^/]+)$/);
+    if (method === 'GET' && deletionMatch) {
+      const id = Id.parse(deletionMatch[1]);
+      await identity.rate('deletion-status', id, 10, 60_000);
+      return recordResponse(await erasure.status(id, request.headers.get('X-Deletion-Token')));
+    }
     token = (request.headers.get('Cookie') ?? '')
       .split(';')
       .map((x) => x.trim())
@@ -85,6 +95,8 @@ export async function readingRoute(
     const session = await identity.sessions.get(token);
     const records = new ReadingRecords(base),
       generation = new LocalGeneration(base);
+    const reflections = new Reflections(base),
+      exports = new ReadingExports(base);
     const mutate = method !== 'GET';
     if (
       mutate &&
@@ -159,6 +171,56 @@ export async function readingRoute(
     const readingMatch = match(/^\/readings\/([^/]+)$/);
     if (method === 'GET' && readingMatch)
       return recordResponse(await records.reading(session, Id.parse(readingMatch[1])));
+    const createReflection = match(/^\/sessions\/([^/]+)\/reflections$/);
+    if (method === 'POST' && createReflection) {
+      const value = await reflections.write(
+        session,
+        Id.parse(createReflection[1]),
+        apiSchemas.ReflectionWrite.parse(body),
+        key(),
+      );
+      return recordResponse(value, 201, value.revision);
+    }
+    const reflectionMatch = match(/^\/reflections\/([^/]+)$/);
+    if (reflectionMatch && method === 'GET') {
+      const wanted = url.searchParams.get('revision');
+      const value = await reflections.read(
+        session,
+        Id.parse(reflectionMatch[1]),
+        wanted === null ? undefined : z.coerce.number().int().min(1).max(100).parse(wanted),
+      );
+      return recordResponse(value, 200, value.revision);
+    }
+    if (reflectionMatch && method === 'PUT') {
+      const value = await reflections.update(
+        session,
+        Id.parse(reflectionMatch[1]),
+        revision(),
+        key(),
+        apiSchemas.ReflectionWrite.parse(body),
+      );
+      return recordResponse(value, 200, value.revision);
+    }
+    if (method === 'POST' && path === '/exports') {
+      apiSchemas.Empty.parse(body);
+      return recordResponse(await exports.create(session, key()), 201);
+    }
+    const exportMatch = match(/^\/exports\/([^/]+)$/);
+    if (method === 'GET' && exportMatch)
+      return recordResponse(
+        await exports.page(session, Id.parse(exportMatch[1]), url.searchParams.get('cursor')),
+      );
+    if (method === 'DELETE' && sessionMatch)
+      return recordResponse(
+        await erasure.remove(
+          session,
+          Id.parse(sessionMatch[1]),
+          revision(),
+          key(),
+          apiSchemas.DeleteRequest.parse(body),
+        ),
+        202,
+      );
     throw new RecordError(503, 'DEPENDENCY_UNAVAILABLE');
   } catch (error) {
     let failure =

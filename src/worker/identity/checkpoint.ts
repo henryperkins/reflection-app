@@ -200,7 +200,7 @@ export class IdentityCheckpoints {
     writes.push(
       statement(
         this.db,
-        'UPDATE accounts SET auth_epoch=?,recovery_handle_hash=?,recovery_ack_at=?,write_fence=NULL,updated_at=? WHERE id=?',
+        'UPDATE accounts SET data_revision=data_revision+1,auth_epoch=?,recovery_handle_hash=?,recovery_ack_at=?,write_fence=NULL,updated_at=? WHERE id=?',
         op.epoch,
         snapshot.recoveryHandleHash,
         snapshot.recoveryAcknowledgedAt ? Date.parse(snapshot.recoveryAcknowledgedAt) : null,

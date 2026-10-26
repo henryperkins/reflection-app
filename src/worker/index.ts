@@ -1,6 +1,9 @@
 import { Hono } from 'hono';
 import { identityRoute, localIdentity, type IdentityBindings } from './identity/routes.ts';
 import { readingRoute, type ReadingBindings } from './readings/routes.ts';
+import { RecordBase } from './readings/base.ts';
+import { SessionErasure } from './readings/erasure.ts';
+import { LocalGeneration } from './readings/generation.ts';
 
 export interface Env extends IdentityBindings, ReadingBindings {
   ASSETS?: Fetcher;
@@ -33,6 +36,12 @@ app.get('*', (c) =>
 export default {
   fetch: app.fetch,
   async scheduled(_controller, env, _ctx) {
-    await localIdentity(env)?.maintenance();
+    const identity = localIdentity(env);
+    await identity?.maintenance();
+    if (identity && env.READING_MODE === 'synthetic-local' && env.RECOVERY) {
+      const base = new RecordBase(env.DB, identity);
+      await new LocalGeneration(base).maintenance();
+      await new SessionErasure(base, env.RECOVERY).maintenance();
+    }
   },
 } satisfies ExportedHandler<Env>;

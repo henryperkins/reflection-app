@@ -20,6 +20,27 @@ import { syntheticBundle } from './local-content.ts';
 /** Only instantiated behind the explicit localhost simulation switch. No fetch transport. */
 export class LocalGeneration {
   constructor(readonly base: RecordBase) {}
+  async maintenance() {
+    const expired = await q(
+      this.base.db,
+      `SELECT id,owner_id,session_id FROM generation_requests WHERE state NOT IN ('published','blocked','failed','expired','cancelled') AND expires_at<=${DB_NOW} ORDER BY expires_at LIMIT 20`,
+    ).all<{ id: string; owner_id: string; session_id: string }>();
+    for (const row of expired.results)
+      await this.base.db.batch([
+        ...this.base.stopStatements(row.owner_id, row.session_id),
+        q(
+          this.base.db,
+          "UPDATE generation_requests SET state='expired',error_code='EXPIRED' WHERE owner_id=? AND id=? AND state='blocked'",
+          row.owner_id,
+          row.id,
+        ),
+        q(
+          this.base.db,
+          'UPDATE accounts SET data_revision=data_revision+1 WHERE id=?',
+          row.owner_id,
+        ),
+      ]);
+  }
   async status(session: Session, id: string) {
     const row = await q(
       this.base.db,
