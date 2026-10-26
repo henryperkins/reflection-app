@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import { apiSchemas, type AuthResult } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
 import { enroll, signIn } from './passkeys.ts';
+import { ReadingWorkspace } from './readings.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type Kit = z.infer<typeof apiSchemas.RecoveryCodes>;
@@ -190,7 +191,8 @@ export function IdentityApp() {
         {title}
       </h1>
       <p className="test-notice">
-        Use test accounts only. Personal readings are not available in this build.
+        Use synthetic text and test accounts only. This local build simulates readings and never
+        contacts an AI provider.
       </p>
       {message && (
         <p role="alert" className="notice error">
@@ -313,16 +315,20 @@ export function IdentityApp() {
         ) : session ? (
           <section>
             <p>You’re signed in. Your passkey and recovery kit protect access to this account.</p>
-            <div className="notice">
-              <h2>AI readings are off</h2>
-              <p>
-                Signing in and recovering your account do not give permission for AI generation.
-                Reading and personal-record features will arrive in a later implementation slice.
-              </p>
+            <div hidden={checking}>
+              <ReadingWorkspace
+                key={session.subjectId}
+                user={session}
+                onSession={setSession}
+                onExpired={() => {
+                  clear();
+                  setMessage('Your session ended. Please sign in again.');
+                }}
+              />
             </div>
             <p>
-              Storage will be encrypted and readable by the service for authorized operations. This
-              is not end-to-end encryption.
+              Storage is encrypted and readable by the service for authorized operations. This is
+              not end-to-end encryption.
             </p>
             <div className="actions">
               <button

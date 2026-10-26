@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import { Ciphertext } from '../../contracts/index.ts';
 import { canonicalJson } from '../../domain/json.ts';
 import { decode, encode, type IdentityCrypto } from '../identity/crypto.ts';
-import { statement as q } from '../db/statements.ts';
+import { statement as q } from '../db/core.ts';
 
 const utf8 = new TextEncoder();
 /** One request-scoped key cache. No plaintext keys or records survive the request. */

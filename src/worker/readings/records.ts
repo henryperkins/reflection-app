@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { apiSchemas, Reading, Id } from '../../contracts/index.ts';
 import type { Session } from '../identity/types.ts';
 import { assertion } from '../identity/checkpoint.ts';
-import { statement as q, DB_NOW } from '../db/statements.ts';
+import { statement as q, DB_NOW } from '../db/core.ts';
 import { availableSession, iso, type RecordBase, RecordError, type SessionRow } from './base.ts';
 export const Question = z.strictObject({ v: z.literal(1), text: z.string().max(10000) });
 export class ReadingRecords {
@@ -53,7 +53,7 @@ export class ReadingRecords {
       createdAt: iso(row.created_at),
       requests: requests!.results,
     });
-    await this.base.checked(session, account.data_revision);
+    await this.base.checkedSession(session, id, account.data_revision);
     return result;
   }
   async reading(session: Session, id: string) {
@@ -98,7 +98,25 @@ export class ReadingRecords {
       (result.kind === 'tarot.accepted.v1' && result.parentEditionId !== row.parent_edition_id)
     )
       throw new RecordError(503, 'KEY_UNAVAILABLE');
-    await this.base.checked(session, account.data_revision);
+    try {
+      await this.base.checkedSession(session, row.session_id, account.data_revision, [
+        assertion(
+          this.base.db,
+          "EXISTS(SELECT 1 FROM reading_editions e LEFT JOIN content_editions c ON c.hash=e.content_hash WHERE e.owner_id=? AND e.id=? AND e.status IN ('accepted','imported') AND (c.state IS NULL OR c.state!='withdrawn'))",
+          session.subjectId,
+          id,
+        ),
+      ]);
+    } catch (error) {
+      const current = await q(
+        this.base.db,
+        "SELECT 1 FROM reading_editions e LEFT JOIN content_editions c ON c.hash=e.content_hash WHERE e.owner_id=? AND e.id=? AND (e.status NOT IN ('accepted','imported') OR c.state='withdrawn')",
+        session.subjectId,
+        id,
+      ).first();
+      if (current) throw new RecordError(410, 'CONTENT_UNAVAILABLE');
+      throw error;
+    }
     return result;
   }
   async history(session: Session, status = 'saved', limit = 20, cursor: string | null = null) {
@@ -147,7 +165,22 @@ export class ReadingRecords {
       rows.results.length > limit && last
         ? await this.base.cursor(session, scope, { at: last.created_at, id: last.id })
         : null;
-    await this.base.checked(session, account.data_revision);
+    const ids = items.map((item) => item.id);
+    await this.base.checked(
+      session,
+      account.data_revision,
+      ids.length
+        ? [
+            assertion(
+              this.base.db,
+              `(SELECT count(*) FROM reading_sessions s WHERE s.owner_id=? AND s.id IN (${ids.map(() => '?').join(',')}) AND ${availableSession})=?`,
+              session.subjectId,
+              ...ids,
+              ids.length,
+            ),
+          ]
+        : [],
+    );
     return apiSchemas.HistoryPage.parse({ items, nextCursor });
   }
   async save(session: Session, id: string, revision: number, key: string, saved: boolean) {

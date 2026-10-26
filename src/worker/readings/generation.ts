@@ -12,7 +12,7 @@ import { sha256Json } from '../../domain/json.ts';
 import { InterceptedWritingProvider } from '../provider/intercepted.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
-import { statement as q, DB_NOW, DAY, MONTH } from '../db/statements.ts';
+import { statement as q, DB_NOW, DAY, MONTH } from '../db/core.ts';
 import { iso, type RecordBase, RecordError } from './base.ts';
 import { encryptedBytes } from './crypto.ts';
 import { syntheticBundle } from './local-content.ts';
@@ -124,6 +124,15 @@ export class LocalGeneration {
       if (!row) return null;
       if (row.payload_hmac !== mutation.payloadHash)
         throw new RecordError(409, 'IDEMPOTENCY_MISMATCH');
+      const alias = await this.base.mutation(session, key, 'reading.start', input);
+      if (!alias.existing) {
+        try {
+          await this.base.atomic(session, [alias.insert(row.id)], 1024);
+        } catch (error) {
+          const raced = await this.base.mutation(session, key, 'reading.start', input);
+          if (raced.existing !== row.id) throw error;
+        }
+      }
       return this.reply(session, row.id, true);
     };
     const prior = await resolve();

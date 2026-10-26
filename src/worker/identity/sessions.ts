@@ -112,12 +112,12 @@ export class IdentitySessions {
       },
       remainingDay: await this.remaining(
         session.subjectId,
-        'day:' + new Date().toISOString().slice(0, 10),
+        `day:${new Date().toISOString().slice(0, 10)}`,
         3,
       ),
       remainingMonth: await this.remaining(
         session.subjectId,
-        'month:' + new Date().toISOString().slice(0, 7),
+        `month:${new Date().toISOString().slice(0, 7)}`,
         30,
       ),
       recentAuthUntil: new Date(session.authenticatedAt + 300_000).toISOString(),

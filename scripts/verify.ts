@@ -56,7 +56,11 @@ const stages = [
       'dist/worker',
     ],
   ],
-  ['identity recovery browser journey', 'node', ['node_modules/@playwright/test/cli.js', 'test']],
+  [
+    'identity and saved-reading browser journeys',
+    'node',
+    ['node_modules/@playwright/test/cli.js', 'test'],
+  ],
   ['specification package links', 'python3', ['checks/check-package.py']],
 ] as const;
 
@@ -135,7 +139,7 @@ export async function verify(): Promise<void> {
         const report =
           name === 'workerd D1 batches'
             ? 'db-tests.json'
-            : name === 'identity recovery browser journey'
+            : name === 'identity and saved-reading browser journeys'
               ? 'browser-tests.json'
               : name === 'domain and verification behavior'
                 ? 'domain-tests.json'
@@ -144,7 +148,7 @@ export async function verify(): Promise<void> {
         await run(command, args, remaining);
         if (report) {
           const evidence = (
-            name === 'identity recovery browser journey'
+            name === 'identity and saved-reading browser journeys'
               ? requireBrowserTests
               : requireExecutedTests
           )(JSON.parse(readFileSync(resolve(projectRoot, 'artifacts', report), 'utf8')));

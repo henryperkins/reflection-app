@@ -34,10 +34,10 @@
 
 **Interfaces:** Consumes existing IdentityService sessions, account keys and wire contracts. Produces owner-qualified `ReadingRecords` and `LocalGeneration` operations; `/requests`, `/sessions`, `/sessions/:id`, `/sessions/:id/save`, `/readings/:id`, `/permissions/model`.
 
-- [ ] Add HTTP/D1 tests: permission gate before persistence; acknowledged kit required; create/save without reflection; exact stored artifact survives logout/login/recovery; no additional requests/dispatches/quota consumption on read; ciphertext owner/field binding; retry joins and stale CAS fails; temporary expiration and indexed dated pagination.
-- [ ] Run `npm run test:db -- tests/db/readings.test.ts`; expect missing-route failures before implementation.
-- [ ] Implement account encryption, guarded operations, local simulated generation with unique dispatch and quota accounting, history/save/reopen and permission CAS.
-- [ ] Run the targeted tests and `npm test`; expect all pass. Commit this deliverable locally.
+- [x] Add HTTP/D1 tests: permission gate before persistence; acknowledged kit required; create/save without reflection; exact stored artifact survives logout/login/recovery; no additional requests/dispatches/quota consumption on read; ciphertext owner/field binding; retry joins and stale CAS fails; temporary expiration and indexed dated pagination.
+- [x] Run `npm run test:db -- tests/db/readings.test.ts`; expect missing-route failures before implementation.
+- [x] Implement account encryption, guarded operations, local simulated generation with unique dispatch and quota accounting, history/save/reopen and permission CAS.
+- [x] Run the targeted tests and `npm test`; expect all pass. Commit this deliverable locally.
 
 ### Task 2: Reflections, export and session deletion
 
@@ -45,10 +45,10 @@
 
 **Interfaces:** Reuses Task 1 record crypto/authorization. Existing Reflection, ExportTicket/ExportPage and DeletionReceipt contracts; append-only reflection revisions, snapshot export tickets and session-scope erasure intent/pass/completion in R2.
 
-- [ ] Add failing tests: consent-off add/edit preserves reading; conflicts preserve current revision; foreign owner denial; export includes exact content and reflection revisions without credentials/secrets; concurrent edits invalidate ticket; deletion removes private bodies and reads, preserves quota consumption, retries after R2 failure resume safely.
-- [ ] Run targeted tests; expect unimplemented-operation failures.
-- [ ] Implement optional reflection writes, bounded export pages and durable local session deletion; schedule expiration/deletion maintenance. Explicitly reject unsupported follow-ups/context/imports instead of silently dropping them.
-- [ ] Run targeted tests and `npm test`; expect all pass. Commit locally.
+- [x] Add failing tests: consent-off add/edit preserves reading; conflicts preserve current revision; foreign owner denial; export includes exact content and reflection revisions without credentials/secrets; concurrent edits invalidate ticket; deletion removes private bodies and reads, preserves quota consumption, retries after R2 failure resume safely.
+- [x] Run targeted tests; expect unimplemented-operation failures.
+- [x] Implement optional reflection writes, bounded export pages and durable local session deletion; schedule expiration/deletion maintenance. Explicitly reject unsupported follow-ups/context/imports instead of silently dropping them.
+- [x] Run targeted tests and `npm test`; expect all pass. Commit locally.
 
 ### Task 3: User journey and browser acceptance
 
@@ -56,11 +56,11 @@
 
 **Interfaces:** SessionView and existing identity invalidation own the lifetime of private reading UI; all reading actions use established wire contracts and mutation headers.
 
-- [ ] Add a browser test for the user's five-step sequence with an actual fresh browser context, unavailable old authenticator and replacement passkey. Assert identical JSON/text/cards/sources, no new generation request, unchanged quota, download content, edit and deletion with consent off.
-- [ ] Add interruption tests for stale private responses and retention of unsaved reflection drafts after Save reading/conflict. Run browser tests; expect missing UI controls.
-- [ ] Implement concise storage/AI consent copy, dated history, immutable reader, separate Save reading and Save reflection, consent-off controls, explicit export/deletion and lifecycle clearing.
-- [ ] Run browser tests, inspect desktop/mobile screenshots, run `npm run verify` and `npm run release -- --check`; expect a green local receipt and deploymentAllowed=false.
-- [ ] Record exact evidence, limitations and review outcome. Commit locally; keep branch unpushed.
+- [x] Add a browser test for the user's five-step sequence with an actual fresh browser context, unavailable old authenticator and replacement passkey. Assert identical JSON/text/cards/sources, no new generation request, unchanged quota, download content, edit and deletion with consent off.
+- [x] Add interruption tests for stale private responses and retention of unsaved reflection drafts after Save reading/conflict. Run browser tests; expect missing UI controls.
+- [x] Implement concise storage/AI consent copy, dated history, immutable reader, separate Save reading and Save reflection, consent-off controls, explicit export/deletion and lifecycle clearing.
+- [x] Run browser tests, inspect desktop/mobile screenshots, run `npm run verify` and `npm run release -- --check`; expect a green local receipt and deploymentAllowed=false.
+- [x] Record exact evidence, limitations and review outcome. Commit locally; keep branch unpushed.
 
 ## Final review
 

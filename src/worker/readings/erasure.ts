@@ -8,7 +8,7 @@ import {
   RecoveryCiphertext,
 } from '../../contracts/index.ts';
 import { canonicalJson, sha256Json } from '../../domain/json.ts';
-import { statement as q, DB_NOW } from '../db/statements.ts';
+import { statement as q, DB_NOW } from '../db/core.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
 import { iso, type RecordBase, RecordError } from './base.ts';
@@ -116,23 +116,34 @@ export class SessionErasure {
         throw new RecordError(404, 'NOT_FOUND');
       await this.resume(existing.id);
     } else {
-      const row = await this.base.ownedSession(session, id);
-      if (row.revision !== revision) throw new RecordError(409, 'CONFLICT', row.revision);
-      const mutation = await this.base.mutation(session, key, 'session.delete', {
-        id,
-        revision,
-        receipt,
-      });
-      if (mutation.existing && mutation.existing !== receipt.receiptId)
-        throw new RecordError(409, 'IDEMPOTENCY_MISMATCH');
-      await this.queue(
-        target,
-        receipt.receiptId,
-        hash,
-        session,
-        revision,
-        mutation.insert(receipt.receiptId),
-      );
+      try {
+        const row = await this.base.ownedSession(session, id);
+        if (row.revision !== revision) throw new RecordError(409, 'CONFLICT', row.revision);
+        const mutation = await this.base.mutation(session, key, 'session.delete', {
+          id,
+          revision,
+          receipt,
+        });
+        if (mutation.existing && mutation.existing !== receipt.receiptId)
+          throw new RecordError(409, 'IDEMPOTENCY_MISMATCH');
+        await this.queue(
+          target,
+          receipt.receiptId,
+          hash,
+          session,
+          revision,
+          mutation.insert(receipt.receiptId),
+        );
+      } catch (error) {
+        const raced = await this.job(receipt.receiptId);
+        if (
+          !raced ||
+          raced.owner_id !== session.subjectId ||
+          raced.receipt_token_hash !== hash ||
+          raced.target_hmac !== (await this.targetHash(target))
+        )
+          throw error;
+      }
       await this.resume(receipt.receiptId);
     }
     const current = (await this.job(receipt.receiptId))!;

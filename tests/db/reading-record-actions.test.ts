@@ -292,11 +292,12 @@ test('an edit after export decryption but before release produces EXPORT_CHANGED
     held = new Promise<void>((r) => {
       release = r;
     });
+  let batchCount = 0;
   const database = new Proxy(env.DB, {
     get(target, property) {
       if (property === 'batch')
         return async (statements: D1PreparedStatement[]) => {
-          if (statements.length === 2) {
+          if (++batchCount === 2) {
             arrived();
             await held;
           }

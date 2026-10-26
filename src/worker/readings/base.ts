@@ -5,7 +5,7 @@ import { assertion } from '../identity/checkpoint.ts';
 import { decode, encode } from '../identity/crypto.ts';
 import type { IdentityService } from '../identity/service.ts';
 import type { Session } from '../identity/types.ts';
-import { statement as q, DB_NOW } from '../db/statements.ts';
+import { statement as q, DB_NOW } from '../db/core.ts';
 import { RecordCrypto } from './crypto.ts';
 
 export class RecordError extends Error {
@@ -57,7 +57,7 @@ export class RecordBase {
     if (!row) throw new RecordError(401, 'UNAUTHENTICATED');
     return row;
   }
-  async checked(session: Session, revision?: number) {
+  async checked(session: Session, revision?: number, guards: D1PreparedStatement[] = []) {
     await this.db.batch([
       this.identity.sessions.guard(session, false, false),
       ...(revision === undefined
@@ -70,7 +70,22 @@ export class RecordBase {
               revision,
             ),
           ]),
+      ...guards,
     ]);
+  }
+  async checkedSession(
+    session: Session,
+    id: string,
+    revision: number,
+    guards: D1PreparedStatement[] = [],
+  ) {
+    try {
+      await this.checked(session, revision, [this.sessionGuard(session, id), ...guards]);
+    } catch (error) {
+      await this.checked(session);
+      await this.ownedSession(session, id);
+      throw error;
+    }
   }
   async atomic(session: Session, statements: D1PreparedStatement[], bytes = 0, recent = false) {
     await this.db.batch([

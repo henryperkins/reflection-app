@@ -1,20 +1,15 @@
 import publicationGuard from './publication_guard.sql?raw';
 
-/** Execution-time clock: never substitute a sampled Worker time. */
-export const DB_NOW = "CAST(unixepoch('subsec') * 1000 AS INTEGER)";
-export const DAY = "'day:' || strftime('%Y-%m-%d','now')";
-export const MONTH = "'month:' || strftime('%Y-%m','now')";
-export type Binding = string | number | null;
-export const statement = (db: D1Database, sql: string, ...bindings: Binding[]) =>
-  db.prepare(sql).bind(...bindings);
-export const assertChanges = (db: D1Database, n: number) =>
-  statement(db, 'INSERT INTO assertion_probe(ok) SELECT 0 WHERE changes()!=?', n);
-export const assertExists = (db: D1Database, query: string, ...bindings: Binding[]) =>
-  statement(
-    db,
-    `INSERT INTO assertion_probe(ok) SELECT 0 WHERE NOT EXISTS (${query})`,
-    ...bindings,
-  );
+import { statement, DB_NOW, type Binding } from './core.ts';
+export {
+  statement,
+  assertChanges,
+  assertExists,
+  DB_NOW,
+  DAY,
+  MONTH,
+  type Binding,
+} from './core.ts';
 
 /** Named parameters are compiled only from our checked-in SQL, never caller SQL. */
 export function currentGuard(

@@ -117,6 +117,103 @@ input:not([type="checkbox"]) {
   padding: 0.7rem;
   margin: 0.4rem 0 1rem;
 }
+textarea,
+select {
+  width: 100%;
+  font: inherit;
+  line-height: 1.5;
+  color: inherit;
+  background: #fffef9;
+  border: 1px solid #708175;
+  border-radius: 0.3rem;
+  padding: 0.75rem;
+  margin: 0.4rem 0 1rem;
+}
+textarea {
+  resize: vertical;
+}
+.reading-workspace {
+  margin-block: 2rem;
+}
+.reading-history {
+  list-style: none;
+  padding: 0;
+}
+.reading-history li {
+  border-bottom: 1px solid #c6cec1;
+  padding-block: 1rem;
+}
+.reading-history time {
+  font-size: 0.85rem;
+  color: #4e625b;
+  display: block;
+}
+.history-link {
+  background: transparent;
+  color: #254e42;
+  border: 0;
+  text-align: left;
+  padding-inline: 0;
+  width: 100%;
+  overflow-wrap: anywhere;
+}
+.accepted-reading {
+  border-top: 1px solid #c6cec1;
+  margin-top: 1rem;
+  padding-top: 1.5rem;
+  overflow-wrap: anywhere;
+}
+.accepted-reading > h2 {
+  font-family: Georgia, serif;
+  font-size: 1.7rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.accepted-reading section {
+  margin-top: 1.7rem;
+}
+.accepted-reading h3 {
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+.basis-text {
+  color: #4e625b;
+}
+.source {
+  margin-block: 1.5rem;
+}
+.source h3 {
+  text-transform: none;
+}
+.save-reading {
+  margin-block: 2rem;
+  padding: 1rem 1.25rem;
+  border-left: 3px solid #708175;
+  background: #e6ecdf;
+}
+.saved-label {
+  margin: 0;
+  font-weight: 600;
+}
+.reflection-editor {
+  padding-block: 1.5rem;
+  border-block: 1px solid #c6cec1;
+}
+.reflection-editor > label {
+  display: block;
+}
+.reflection-editor blockquote {
+  margin-inline: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.storage-notice {
+  padding: 1rem;
+  background: #e6ecdf;
+}
+.deletion-actions {
+  margin-block: 1rem;
+}
 .check {
   display: flex;
   gap: 0.65rem;

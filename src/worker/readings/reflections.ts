@@ -2,7 +2,7 @@ import type { z } from 'zod';
 import { type apiSchemas, Reflection } from '../../contracts/index.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
-import { statement as q, DB_NOW } from '../db/statements.ts';
+import { statement as q, DB_NOW } from '../db/core.ts';
 import { iso, type RecordBase, RecordError } from './base.ts';
 import { encryptedBytes } from './crypto.ts';
 type Input = z.infer<typeof apiSchemas.ReflectionWrite>;
@@ -44,7 +44,7 @@ export class Reflections {
       value.sessionId !== row.session_id
     )
       throw new RecordError(503, 'KEY_UNAVAILABLE');
-    await this.base.checked(session, account.data_revision);
+    await this.base.checkedSession(session, row.session_id, account.data_revision);
     return value;
   }
   async write(

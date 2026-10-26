@@ -30,7 +30,7 @@ export class ReadingClient {
     } = {},
   ) {
     const response = await worker.fetch(
-      new Request(IDENTITY_ORIGIN + '/api/v1' + path, {
+      new Request(`${IDENTITY_ORIGIN}/api/v1${path}`, {
         method: options.method ?? (body === undefined ? 'GET' : 'POST'),
         headers: {
           Origin: IDENTITY_ORIGIN,

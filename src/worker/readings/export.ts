@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { apiSchemas, Reading, Reflection, Id, type PortableRecord } from '../../contracts/index.ts';
-import { statement as q, DB_NOW } from '../db/statements.ts';
+import { statement as q, DB_NOW } from '../db/core.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
 import { iso, availableSession, type RecordBase, RecordError } from './base.ts';
@@ -84,8 +84,14 @@ export class ReadingExports {
       return await this.base.db.batch<T>(statements);
     } catch (error) {
       // Classify a snapshot race using current authoritative state, without releasing any page.
+      if (!(error instanceof Error) || !/CHECK constraint/.test(error.message)) throw error;
+      try {
+        await this.base.checked(session);
+      } catch {
+        throw new RecordError(401, 'UNAUTHENTICATED');
+      }
       await this.ticket(session, ticket.id);
-      throw error;
+      throw new RecordError(409, 'EXPORT_CHANGED');
     }
   }
   async page(session: Session, id: string, cursor: string | null) {
@@ -203,9 +209,28 @@ export class ReadingExports {
     });
     // Validate again after decryption/serialization; never release a mixed or revoked snapshot.
     await this.ticket(session, id);
+    const sessions = [
+      ...new Set(
+        rows
+          .slice(0, records.length)
+          .map((row) => row.session_id)
+          .filter((id): id is string => id !== null),
+      ),
+    ];
     await this.guardedBatch(session, ticket, [
       this.base.identity.sessions.guard(session, false, false),
       this.guard(session, ticket),
+      ...(sessions.length
+        ? [
+            assertion(
+              this.base.db,
+              `(SELECT count(*) FROM reading_sessions s WHERE s.owner_id=? AND s.id IN (${sessions.map(() => '?').join(',')}) AND ${availableSession})=?`,
+              session.subjectId,
+              ...sessions,
+              sessions.length,
+            ),
+          ]
+        : []),
     ]);
     return result;
   }
