@@ -321,6 +321,8 @@ export class SessionErasure {
         ),
       ]);
     } catch (error) {
+      // Another resume may have durably completed while this one was paused or lost R2 access.
+      if ((await this.job(job.id))?.state === 'complete') return;
       await q(
         this.base.db,
         `UPDATE deletion_jobs SET attempts=attempts+1,next_run_at=${DB_NOW}+60000 WHERE id=? AND state!='complete'`,
@@ -363,6 +365,12 @@ export class SessionErasure {
     );
     const bytes = totals.reduce((sum, result) => sum + (result.results[0]?.bytes ?? 0), 0);
     await this.base.db.batch([
+      // Completion is terminal. Check inside the atomic batch, not only at resume entry.
+      assertion(
+        this.base.db,
+        "EXISTS(SELECT 1 FROM deletion_jobs WHERE id=? AND state!='complete' AND target_enc IS NOT NULL)",
+        job.id,
+      ),
       assertion(
         this.base.db,
         "EXISTS(SELECT 1 FROM reading_sessions WHERE owner_id=? AND id=? AND status='deleted')",

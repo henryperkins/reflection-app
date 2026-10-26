@@ -34,6 +34,7 @@ export function ReadingWorkspace({
   const [record, setRecord] = useState<RecordView | null>(null);
   const [reading, setReading] = useState<z.infer<typeof AcceptedReading> | null>(null);
   const [reflection, setReflection] = useState<Thought | null>(null);
+  const [latestReflection, setLatestReflection] = useState<Thought | null>(null);
   const [draft, setDraft] = useState(''),
     [stance, setStance] = useState<Thought['stance']>('unspecified');
   const [question, setQuestion] = useState(''),
@@ -48,9 +49,28 @@ export function ReadingWorkspace({
     epoch = useRef(0),
     inFlight = useRef(false),
     currentUser = useRef(user),
-    selected = useRef(record);
+    selected = useRef(record),
+    currentMode = useRef(mode);
   currentUser.current = user;
   selected.current = record;
+  currentMode.current = mode;
+  const dirtyReflection =
+    draft !== (reflection?.text ?? '') || stance !== (reflection?.stance ?? 'unspecified');
+  const canLeave = () =>
+    mode !== 'reading' ||
+    !dirtyReflection ||
+    window.confirm('Discard your unsaved reflection? Choose Cancel to stay and keep editing.');
+  const clearReading = () => {
+    setRecord(null);
+    setReading(null);
+    setReflection(null);
+    setLatestReflection(null);
+    setDraft('');
+    setStance('unspecified');
+    setConflict(false);
+    setConfirmDelete(false);
+    setDeleteChecked(false);
+  };
   const intents = useRef(new Map<string, { payload: string; key: string; intent: string }>());
   const deletion = useRef<{
     id: string;
@@ -87,7 +107,7 @@ export function ReadingWorkspace({
           : result,
       );
   };
-  const open = async (id: string, current: Current, keepDraft = false) => {
+  const open = async (id: string, current: Current, keepDraft = false, requireReview = false) => {
     const session = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
     if (!current()) return;
     const editionId = session.editionIds.at(-1);
@@ -103,9 +123,19 @@ export function ReadingWorkspace({
       throw new Error('This reading format is not available in the local build.');
     setRecord(session);
     setReading(content);
-    setReflection(note);
     setMode('reading');
-    if (!keepDraft) {
+    if (keepDraft && (dirtyReflection || conflict || requireReview)) {
+      // Keep the draft's base revision until the user explicitly reconciles a newer version.
+      if (note?.id !== reflection?.id || note?.revision !== reflection?.revision || requireReview) {
+        setLatestReflection(note);
+        setConflict(true);
+        setMessage(
+          'The saved reflection changed. Your draft has been kept. Review the current saved text and choose which version to use.',
+        );
+      }
+    } else {
+      setReflection(note);
+      setLatestReflection(null);
       setDraft(note?.text ?? '');
       setStance(note?.stance ?? 'unspecified');
       setConflict(false);
@@ -134,10 +164,7 @@ export function ReadingWorkspace({
           : 'This action could not be completed. Your draft is still here.',
       );
       if (error instanceof ApiFailure && error.status === 410) {
-        setRecord(null);
-        setReading(null);
-        setReflection(null);
-        setDraft('');
+        clearReading();
         setMode('history');
         await loadHistory(current).catch(() => undefined);
       }
@@ -161,7 +188,7 @@ export function ReadingWorkspace({
     void runRef.current((current) => historyRef.current(current));
     const focus = () => {
       void runRef.current((current) =>
-        selected.current
+        currentMode.current === 'reading' && selected.current
           ? openRef.current(selected.current.id, current, true)
           : historyRef.current(current),
       );
@@ -212,7 +239,7 @@ export function ReadingWorkspace({
       });
   };
   const saveReflection = () => {
-    if (record && reading)
+    if (record && reading && !conflict)
       void run(async (current) => {
         const body = { text: draft, stance, editionId: reading.editionId };
         try {
@@ -232,19 +259,16 @@ export function ReadingWorkspace({
           if (current()) {
             setRecord(saved);
             setReflection(result);
+            setLatestReflection(null);
+            setDraft(result.text);
+            setStance(result.stance);
             setConflict(false);
             intents.current.delete('reflection');
             setMessage('Reflection saved.');
           }
         } catch (error) {
           if (current() && error instanceof ApiFailure && error.status === 409) {
-            await open(record.id, current, true);
-            if (current()) {
-              setConflict(true);
-              setMessage(
-                'The saved reflection changed. Your draft has been kept. Review the current saved text before saving again.',
-              );
-            }
+            await open(record.id, current, true, true);
           } else throw error;
         }
       });
@@ -305,25 +329,36 @@ export function ReadingWorkspace({
           };
         }
         const request = deletion.current;
-        const receipt = await api(
-          `/sessions/${request.id}`,
-          apiSchemas.DeletionReceipt,
-          { receiptId: request.receiptId, receiptToken: request.receiptToken },
-          currentUser.current.csrfToken,
-          { method: 'DELETE', revision: request.revision, key: request.key },
-        );
+        let receipt: z.infer<typeof apiSchemas.DeletionReceipt>;
+        try {
+          receipt = await api(
+            `/sessions/${request.id}`,
+            apiSchemas.DeletionReceipt,
+            { receiptId: request.receiptId, receiptToken: request.receiptToken },
+            currentUser.current.csrfToken,
+            { method: 'DELETE', revision: request.revision, key: request.key },
+          );
+        } catch (error) {
+          if (current() && error instanceof ApiFailure && error.code === 'CONFLICT') {
+            // A definite revision rejection did not commit this intent. Refresh and require a
+            // new confirmation; ambiguous network failures keep the original receipt/key.
+            deletion.current = null;
+            await open(record.id, current, true);
+            if (current())
+              setMessage(
+                'This reading changed. Review the updated reading and confirm deletion again.',
+              );
+            return;
+          }
+          throw error;
+        }
         if (!current()) return;
         if (receipt.state !== 'complete') {
           setMessage('Deletion is still in progress. Keep this page open and retry to check it.');
           return;
         }
-        setRecord(null);
-        setReading(null);
-        setReflection(null);
-        setDraft('');
+        clearReading();
         setMode('history');
-        setConfirmDelete(false);
-        setDeleteChecked(false);
         deletion.current = null;
         await loadHistory(current);
         if (current())
@@ -350,18 +385,16 @@ export function ReadingWorkspace({
           type="button"
           className="secondary"
           disabled={busy}
-          onClick={() =>
+          onClick={() => {
+            if (!canLeave()) return;
             void run(async (current) => {
               await loadHistory(current);
               if (current()) {
                 setMode('history');
-                setRecord(null);
-                setReading(null);
-                setReflection(null);
-                setDraft('');
+                clearReading();
               }
-            })
-          }
+            });
+          }}
         >
           Saved readings
         </button>
@@ -369,6 +402,8 @@ export function ReadingWorkspace({
           type="button"
           disabled={busy || !user.permission.modelAllowed}
           onClick={() => {
+            if (!canLeave()) return;
+            clearReading();
             setMode('new');
             setMessage('');
           }}
@@ -577,10 +612,43 @@ export function ReadingWorkspace({
             <p>
               This is your own writing. It does not change the reading or request AI generation.
             </p>
-            {conflict && reflection && (
+            {conflict && (
               <div className="notice">
-                <p>Current saved reflection:</p>
-                <blockquote>{reflection.text}</blockquote>
+                <p>
+                  Current saved reflection
+                  {latestReflection ? ` (revision ${latestReflection.revision})` : ''}:
+                </p>
+                <blockquote>{latestReflection?.text ?? 'No saved reflection.'}</blockquote>
+                <p>Saved stance: {latestReflection?.stance ?? 'unspecified'}</p>
+                <div className="actions">
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => {
+                      setReflection(latestReflection);
+                      setLatestReflection(null);
+                      setConflict(false);
+                      setMessage('Your draft is ready for the next save.');
+                    }}
+                  >
+                    Keep my draft for the next save
+                  </button>
+                  <button
+                    type="button"
+                    className="secondary"
+                    disabled={busy}
+                    onClick={() => {
+                      setReflection(latestReflection);
+                      setDraft(latestReflection?.text ?? '');
+                      setStance(latestReflection?.stance ?? 'unspecified');
+                      setLatestReflection(null);
+                      setConflict(false);
+                      setMessage('The saved reflection is now in the editor.');
+                    }}
+                  >
+                    Use the saved reflection
+                  </button>
+                </div>
               </div>
             )}
             <label htmlFor="reflection-text">Your reflection</label>
@@ -610,7 +678,11 @@ export function ReadingWorkspace({
             {record.status !== 'saved' && (
               <p>Saving a reflection also saves this reading until deletion.</p>
             )}
-            <button type="button" onClick={saveReflection} disabled={busy || !draft.trim()}>
+            <button
+              type="button"
+              onClick={saveReflection}
+              disabled={busy || conflict || !draft.trim()}
+            >
               Save reflection
             </button>
           </section>

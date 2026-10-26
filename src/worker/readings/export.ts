@@ -17,7 +17,7 @@ type Row = z.infer<typeof Point> & {
   key_version: number;
   metadata: string;
 };
-type Ticket = { id: string; snapshot_revision: number; expires_at: number };
+type Ticket = { id: string; snapshot_revision: number; created_at: number; expires_at: number };
 const utf8 = new TextEncoder();
 
 /** Export only persisted families this local slice can create; unsupported families fail closed. */
@@ -34,7 +34,11 @@ export class ReadingExports {
         this.base.identity.sessions.guard(session, true),
         q(
           this.base.db,
-          `INSERT INTO export_tickets SELECT ?,id,data_revision,${DB_NOW},${DB_NOW}+3600000 FROM accounts WHERE id=?`,
+          // Time alone can remove an unsaved record without advancing data_revision. Bind every
+          // page to the earliest retention boundary in the entire snapshot, including later pages.
+          `INSERT INTO export_tickets SELECT ?,id,data_revision,${DB_NOW},min(${DB_NOW}+3600000,
+            coalesce((SELECT min(retention_expires_at) FROM reading_sessions WHERE owner_id=accounts.id
+              AND status='open' AND retention_expires_at>${DB_NOW}),${DB_NOW}+3600000)) FROM accounts WHERE id=?`,
           id,
           session.subjectId,
         ),
@@ -62,7 +66,10 @@ export class ReadingExports {
       id,
     ).first<Ticket & { data_revision: number; valid: number }>();
     if (!row) throw new RecordError(404, 'NOT_FOUND');
-    if (!row.valid) throw new RecordError(410, 'EXPIRED');
+    if (!row.valid) {
+      if (row.expires_at < row.created_at + 3_600_000) throw new RecordError(409, 'EXPORT_CHANGED');
+      throw new RecordError(410, 'EXPIRED');
+    }
     if (row.snapshot_revision !== row.data_revision) throw new RecordError(409, 'EXPORT_CHANGED');
     return row;
   }

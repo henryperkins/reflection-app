@@ -66,6 +66,98 @@ async function after(deadline: number) {
     await new Promise((r) => setTimeout(r, 10));
 }
 
+test('a delayed concurrent erasure cannot regress a completed job when R2 is unavailable', async () => {
+  const { client } = await readingAccount(),
+    { started } = await client.create();
+  const receipt = { receiptId: crypto.randomUUID(), receiptToken: randomToken() },
+    key = crypto.randomUUID();
+  const barrier = gate((sql) =>
+    sql.some((s) => s.includes("UPDATE deletion_jobs SET state='erasing'")),
+  );
+  const bucket = new Proxy(env.RECOVERY, {
+    get(target, property) {
+      if (property === 'get')
+        return (key: string) => {
+          if (key.endsWith('/complete.json')) throw new Error('Synthetic R2 completion outage');
+          return target.get(key);
+        };
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const delayed = new ReadingClient({ ...readingBindings, DB: barrier.db, RECOVERY: bucket });
+  delayed.cookies = client.cookies;
+  delayed.csrf = client.csrf;
+  const pending = delayed.request(`/sessions/${started.sessionId}`, receipt, {
+    method: 'DELETE',
+    revision: 1,
+    key,
+  });
+  await barrier.ready;
+  try {
+    const first = await client.request(`/sessions/${started.sessionId}`, receipt, {
+      method: 'DELETE',
+      revision: 1,
+      key,
+    });
+    expect(first.status).toBe(202);
+    expect(await env.DB.prepare('SELECT state,target_enc FROM deletion_jobs').first()).toEqual({
+      state: 'complete',
+      target_enc: null,
+    });
+  } finally {
+    barrier.release();
+  }
+  expect((await pending).status).toBe(202);
+  expect(await env.DB.prepare('SELECT state,target_enc FROM deletion_jobs').first()).toEqual({
+    state: 'complete',
+    target_enc: null,
+  });
+  const retry = await client.request(`/sessions/${started.sessionId}`, receipt, {
+    method: 'DELETE',
+    revision: 1,
+    key,
+  });
+  expect(retry.status).toBe(202);
+  expect(apiSchemas.DeletionReceipt.parse(await retry.json()).state).toBe('complete');
+  expect(
+    await env.RECOVERY.head(`erasures/v1/${receipt.receiptId}/passes/1/complete.json`),
+  ).not.toBeNull();
+});
+
+test('retention expiry between export pages invalidates the whole snapshot', async () => {
+  const { client, kit } = await readingAccount(),
+    { started } = await client.create();
+  await env.DB.batch(
+    Array.from({ length: 105 }, (_, i) =>
+      env.DB.prepare("INSERT INTO permission_revisions VALUES (?,?,0,'egress.v1',1)").bind(
+        kit.subjectId,
+        i + 3,
+      ),
+    ),
+  );
+  const deadline = Date.now() + 1000;
+  await env.DB.prepare('UPDATE reading_sessions SET retention_expires_at=? WHERE id=?')
+    .bind(deadline, started.sessionId)
+    .run();
+  const ticket = apiSchemas.ExportTicket.parse(await (await client.request('/exports', {})).json());
+  const first = apiSchemas.ExportPage.parse(
+    await (await client.request(`/exports/${ticket.id}`)).json(),
+  );
+  expect(first.records[0]?.kind).toBe('generation_receipt');
+  expect(first.nextCursor).toBeTruthy();
+  expect(
+    first.records.some((record) => record.kind === 'reading' || record.kind === 'session'),
+  ).toBe(false);
+  await after(deadline);
+  const response = await client.request(
+    `/exports/${ticket.id}?cursor=${encodeURIComponent(first.nextCursor!)}`,
+  );
+  expect(response.status).toBe(409);
+  expect(await response.json()).toMatchObject({ error: { code: 'EXPORT_CHANGED' } });
+  expect(Date.parse(ticket.expiresAt)).toBe(deadline);
+});
+
 test.each(['dispatch', 'publication'] as const)(
   'revocation at %s blocks the in-flight reading and releases held quota once',
   async (stage) => {

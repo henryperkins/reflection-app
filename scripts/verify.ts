@@ -183,7 +183,7 @@ export async function verify(): Promise<void> {
       deadlineMs,
       stages: results,
       scope: 'synthetic-local-only',
-      applicationBrowserAcceptance: passed ? 'local-identity-recovery-only' : 'not-passed',
+      applicationBrowserAcceptance: passed ? 'local-identity-and-saved-reading-only' : 'not-passed',
       hostedQualification: 'not-run',
     };
     mkdirSync(resolve(projectRoot, 'artifacts'), { recursive: true });

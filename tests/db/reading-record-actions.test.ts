@@ -141,7 +141,11 @@ test('exports require recent auth and invalidate when records change or the tick
   expect(changed.status).toBe(409);
   expect(apiSchemas.ErrorEnvelope.parse(await changed.json()).error.code).toBe('EXPORT_CHANGED');
   const second = await ticket(client);
-  await env.DB.prepare('UPDATE export_tickets SET expires_at=1 WHERE id=?').bind(second.id).run();
+  // Move the whole one-hour lifetime into the past; shortening it represents a retention boundary.
+  const expired = Date.now() - 1;
+  await env.DB.prepare('UPDATE export_tickets SET created_at=?,expires_at=? WHERE id=?')
+    .bind(expired - 3_600_000, expired, second.id)
+    .run();
   expect((await client.request(`/exports/${second.id}`)).status).toBe(410);
   await env.DB.prepare('UPDATE auth_sessions SET authenticated_at=1').run();
   expect((await client.request('/exports', {})).status).toBe(401);
