@@ -77,7 +77,8 @@ export function RequestProgress(props: {
       stopping = false,
       definite = false;
     let cancelIntent: { revision: number; key: string } | null = null;
-    const current = () => live && !controller.signal.aborted;
+    const current = () =>
+      live && !controller.signal.aborted && window.location.pathname === requestPath(target);
     const receive = (value: Status) => {
       if (!current() || (snapshot && value.revision < snapshot.revision)) return;
       snapshot = value;
@@ -229,8 +230,14 @@ export function RequestProgress(props: {
         void check();
       }
     };
+    const navigate = () => {
+      live = false;
+      clearTimeout(timer);
+      controller.abort();
+    };
     document.addEventListener('visibilitychange', resume);
     window.addEventListener('online', resume);
+    window.addEventListener('popstate', navigate);
     if (initial.start) {
       void submit();
       schedule();
@@ -243,6 +250,7 @@ export function RequestProgress(props: {
       controller.abort();
       document.removeEventListener('visibilitychange', resume);
       window.removeEventListener('online', resume);
+      window.removeEventListener('popstate', navigate);
     };
   }, []);
   return (

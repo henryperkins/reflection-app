@@ -20,7 +20,7 @@ Drawn card, interpretation and reflection prompt have semantic headings; the exp
 
 `tests/browser/request-lifecycle.spec.ts` exercises lost Start acknowledgement/reload, lost Save/reopen, same-body/key retry, sign-in at an unsaved request URL, late progress after navigation, keyboard source inspection, cancellation response loss, consent revocation and distinct stopped copy. The first nine cases failed before the UI implementation. The sign-in route regression was separately verified RED→GREEN against the former navigation behavior. Further races cover the displayed allowance after progress unmount and a never-received Start after reload.
 
-The first integrated gate passed **13 stages and 284 tests**, zero skipped, in **90.50 seconds**. Later regression additions and review corrections are covered by the current source-bound receipt. `npm run verify` writes actual executed domain/D1/browser counts and duration to `artifacts/verify.json`; `npm run release -- --check` verifies that receipt and must continue reporting `deploymentAllowed:false`.
+The first integrated gate passed **13 stages and 284 tests**, zero skipped, in **90.50 seconds**. Later regression additions and review corrections are covered by the current source-bound receipt. `npm run verify` writes source digest, stage results and duration to `artifacts/verify.json`; executed counts are in `artifacts/domain-tests.json`, `artifacts/db-tests.json` and `artifacts/browser-tests.json`. `npm run release -- --check` verifies the source-bound receipt and must continue reporting `deploymentAllowed:false`.
 
 Real browser journeys use the local Worker, D1 and virtual passkeys. The cancellation/outcome UI cases explicitly inject **content-free status responses**; the corresponding backend transitions and late-publication fences are separately exercised with real D1 barriers. Those UI fixtures are not evidence of a real provider refusal, remote abort or billing reconciliation.
 
@@ -30,9 +30,25 @@ The prior complete-kit recovery, exact saved-reading return, consent-off reflect
 
 ## Review and decisions
 
-Independent whole-branch review follows the final task gate; its findings and disposition are recorded here before handoff.
+An independent fresh-context reviewer examined `7c1d981..65db587`, passed the 12 lifecycle D1 cases in an isolated archive, and reproduced two Important browser findings. The pre-review source-bound gate passed **13 stages and 286 tests**, zero skipped, in **100.71 seconds**. No Critical or Minor findings were reported.
+
+| Finding | Correction and regression |
+|---|---|
+| Explicit New reading reused a stopped request's cached intent/key when the question was unchanged | The deliberate New reading action retires the old Start identity. A browser test verifies a distinct client intent, key and request, and `joined:false`; the separate Retry the same Start test still verifies reuse. |
+| Browser Back left progress/accepted-result loading active, allowing a late response to restore the departed URL/view | Native navigation invalidates the parent operation epoch, stops polling and reconciles the destination view. Progress also checks its owned route before applying a response. Tests hold both status and accepted-reading responses across Back, then verify Forward can reopen the same request. A further regression protects a dirty reflection until discard is explicitly confirmed. |
+
+All four correction regressions were observed failing before the fixes and passing afterward (4/4, 14.3 seconds). The correction pass includes the complete existing verification gate; its final source-bound result is the current receipt. The reviewer did not perform a second review; regression evidence and the full author-run gate establish the disposition. No identified material finding is deferred.
 
 - Proceeded under the user's existing approval in the separate application checkout and a new local branch. No additional design/worktree approval was needed. Cost if wrong: local implementation choices can require revision; nothing was published.
 - Used the already specified `GET /requests?intentId=...` endpoint instead of adding an API route. It provides the required owner-scoped lookup; the opaque browser path is independent of the API path. There is no behavioral cost to this correction.
+
+The reviewer explicitly declined to qualify these boundaries; the author accepts those limits:
+
+- Worker termination: waitUntil is a local continuation, so unfinished work can expire rather than complete. Hosted durable execution remains open; treating this as a guarantee would mislead users about interruption recovery.
+- Real-provider candidate fidelity: the local generator publishes synthetic template text. Outcome injection tests lifecycle handling, not real-provider fidelity. A real transport must remain disabled until its accepted-output and provider qualification evidence exists.
+- Screen readers and physical passkeys: keyboard/focus and virtual-authenticator tests do not establish those behaviors. Unverified accessibility or device compatibility cannot be counted as launch acceptance.
+- Verification wording: corrected the result record to distinguish source/stage/duration metadata from executed-test reports. This has no runtime effect and avoids attributing evidence to the wrong artifact.
+
+Deferred minors: none from this review. The former retention cursor minor is covered by the D1 regression in this branch.
 
 The local branch is preserved for subsequent Milestone 2 work. Identity account controls are the next implementation target; production/provider/content/hosted/manual gates remain open as listed in `MILESTONE_2_ACCEPTANCE.md`.

@@ -38,6 +38,7 @@ export function ReadingWorkspace({
 }) {
   const [request, setRequest] = useState<ReadingRequest | null>(requestFromPath);
   const [requestPending, setRequestPending] = useState(Boolean(request));
+  const [navigationVersion, setNavigationVersion] = useState(0);
   const [mode, setMode] = useState<'history' | 'new' | 'reading' | 'request'>(
     request ? 'request' : 'history',
   );
@@ -223,10 +224,37 @@ export function ReadingWorkspace({
   };
   const runRef = useRef(run),
     openRef = useRef(open),
-    historyRef = useRef(loadHistory);
+    historyRef = useRef(loadHistory),
+    navigationRef = useRef(() => {});
   runRef.current = run;
   openRef.current = open;
   historyRef.current = loadHistory;
+  navigationRef.current = () => {
+    if (!canLeave()) {
+      // Parent route state may already reflect Back; restore the reading still being edited.
+      if (reading) window.history.pushState(null, '', `/requests/${reading.provenance.requestId}`);
+      return;
+    }
+    // Invalidate even an accepted-reading load that has outlived the progress response.
+    epoch.current++;
+    inFlight.current = false;
+    setBusy(false);
+    setMessage('');
+    clearReading();
+    const restored = requestFromPath();
+    const destination = restored
+      ? 'request'
+      : window.location.pathname === '/new'
+        ? 'new'
+        : 'history';
+    setRequest(restored);
+    setRequestPending(Boolean(restored));
+    setNavigationVersion((value) => value + 1);
+    setMode(destination);
+    currentMode.current = destination;
+    if (destination === 'new') intents.current.delete('start');
+    if (destination === 'history') void runRef.current((current) => historyRef.current(current));
+  };
   useEffect(() => {
     alive.current = true;
     if (currentMode.current === 'history')
@@ -239,13 +267,16 @@ export function ReadingWorkspace({
           : historyRef.current(current),
       );
     };
+    const navigation = () => navigationRef.current();
     window.addEventListener('focus', focus);
+    window.addEventListener('popstate', navigation);
     return () => {
       alive.current = false;
       epoch.current++;
       intents.current.clear();
       deletion.current = null;
       window.removeEventListener('focus', focus);
+      window.removeEventListener('popstate', navigation);
     };
   }, []);
   const permission = () =>
@@ -516,6 +547,8 @@ export function ReadingWorkspace({
           disabled={busy || !user.permission.modelAllowed || requestPending}
           onClick={() => {
             if (!canLeave()) return;
+            // A deliberate new reading is a new intent, even if the question is unchanged.
+            intents.current.delete('start');
             clearReading();
             setMode('new');
             setRequest(null);
@@ -588,7 +621,7 @@ export function ReadingWorkspace({
       )}
       {mode === 'request' && request && (
         <RequestProgress
-          key={request.target.id}
+          key={`${request.target.id}:${navigationVersion}`}
           request={request}
           user={user}
           onSession={onSession}

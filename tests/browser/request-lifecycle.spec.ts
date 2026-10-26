@@ -342,3 +342,126 @@ for (const [state, errorCode, copy] of [
     await expect(page.getByRole('button', { name: 'Cancel reading' })).toHaveCount(0);
   });
 }
+
+test('explicit New reading after a stopped request uses a fresh identity for the same question', async ({
+  page,
+}) => {
+  await account(page, '198.51.100.201');
+  await form(page);
+  const submitted: Array<{ intent: string; key: string | undefined; id: string; joined: boolean }> =
+    [];
+  await page.route('**/api/v1/requests', async (route) => {
+    const input = apiSchemas.StartRequest.parse(route.request().postDataJSON());
+    const response = await route.fetch();
+    const started = apiSchemas.StartResponse.parse(await response.json());
+    submitted.push({
+      intent: input.clientIntentId,
+      key: route.request().headers()['idempotency-key'],
+      id: started.requestId,
+      joined: started.joined,
+    });
+    await route.fulfill({
+      response,
+      json: {
+        ...started,
+        status: {
+          ...started.status,
+          state: 'failed',
+          errorCode: 'PROVIDER_UNAVAILABLE',
+          revision: 3,
+          events: [],
+          nextSequence: 3,
+        },
+      },
+    });
+  });
+  await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'The writer is unavailable' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'New reading', exact: true }).click();
+  await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+  await expect.poll(() => submitted.length).toBe(2);
+  expect(submitted[1]!.intent).not.toBe(submitted[0]!.intent);
+  expect(submitted[1]!.key).not.toBe(submitted[0]!.key);
+  expect(submitted[1]!.id).not.toBe(submitted[0]!.id);
+  expect(submitted[1]!.joined).toBe(false);
+});
+
+for (const boundary of ['status', 'reading'] as const) {
+  test(`browser Back fences a late ${boundary} response and Forward can resume the request`, async ({
+    page,
+  }) => {
+    await account(page, boundary === 'status' ? '198.51.100.202' : '198.51.100.203');
+    await form(page);
+    if (boundary === 'status') await pendingFixture(page);
+    let release!: () => void, arrived!: () => void, delivered!: () => void;
+    const held = new Promise<void>((r) => {
+      release = r;
+    });
+    const ready = new Promise<void>((r) => {
+      arrived = r;
+    });
+    const finished = new Promise<void>((r) => {
+      delivered = r;
+    });
+    let first = true;
+    await page.route(
+      boundary === 'status' ? /\/api\/v1\/requests\/[0-9a-f-]+\?after=/ : '**/api/v1/readings/*',
+      async (route) => {
+        if (!first) return route.continue();
+        first = false;
+        const response = await route.fetch();
+        arrived();
+        await held;
+        await route.fulfill({ response }).catch(() => undefined);
+        delivered();
+      },
+    );
+    await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+    await ready;
+    try {
+      await page.goBack();
+      await expect(page).toHaveURL('http://localhost:8787/');
+      await expect(
+        page.getByRole('heading', { name: 'Saved readings', exact: true }),
+      ).toBeVisible();
+      release();
+      await finished;
+      await expect(page).toHaveURL('http://localhost:8787/');
+      await expect(page.getByTestId('accepted-reading')).toHaveCount(0);
+      await page.goForward();
+      await expect(page.getByTestId('accepted-reading')).toBeVisible();
+    } finally {
+      release();
+    }
+  });
+}
+
+test('browser Back keeps a dirty reflection until discard is explicitly confirmed', async ({
+  page,
+}) => {
+  await account(page, '198.51.100.204');
+  await reading(page, 'Synthetic native navigation draft');
+  const url = page.url();
+  await page.getByLabel('Your reflection', { exact: true }).fill('Synthetic unsaved reflection');
+  let dialogs = 0;
+  page.once('dialog', async (dialog) => {
+    dialogs++;
+    await dialog.dismiss();
+  });
+  await page.goBack();
+  await expect.poll(() => dialogs).toBe(1);
+  await expect(page).toHaveURL(url);
+  await expect(page.getByLabel('Your reflection', { exact: true })).toHaveValue(
+    'Synthetic unsaved reflection',
+  );
+  page.once('dialog', async (dialog) => {
+    dialogs++;
+    await dialog.accept();
+  });
+  await page.goBack();
+  await expect.poll(() => dialogs).toBe(2);
+  await expect(page.getByRole('heading', { name: 'Saved readings', exact: true })).toBeVisible();
+  await expect(page.getByTestId('accepted-reading')).toHaveCount(0);
+});
