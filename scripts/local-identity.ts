@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { resolve, join } from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { startLocalMaintenance } from './local-maintenance.ts';
 const config = 'wrangler.identity.jsonc';
 const testing = process.argv.includes('--test');
 const persistence = testing
@@ -39,17 +40,23 @@ await run(cli, [
   '--persist-to',
   persistence,
 ]);
-await run(cli, [
-  'dev',
-  '--local',
-  '--config',
-  config,
-  '--env-file',
-  'scripts/verification.env',
-  '--persist-to',
-  persistence,
-  '--ip',
-  '127.0.0.1',
-  '--port',
-  '8787',
-]);
+const stopMaintenance = startLocalMaintenance();
+try {
+  await run(cli, [
+    'dev',
+    '--test-scheduled',
+    '--local',
+    '--config',
+    config,
+    '--env-file',
+    'scripts/verification.env',
+    '--persist-to',
+    persistence,
+    '--ip',
+    '127.0.0.1',
+    '--port',
+    '8787',
+  ]);
+} finally {
+  stopMaintenance();
+}

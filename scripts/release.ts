@@ -34,7 +34,7 @@ export function checkRelease(root = projectRoot) {
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
   if (process.argv.slice(2).join(' ') !== '--check') {
     throw new Error(
-      'Deployment is disabled in Milestone 1. Use npm run release -- --check to inspect qualification status.',
+      'Deployment is disabled while launch qualifications remain open. Use npm run release -- --check to inspect qualification status.',
     );
   }
   console.log(JSON.stringify(checkRelease(), null, 2));

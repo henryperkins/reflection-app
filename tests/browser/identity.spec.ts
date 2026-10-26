@@ -80,12 +80,20 @@ test('complete downloaded kit recovers the same account in a new browser without
   await authenticator(recoveredPage);
   await recoveredPage.goto('/recover');
   await recoveredPage.getByLabel('Recovery handle').fill(kit.recoveryHandle);
+  await recoveredPage.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await recoveredPage.waitForTimeout(200); // Let a focus-triggered /me response settle.
+  await expect(recoveredPage.getByLabel('Recovery handle')).toHaveValue(kit.recoveryHandle);
   await recoveredPage.getByLabel('Unused recovery code').fill(kit.codes[0]);
   await recoveredPage.getByRole('button', { name: 'Verify recovery kit' }).click();
   await expect(
     recoveredPage.getByRole('heading', { name: 'Create your replacement passkey' }),
   ).toBeVisible();
   expect((await fresh.request.get('http://localhost:8787/api/v1/me')).status()).toBe(401);
+  await recoveredPage.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await recoveredPage.waitForTimeout(200);
+  await expect(
+    recoveredPage.getByRole('button', { name: 'Create replacement passkey' }),
+  ).toBeVisible();
   await recoveredPage.getByRole('button', { name: 'Create replacement passkey' }).click();
   await expect(
     recoveredPage.getByRole('heading', { name: 'Keep your recovery kit' }),
@@ -113,4 +121,89 @@ test('complete downloaded kit recovers the same account in a new browser without
   expect(faults).toEqual([]);
   expect(outbound).toEqual([]);
   await fresh.close();
+});
+
+test('cross-tab invalidation prevents a delayed registration response from restoring a kit', async ({
+  page,
+}) => {
+  await authenticator(page);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Create a test account' })).toBeEnabled();
+  let release!: () => void, arrived!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const ready = new Promise<void>((resolve) => {
+    arrived = resolve;
+  });
+  await page.route('**/api/v1/me', async (route) => {
+    const response = await route.fetch();
+    arrived();
+    await held;
+    await route.fulfill({ response });
+  });
+  await page.getByRole('button', { name: 'Create a test account' }).click();
+  await ready;
+  await page.evaluate(async () => {
+    const channel = new BroadcastChannel('reflection-account');
+    channel.postMessage('signed-out');
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    channel.close();
+  });
+  release();
+  await page.waitForTimeout(200);
+  await expect(page.getByRole('heading', { name: 'Keep your recovery kit' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Download recovery kit' })).toHaveCount(0);
+  await expect(page.getByRole('heading', { name: 'A place to return to.' })).toBeVisible();
+});
+
+test('a transient session-refresh error preserves the newly issued one-time kit', async ({
+  page,
+}) => {
+  await authenticator(page);
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: 'Create a test account' })).toBeEnabled();
+  await page.route('**/api/v1/me', (route) =>
+    route.fulfill({ status: 503, contentType: 'application/json', body: '{}' }),
+  );
+  await page.getByRole('button', { name: 'Create a test account' }).click();
+  await expect(page.getByRole('heading', { name: 'Keep your recovery kit' })).toBeVisible();
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  await page.waitForTimeout(200);
+  await expect(page.getByRole('button', { name: 'Download recovery kit' })).toBeEnabled();
+});
+
+test('the local maintenance driver invokes the running Worker scheduled handler', async () => {
+  const { dispatchLocalMaintenance } = await import('../../scripts/local-maintenance.ts');
+  await expect(dispatchLocalMaintenance()).resolves.toBeUndefined();
+});
+
+test('an explicitly invalidated session clears a replacement kit after rotation', async ({
+  page,
+}) => {
+  await page.context().setExtraHTTPHeaders({ 'CF-Connecting-IP': '192.0.2.44' });
+  await authenticator(page);
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Create a test account' }).click();
+  await expect(page.getByRole('heading', { name: 'Keep your recovery kit' })).toBeVisible();
+  const downloaded = page.waitForEvent('download');
+  await page.getByRole('button', { name: 'Download recovery kit' }).click();
+  await downloaded;
+  await page.getByLabel('I have saved the complete kit with the handle and codes.').check();
+  await page.getByRole('button', { name: 'Continue to account' }).click();
+  await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+  let invalidated = false;
+  await page.route('**/api/v1/auth/recovery-codes', async (route) => {
+    const response = await route.fetch();
+    invalidated = true;
+    await route.fulfill({ response });
+  });
+  await page.route('**/api/v1/me', (route) =>
+    invalidated
+      ? route.fulfill({ status: 401, contentType: 'application/json', body: '{}' })
+      : route.continue(),
+  );
+  await page.getByRole('button', { name: 'Replace recovery kit' }).click();
+  await expect(page.getByRole('heading', { name: 'A place to return to.' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Download recovery kit' })).toHaveCount(0);
 });

@@ -4,7 +4,8 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { IdentityCrypto, decode, encode } from '../../src/worker/identity/crypto.ts';
 import { IdentityCheckpoints } from '../../src/worker/identity/checkpoint.ts';
 import { clearDatabase } from '../fixtures/database.ts';
-import { IDENTITY_SECRETS } from '../fixtures/identity.ts';
+import { IDENTITY_SECRETS, IDENTITY_ORIGIN } from '../fixtures/identity.ts';
+import worker from '../../src/worker/index.ts';
 
 const cryptoService = new IdentityCrypto(IDENTITY_SECRETS);
 const checkpoints = new IdentityCheckpoints(env.DB, env.RECOVERY, cryptoService);
@@ -105,7 +106,17 @@ test('R2 failure leaves a resumable fence without applying credentials or granti
   expect(await env.DB.prepare('SELECT write_fence FROM accounts').first('write_fence')).toBe(
     `security:${snapshot.operationId}`,
   );
-  await checkpoints.resumePending();
+  await worker.scheduled(
+    {} as ScheduledController,
+    {
+      DB: env.DB,
+      RECOVERY: env.RECOVERY,
+      IDENTITY_MODE: 'synthetic-local',
+      IDENTITY_ORIGIN,
+      IDENTITY_SECRETS: JSON.stringify(IDENTITY_SECRETS),
+    },
+    {} as ExecutionContext,
+  );
   expect(await env.DB.prepare('SELECT state FROM security_operations').first('state')).toBe(
     'applied',
   );
@@ -129,4 +140,86 @@ test('replaying apply is idempotent and stale epochs cannot replace current iden
     checkpoints.commit({ ...next, operationId: crypto.randomUUID() }, { expected: snapshot }),
   ).rejects.toThrow();
   expect(await env.DB.prepare('SELECT auth_epoch FROM accounts').first('auth_epoch')).toBe(2);
+});
+
+test('two pending apply executions converge on one immutable checkpoint and one identity', async () => {
+  const snapshot = await proposed();
+  const down = {
+    put: async () => {
+      throw new Error('outage');
+    },
+  } as unknown as R2Bucket;
+  await expect(
+    new IdentityCheckpoints(env.DB, down, cryptoService).commit(snapshot, {
+      initialKeys: await cryptoService.createAccountKeys(snapshot.subjectId),
+    }),
+  ).rejects.toThrow();
+  let puts = 0,
+    release!: () => void;
+  const arrived = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const bucket = new Proxy(env.RECOVERY, {
+    get(target, property) {
+      if (property === 'put')
+        return async (...args: Parameters<R2Bucket['put']>) => {
+          if (++puts === 2) release();
+          await arrived;
+          return target.put(...args);
+        };
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const concurrent = new IdentityCheckpoints(env.DB, bucket, cryptoService);
+  await Promise.all([
+    concurrent.apply(snapshot.operationId),
+    concurrent.apply(snapshot.operationId),
+  ]);
+  expect(puts).toBe(2);
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM credentials').first('n')).toBe(1);
+  expect(await env.DB.prepare('SELECT state FROM security_operations').first('state')).toBe(
+    'applied',
+  );
+  expect((await env.RECOVERY.list()).objects).toHaveLength(1);
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM auth_sessions').first('n')).toBe(0);
+});
+test('a committed D1 apply whose response is lost is recognized without repeating identity mutation', async () => {
+  let batches = 0;
+  const database = new Proxy(env.DB, {
+    get(target, property) {
+      if (property === 'batch')
+        return async (statements: D1PreparedStatement[]) => {
+          const result = await target.batch(statements);
+          if (++batches === 2) throw new Error('synthetic lost successful apply response');
+          return result;
+        };
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const bucket = new Proxy(env.RECOVERY, {
+    get(target, property) {
+      if (property === 'put')
+        return async (...args: Parameters<R2Bucket['put']>) => {
+          expect(await env.DB.prepare('SELECT count(*) AS n FROM credentials').first('n')).toBe(0);
+          expect(await env.DB.prepare('SELECT count(*) AS n FROM auth_sessions').first('n')).toBe(
+            0,
+          );
+          return target.put(...args);
+        };
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const snapshot = await proposed();
+  await new IdentityCheckpoints(database, bucket, cryptoService).commit(snapshot, {
+    initialKeys: await cryptoService.createAccountKeys(snapshot.subjectId),
+  });
+  expect(batches).toBe(2);
+  expect(await env.DB.prepare('SELECT write_fence FROM accounts').first('write_fence')).toBeNull();
+  expect(await env.DB.prepare('SELECT state FROM security_operations').first('state')).toBe(
+    'applied',
+  );
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM credentials').first('n')).toBe(1);
 });

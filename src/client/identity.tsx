@@ -33,11 +33,19 @@ export function IdentityApp() {
   const [downloaded, setDownloaded] = useState(false),
     [acknowledged, setAcknowledged] = useState(false);
   const inFlight = useRef(false);
+  const authenticated = useRef(false);
+  useEffect(() => {
+    authenticated.current = Boolean(session || kit);
+  }, [session, kit]);
   const version = useRef(0),
     channel = useRef<BroadcastChannel | null>(null),
     heading = useRef<HTMLHeadingElement>(null);
   const clear = useCallback(() => {
     version.current++;
+    inFlight.current = false;
+    authenticated.current = false;
+    setBusy(false);
+    setChecking(false);
     setSession(null);
     setKit(null);
     setGrant(null);
@@ -55,12 +63,16 @@ export function IdentityApp() {
       if (requested === version.current) setSession(current);
     } catch (error) {
       if (requested === version.current) {
-        clear();
-        if (!(error instanceof ApiFailure) || error.status !== 401)
-          setMessage('Start the local identity development server to use test accounts.');
+        if (error instanceof ApiFailure && error.status === 401) {
+          if (authenticated.current) clear();
+        } else {
+          setMessage(
+            'Your session could not be refreshed. Keep this page open and try again when the connection returns.',
+          );
+        }
       }
     } finally {
-      setChecking(false);
+      if (requested === version.current) setChecking(false);
     }
   }, [clear]);
   useEffect(() => {
@@ -72,7 +84,7 @@ export function IdentityApp() {
       setMessage('Your account session changed in another tab. Please sign in again.');
     };
     const focus = () => {
-        void refresh();
+        if (authenticated.current) void refresh();
       },
       navigation = () => {
         setRoute(window.location.pathname);
@@ -98,25 +110,31 @@ export function IdentityApp() {
     history.pushState(null, '', path);
     setRoute(path);
   };
-  const run = async (operation: () => Promise<void>) => {
+  const run = async (operation: (isCurrent: () => boolean) => Promise<void>) => {
     if (inFlight.current) return;
     inFlight.current = true;
-    version.current++;
+    const operationVersion = ++version.current;
+    const isCurrent = () => operationVersion === version.current;
     setBusy(true);
     setMessage('');
     try {
-      await operation();
-      requestAnimationFrame(() => heading.current?.focus());
+      await operation(isCurrent);
+      requestAnimationFrame(() => {
+        if (isCurrent()) heading.current?.focus();
+      });
     } catch (error) {
-      setMessage(
-        error instanceof ApiFailure
-          ? error.message
-          : 'The passkey action was not completed. Please try again.',
-      );
+      if (isCurrent())
+        setMessage(
+          error instanceof ApiFailure
+            ? error.message
+            : 'The passkey action was not completed. Please try again.',
+        );
     } finally {
-      inFlight.current = false;
-      setBusy(false);
-      setChecking(false);
+      if (isCurrent()) {
+        inFlight.current = false;
+        setBusy(false);
+        setChecking(false);
+      }
     }
   };
   const receiveKit = (value: Kit) => {
@@ -124,11 +142,20 @@ export function IdentityApp() {
     setDownloaded(false);
     setAcknowledged(false);
   };
-  const complete = async (result: z.infer<typeof AuthResult>) => {
-    setSession(await api('/me', apiSchemas.SessionView));
-    setGrant(null);
+  const readSession = async (isCurrent: () => boolean) =>
+    api('/me', apiSchemas.SessionView).catch((error) => {
+      if (isCurrent() && error instanceof ApiFailure && error.status === 401) clear();
+      throw error;
+    });
+  const complete = async (result: z.infer<typeof AuthResult>, isCurrent: () => boolean) => {
+    if (!isCurrent()) return;
+    // Preserve the one-time kit even if the follow-up session read is temporarily unavailable.
     if (result.recoveryHandle)
       receiveKit({ recoveryHandle: result.recoveryHandle, codes: result.recoveryCodes });
+    const current = await readSession(isCurrent);
+    if (!isCurrent()) return;
+    setSession(current);
+    setGrant(null);
     navigate('/account');
   };
   const download = () => {
@@ -207,8 +234,9 @@ export function IdentityApp() {
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
-                  void run(async () => {
+                  void run(async (isCurrent) => {
                     await navigator.clipboard.writeText(kitText(kit));
+                    if (!isCurrent()) return;
                     setDownloaded(true);
                     setMessage('Complete recovery kit copied. Store it somewhere private.');
                   })
@@ -229,10 +257,13 @@ export function IdentityApp() {
               type="button"
               disabled={!downloaded || !acknowledged || busy || !session}
               onClick={() =>
-                void run(async () => {
+                void run(async (isCurrent) => {
                   await api('/auth/recovery/ack', apiSchemas.Empty, {}, session?.csrfToken);
+                  if (!isCurrent()) return;
+                  const current = await readSession(isCurrent);
+                  if (!isCurrent()) return;
                   setKit(null);
-                  setSession(await api('/me', apiSchemas.SessionView));
+                  setSession(current);
                   channel.current?.postMessage('changed');
                 })
               }
@@ -258,8 +289,8 @@ export function IdentityApp() {
               type="button"
               disabled={busy}
               onClick={() =>
-                void run(async () => {
-                  await complete(await enroll(grant.options));
+                void run(async (isCurrent) => {
+                  await complete(await enroll(grant.options), isCurrent);
                 })
               }
             >
@@ -299,16 +330,20 @@ export function IdentityApp() {
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
-                  void run(async () => {
+                  void run(async (isCurrent) => {
                     const verified = await signIn('reauthenticate', session.csrfToken);
+                    if (!isCurrent()) return;
                     const rotated = await api(
                       '/auth/recovery-codes',
                       apiSchemas.RecoveryCodes,
                       {},
                       verified.csrfToken,
                     );
-                    setSession(await api('/me', apiSchemas.SessionView));
+                    if (!isCurrent()) return;
                     receiveKit(rotated);
+                    const current = await readSession(isCurrent);
+                    if (!isCurrent()) return;
+                    setSession(current);
                     channel.current?.postMessage('changed');
                   })
                 }
@@ -320,8 +355,9 @@ export function IdentityApp() {
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
-                  void run(async () => {
+                  void run(async (isCurrent) => {
                     await api('/auth/logout', apiSchemas.Empty, {}, session.csrfToken);
+                    if (!isCurrent()) return;
                     clear();
                     channel.current?.postMessage('signed-out');
                     navigate('/');
@@ -337,11 +373,12 @@ export function IdentityApp() {
             autoComplete="off"
             onSubmit={(event) => {
               event.preventDefault();
-              void run(async () => {
+              void run(async (isCurrent) => {
                 const recovered = await api('/auth/recover', apiSchemas.RecoveryGrant, {
                   recoveryHandle: handle.trim(),
                   code: code.trim(),
                 });
+                if (!isCurrent()) return;
                 setGrant(recovered);
                 setHandle('');
                 setCode('');
@@ -396,11 +433,11 @@ export function IdentityApp() {
                 type="button"
                 disabled={busy}
                 onClick={() =>
-                  void run(async () => {
+                  void run(async (isCurrent) => {
                     const options = await api('/auth/options', apiSchemas.AuthOptions, {
                       purpose: 'register',
                     });
-                    await complete(await enroll(options));
+                    await complete(await enroll(options), isCurrent);
                   })
                 }
               >
@@ -411,8 +448,8 @@ export function IdentityApp() {
                 className="secondary"
                 disabled={busy}
                 onClick={() =>
-                  void run(async () => {
-                    await complete(await signIn('authenticate'));
+                  void run(async (isCurrent) => {
+                    await complete(await signIn('authenticate'), isCurrent);
                   })
                 }
               >

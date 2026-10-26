@@ -288,3 +288,79 @@ test('scheduled maintenance removes expired auth/rate records without changing a
     expect(await env.DB.prepare(`SELECT count(*) AS n FROM ${table}`).first('n')).toBe(0);
   expect(await env.DB.prepare('SELECT id FROM accounts').first('id')).toBe(result.subjectId);
 });
+
+test('concurrent use of the same recovery code consumes it once and issues no full session', async () => {
+  const { result } = await register();
+  const replies = await Promise.all(
+    [new Client(), new Client()].map((client) =>
+      client.request('/auth/recover', {
+        recoveryHandle: result.recoveryHandle,
+        code: result.recoveryCodes[0],
+      }),
+    ),
+  );
+  expect(replies.map((reply) => reply.status).sort()).toEqual([200, 401]);
+  expect(
+    await env.DB.prepare(
+      'SELECT count(*) AS n FROM recovery_codes WHERE used_at IS NOT NULL',
+    ).first('n'),
+  ).toBe(1);
+  expect(await env.DB.prepare('SELECT auth_epoch FROM accounts').first('auth_epoch')).toBe(2);
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM auth_sessions').first('n')).toBe(0);
+});
+test('database-clock expiry after WebAuthn verification rolls back registration without changing its deadline', async () => {
+  const { IdentityService } = await import('../../src/worker/identity/service.ts');
+  const { IdentityCrypto } = await import('../../src/worker/identity/crypto.ts');
+  const client = new Client(),
+    key = await syntheticPasskey(),
+    options = await client.options();
+  const credential = await key.register(options);
+  const deadline = Date.now() + 500;
+  await env.DB.prepare('UPDATE auth_challenges SET expires_at=? WHERE id=?')
+    .bind(deadline, options.challengeId)
+    .run();
+  let pausedAfterVerification = false;
+  const database = new Proxy(env.DB, {
+    get(target, property) {
+      if (property === 'batch')
+        return async (statements: D1PreparedStatement[]) => {
+          pausedAfterVerification = true;
+          while (
+            Number(
+              await target
+                .prepare("SELECT CAST(unixepoch('subsec')*1000 AS INTEGER) AS now")
+                .first('now'),
+            ) <= deadline
+          )
+            await new Promise((resolve) => setTimeout(resolve, 10));
+          return target.batch(statements);
+        };
+      const value = Reflect.get(target, property, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+  const service = new IdentityService(
+    database,
+    env.RECOVERY,
+    new IdentityCrypto(IDENTITY_SECRETS),
+    IDENTITY_ORIGIN,
+  );
+  await expect(
+    service.register(
+      { challengeId: options.challengeId, credential },
+      client.cookies.get('__Host-challenge'),
+    ),
+  ).rejects.toThrow(/CHECK constraint failed/);
+  expect(pausedAfterVerification).toBe(true);
+  expect(
+    await env.DB.prepare('SELECT expires_at FROM auth_challenges WHERE id=?')
+      .bind(options.challengeId)
+      .first('expires_at'),
+  ).toBe(deadline);
+  expect(
+    await env.DB.prepare('SELECT consumed_at FROM auth_challenges WHERE id=?')
+      .bind(options.challengeId)
+      .first('consumed_at'),
+  ).toBeNull();
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM accounts').first('n')).toBe(0);
+});
