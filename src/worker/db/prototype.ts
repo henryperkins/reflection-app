@@ -16,6 +16,8 @@ import {
  */
 export interface SyntheticPlan {
   syntheticOnly: true;
+  /** Trusted synthetic fixtures may allocate identity before building a domain plan. */
+  requestId?: string;
   ownerId: string;
   sessionId: string;
   basisId: string;
@@ -151,7 +153,7 @@ export class SyntheticGenerationPrototype {
       throw new Error('SYNTHETIC_PLAN_REQUIRED');
     const existing = await this.existing(plan);
     if (existing) return existing;
-    const id = crypto.randomUUID();
+    const id = plan.requestId ?? crypto.randomUUID();
     const h: SyntheticLease = {
       ownerId: plan.ownerId,
       requestId: id,

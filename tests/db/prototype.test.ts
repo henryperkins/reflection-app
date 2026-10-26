@@ -499,3 +499,26 @@ test('provider usage exceeding reservation increases aggregate liability and dis
     generation_enabled: 0,
   });
 });
+
+test('a trusted fixture request ID binds publication and cannot be reused by a different intent', async () => {
+  const plan = { ...(await seedDatabase(env.DB)), requestId: crypto.randomUUID() };
+  const service = new SyntheticGenerationPrototype(env.DB, writer);
+  expect(await service.start(plan)).toBe(plan.requestId);
+  expect(await service.start(plan)).toBe(plan.requestId);
+  await expect(
+    service.start({
+      ...plan,
+      clientIntentId: crypto.randomUUID(),
+      idempotencyKey: crypto.randomUUID(),
+      payloadHmac: 'f'.repeat(64),
+    }),
+  ).rejects.toThrow();
+  expect(await count('generation_requests')).toBe(1);
+  expect(await quota()).toEqual({ held: 2, consumed: 0 });
+  const lease = (await service.claim(OWNER, plan.requestId))!;
+  await service.dispatch(lease, new Uint8Array([1]));
+  const edition = await service.publish(lease);
+  expect(
+    await sql(env.DB, 'SELECT request_id FROM reading_editions WHERE id=?', edition).first(),
+  ).toEqual({ request_id: plan.requestId });
+});
