@@ -7,6 +7,7 @@ import { LocalGeneration } from './readings/generation.ts';
 
 export interface Env extends IdentityBindings, ReadingBindings {
   ASSETS?: Fetcher;
+  RESTORE_MODE?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
@@ -22,6 +23,28 @@ app.use('*', async (c, next) => {
 });
 app.get('/health', (c) => c.json({ status: 'ok', milestone: 1, mode: 'synthetic-only' }));
 app.all('/api/v1/*', async (c, next) => {
+  if (
+    c.env.RESTORE_MODE === 'offline' ||
+    (c.env.IDENTITY_MODE === 'synthetic-local' &&
+      (await c.env.DB.prepare(
+        'SELECT restore_in_progress FROM system_state WHERE id=1',
+      ).first<number>('restore_in_progress')))
+  ) {
+    return c.json(
+      {
+        error: {
+          code: 'DEPENDENCY_UNAVAILABLE',
+          message: 'The service is offline for recovery.',
+          correlationId: crypto.randomUUID(),
+          retry: 'after_delay',
+          retryAfterSeconds: 60,
+          currentRevision: null,
+        },
+      },
+      503,
+      { 'Cache-Control': 'private, no-store' },
+    );
+  }
   const response = await identityRoute(c.req.raw, c.env);
   if (response) return response;
   const reading = await readingRoute(c.req.raw, c.env);
@@ -36,6 +59,14 @@ app.get('*', (c) =>
 export default {
   fetch: app.fetch,
   async scheduled(_controller, env, _ctx) {
+    if (
+      env.RESTORE_MODE === 'offline' ||
+      (env.IDENTITY_MODE === 'synthetic-local' &&
+        (await env.DB.prepare(
+          'SELECT restore_in_progress FROM system_state WHERE id=1',
+        ).first<number>('restore_in_progress')))
+    )
+      return;
     const identity = localIdentity(env);
     await identity?.maintenance();
     if (identity && env.READING_MODE === 'synthetic-local' && env.RECOVERY) {

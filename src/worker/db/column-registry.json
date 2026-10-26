@@ -2693,6 +2693,14 @@
           "nullable": false,
           "default": null,
           "export": "none"
+        },
+        "restore_in_progress": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "never"
         }
       }
     }

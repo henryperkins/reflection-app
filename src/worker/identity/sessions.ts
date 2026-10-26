@@ -88,7 +88,7 @@ export class IdentitySessions {
   guard(session: Session, recent = false, writable = true): D1PreparedStatement {
     return assertion(
       this.db,
-      `EXISTS(SELECT 1 FROM auth_sessions s JOIN accounts a ON a.id=s.owner_id WHERE s.token_hash=? AND s.owner_id=? AND s.auth_epoch=? AND a.auth_epoch=s.auth_epoch AND a.status='active' ${writable ? 'AND a.write_fence IS NULL' : ''} AND s.expires_at>${DB_NOW} AND s.idle_expires_at>${DB_NOW}${recent ? ` AND s.authenticated_at>${DB_NOW}-300000` : ''})`,
+      `NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1) AND EXISTS(SELECT 1 FROM auth_sessions s JOIN accounts a ON a.id=s.owner_id WHERE s.token_hash=? AND s.owner_id=? AND s.auth_epoch=? AND a.auth_epoch=s.auth_epoch AND a.status='active' ${writable ? 'AND a.write_fence IS NULL' : ''} AND s.expires_at>${DB_NOW} AND s.idle_expires_at>${DB_NOW}${recent ? ` AND s.authenticated_at>${DB_NOW}-300000` : ''})`,
       session.tokenHash,
       session.subjectId,
       session.epoch,

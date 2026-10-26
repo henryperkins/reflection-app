@@ -2,7 +2,7 @@
 export const DB_NOW = "CAST(unixepoch('subsec') * 1000 AS INTEGER)";
 export const DAY = "'day:' || strftime('%Y-%m-%d','now')";
 export const MONTH = "'month:' || strftime('%Y-%m','now')";
-export type Binding = string | number | null;
+export type Binding = string | number | null | ArrayBuffer;
 export const statement = (db: D1Database, sql: string, ...bindings: Binding[]) =>
   db.prepare(sql).bind(...bindings);
 export const assertChanges = (db: D1Database, n: number) =>

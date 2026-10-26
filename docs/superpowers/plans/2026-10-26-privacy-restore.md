@@ -45,11 +45,11 @@
 
 **Interfaces:** `OfflineRestore` consumes explicit synthetic offline bindings plus retained recovery key material; `replay()` returns a content-free verified receipt only after erasure/checkpoint/key/content/runtime checks. No handler exposes it. Rehearsal restores actual local D1 table snapshots while preserving independent R2 objects.
 
-- [ ] Write failing D1 tests for a stale snapshot with deleted account/session/exact revision, used code and removed credential; missing deletion jobs; one surviving identical reading; no new dispatch; auth/consent/export invalidation and conservative spend.
-- [ ] Add failures for paginated listings, interrupted/repeated passes, incomplete/gapped/tampered chains, missing retained keys/checkpoints and unavailable surviving content keys. Assert offline Worker refuses private routes and scheduled work.
-- [ ] Run `npm run test:db -- tests/db/privacy-restore.test.ts`; observe missing service/behavior failures.
-- [ ] Implement authenticated complete listing, numeric pass chains, independent target replay before highest checkpoint, exact key/version validation and runtime reset. Reuse pending passes; new restore executions append a pass even for absent targets. Add `npm run restore:rehearse` for the synthetic local exercise.
-- [ ] Run the restore and privacy tests plus `npm test`; expect all pass. Commit locally.
+- [x] Write failing D1 tests for a stale snapshot with deleted account/session/exact revision, used code and removed credential; missing deletion jobs; one surviving identical reading; no new dispatch; auth/consent/export invalidation and conservative spend.
+- [x] Add failures for paginated listings, interrupted/repeated passes, incomplete/gapped/tampered chains, missing retained keys/checkpoints and unavailable surviving content keys. Assert offline Worker refuses private routes and scheduled work.
+- [x] Run `npm run test:db -- tests/db/privacy-restore.test.ts`; observe missing service/behavior failures.
+- [x] Implement authenticated complete listing, numeric pass chains, independent target replay before highest checkpoint, exact key/version validation and runtime reset. Reuse pending passes; new restore executions append a pass even for absent targets. Add `npm run restore:rehearse` for the synthetic local exercise.
+- [x] Run the restore and privacy tests plus `npm test`; expect all pass. Commit locally.
 
 ### Task 3: Deletion UI, evidence and review
 
