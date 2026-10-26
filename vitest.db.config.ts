@@ -9,6 +9,7 @@ export default defineConfig({
         compatibilityDate: '2026-10-23',
         compatibilityFlags: ['nodejs_compat'],
         d1Databases: ['DB'],
+        r2Buckets: ['RECOVERY'],
         bindings: { TEST_MIGRATIONS: await readD1Migrations('src/worker/db/migrations') },
       },
     })),
