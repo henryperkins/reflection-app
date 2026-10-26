@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {createHash,createHmac} from 'node:crypto';
 import {z} from 'zod';
 import {ImportSource,ImportRecordIdentity,ImportRecovery,ImportPreview,LegacyRecord,ImportedReading,
-  HistoryItem,SessionRecord,PortableRecord,apiSchemas} from '../docs/architecture/DOMAIN_CONTRACTS.ts';
+  HistoryItem,SessionRecord,PortableRecord,apiSchemas} from '../src/contracts/index.ts';
 type Source=z.infer<typeof ImportSource>;
 type Identity=z.infer<typeof ImportRecordIdentity>;
 type Recovery=z.infer<typeof ImportRecovery>;

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import {createCipheriv,createDecipheriv,createHash,createHmac,randomBytes} from 'node:crypto';
 import {z} from 'zod';
-import {ErasureTarget,ErasureIntent,ErasurePass,ErasureCompletion} from '../docs/architecture/DOMAIN_CONTRACTS.ts';
+import {ErasureTarget,ErasureIntent,ErasurePass,ErasureCompletion} from '../src/contracts/index.ts';
 type Target=z.infer<typeof ErasureTarget>;
 type Intent=z.infer<typeof ErasureIntent>;
 type Pass=z.infer<typeof ErasurePass>;

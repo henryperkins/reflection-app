@@ -1,21 +1,48 @@
 {
-  "name": "reflection-architecture-checks",
-  "version": "0.0.0",
+  "name": "reflection-app",
+  "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Disposable specification-artifact checks; not an application",
+  "description": "Reflection Milestone 1: local synthetic foundation",
+  "engines": {
+    "node": ">=26.0.0 <27"
+  },
   "scripts": {
-    "schemas": "tsx checks/generate-openapi.ts",
-    "check:contracts": "tsc --noEmit && tsx checks/check-contracts.ts",
+    "dev": "vite --host 127.0.0.1",
+    "dev:worker": "wrangler dev --local",
+    "schemas": "tsx scripts/schemas.ts",
+    "check:schemas": "tsx scripts/schemas.ts --check",
+    "typecheck": "tsc --noEmit",
+    "check:contracts": "tsx checks/check-contracts.ts",
     "check:sql": "python3 checks/check-sql.py",
-    "check:openapi": "tsx checks/check-openapi.ts"
+    "check:registry": "python3 scripts/check-registry.py",
+    "check:openapi": "tsx checks/check-openapi.ts",
+    "test": "npm run test:domain && npm run test:db",
+    "test:domain": "vitest run --config vitest.domain.config.ts",
+    "test:db": "vitest run --config vitest.db.config.ts",
+    "build": "vite build && wrangler deploy --dry-run --env-file scripts/verification.env --outdir dist/worker",
+    "verify": "tsx scripts/verify.ts",
+    "release": "tsx scripts/release.ts"
+  },
+  "dependencies": {
+    "hono": "4.13.14",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@apidevtools/swagger-parser": "12.1.0",
-    "@types/node": "22.19.7",
-    "tsx": "4.21.0",
+    "@biomejs/biome": "2.6.3",
+    "@cloudflare/vitest-plugin": "1.4.8",
+    "@cloudflare/workers-types": "5.20261026.1",
+    "@types/node": "26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "yaml": "2.8.2",
-    "zod": "4.6.7"
+    "vite": "8.3.5",
+    "vitest": "5.0.5",
+    "wrangler": "4.153.0",
+    "yaml": "2.9.1"
   }
 }

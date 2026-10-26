@@ -1,34 +1,33 @@
-# Reflection successor specification
+# Reflection local foundation
 
-Complete proposed architecture package, prepared 2026-10-26 from the supplied brief and selected evidence. This directory is outside the predecessor repositories. It contains specifications and disposable artifact checks, not an implemented application.
+Milestone 1 implementation, using synthetic data only. This is a new application repository based on the approved architecture at [`278d5fd`](https://github.com/henryperkins/reflection-architecture/commit/278d5fdb1636225887220368fbef52dc0d7ab889). The first-user experience, identity/recovery, production encryption, live provider, and hosted qualification belong to subsequent work.
 
-Specification work is complete. The selected design and recorded evidence are sufficient to start milestone 1 in IMPLEMENTATION_PLAN. Remaining runtime, editorial, provider and deployment qualifications have defined checks and rollout gates; they do not leave the specification awaiting approval or optional research.
-
-The first release includes sign-in and a complete recovery kit, separate AI permission, one three-card reading with card/source inspection, Save reading with an optional personal reflection, a basic dated saved-reading list, export and deletion. Start permits disclosed temporary processing/recovery storage for an unsaved reading for 24 hours; Save keeps it until deletion or an explicitly disclosed Unsave. Users can sign out, sign back in, find a saved reading and reopen its unchanged text without a new AI call. With AI permission off, saved records and their reflection/export/deletion controls remain available. Encryption is server-readable, not end-to-end encryption. Follow-ups, selected-context controls, imports and separate dated revisit notes remain later scope; the acceptance journeys are specified, not implemented or executed by these artifact checks.
-
-Start with [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md), which supplies the reading order, scope, decisions, source ledger and bounded unknowns. The seven required deliverables are:
-
-- [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)
-- [DOMAIN_CONTRACTS.ts](docs/architecture/DOMAIN_CONTRACTS.ts)
-- [schema.sql](docs/architecture/schema.sql)
-- [openapi.yaml](docs/architecture/openapi.yaml)
-- [VERIFICATION_PLAN.md](docs/architecture/VERIFICATION_PLAN.md)
-- [IMPLEMENTATION_PLAN.md](docs/architecture/IMPLEMENTATION_PLAN.md)
-- [ASSETS_AND_MIGRATION.md](docs/architecture/ASSETS_AND_MIGRATION.md)
-
-Linked companion files cover generation, privacy, restore, user journeys, field lifecycle and the synthetic evaluation corpus. [CHECK_RESULTS.md](docs/architecture/CHECK_RESULTS.md) records executed checks, review resolutions, six consistency traces and unexecuted launch qualifications.
-
-Reproduce the artifact checks from this directory:
+Use Node 26.12.1 and Python 3 with SQLite supporting `unixepoch('subsec')` (3.42 or newer):
 
 ```sh
 npm ci
-npm run schemas
-npm run check:contracts
-npm run check:sql
-npm run check:openapi
-python3 checks/check-package.py
+npm run verify
 ```
 
-`checks/make-registry.py` and `checks/make-corpus.py` are one-time authoring aids; do not regenerate policy or expected outcomes simply to pass a check. No command above calls a writing provider. The proposed application command `npm run verify` is a milestone 1 deliverable and is not implemented by this artifact-only package.
+The verification gate checks formatting/lint, strict TypeScript, generated schema drift, contracts, fixed private-field coverage, SQLite constraints, deterministic domain logic, actual local workerd D1 batches, and client/Worker builds. It has a 540-second deadline and writes an ignored `artifacts/verify.json` receipt. No live provider or hosted database is used. Tests deny outbound fetch before importing application code.
 
-The distribution archive includes documents, checks, lockfile and TypeScript configuration. It excludes installed dependencies and research source copies. Exact predecessor revisions and paths remain in the source ledger; their code/assets are not adopted or redistributed as a successor foundation.
+```sh
+npm run test:domain
+npm run test:db
+npm run dev
+npm run build
+npm run dev:worker
+npm run release -- --check
+```
+
+The Vite page is a static development status screen. The Worker has `/health`; private API routes return unavailable. The publication prototype is an internal test harness and never accepts personal input through HTTP. Wrangler configuration contains no remote database ID or deployment route. `release --check` reports outstanding qualifications; deployment is deliberately disabled in this milestone.
+
+## Source ownership
+
+- `src/contracts/index.ts` owns the Zod contracts. `checks/generate-openapi.ts` owns operation metadata; `scripts/schemas.ts` projects the OpenAPI/model schemas.
+- Ordered SQL files in `src/worker/db/migrations/`, alongside `publication_guard.sql` and `column-registry.json`, own persistence, publication assertions and reviewed field policy.
+- The corresponding files in `docs/architecture/` are generated mirrors. Edit the source, then run `npm run schemas`; `npm run verify` only checks them and never repairs drift automatically.
+- Architecture prose and prior `CHECK_RESULTS.md`/`checks/RESULTS.json` are imported specification evidence. They do not claim this application's tests ran. New implementation evidence lives in [Milestone 1 results](docs/MILESTONE_1_RESULTS.md) and the local verification receipt.
+- Synthetic canon fixtures contain explicit test-only review metadata. They are not human-approved launch content.
+
+The [implementation plan](docs/superpowers/plans/2026-10-26-milestone-1.md) maps the work. The [architecture reading order](docs/architecture/ARCHITECTURE.md) links the source requirements. MVP01–MVP05 remain future browser acceptance; this foundation does not qualify real-user rollout.

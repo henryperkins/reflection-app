@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {webcrypto} from 'node:crypto';
 import {z} from 'zod';
-import {TarotBasis,ModelCandidate,StartRequest,Reading,apiSchemas,Ciphertext,AstrologyInput} from '../docs/architecture/DOMAIN_CONTRACTS.ts';
+import {TarotBasis,ModelCandidate,StartRequest,Reading,apiSchemas,Ciphertext,AstrologyInput} from '../src/contracts/index.ts';
 const corpus=JSON.parse(readFileSync('docs/architecture/EVAL_CORPUS.json','utf8')) as {
   fixtures:{tarotBasis:unknown;candidate:unknown;start:unknown};cases:Array<{id:string;expected:{kind:string};rationale:string;assertions:string[]}>};
 TarotBasis.parse(corpus.fixtures.tarotBasis);ModelCandidate.parse(corpus.fixtures.candidate);StartRequest.parse(corpus.fixtures.start);

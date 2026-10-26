@@ -1,1 +1,10 @@
 node_modules/
+dist/
+.wrangler/
+.superpowers/
+artifacts/
+__pycache__/
+*.py[cod]
+.env*
+.dev.vars*
+!.env.example
