@@ -20,16 +20,6 @@ export class IdentityService {
   }
   async maintenance(): Promise<void> {
     await this.checkpoints.resumePending();
-    await this.db.batch([
-      this.db.prepare(`DELETE FROM auth_challenges WHERE expires_at<=${DB_NOW}`),
-      this.db.prepare(
-        `DELETE FROM auth_sessions WHERE expires_at<=${DB_NOW} OR idle_expires_at<=${DB_NOW}`,
-      ),
-      this.db.prepare(`DELETE FROM rate_buckets WHERE expires_at<=${DB_NOW}`),
-      this.db.prepare(
-        `DELETE FROM security_operations WHERE state='applied' AND applied_at<=${DB_NOW}-2592000000`,
-      ),
-    ]);
   }
   async rate(scope: string, identity: string, limit: number, period: number): Promise<void> {
     const now = Date.now(),

@@ -1865,6 +1865,14 @@
           "nullable": true,
           "default": null,
           "export": "accepted transmission and numeric usage, no raw rejected candidate"
+        },
+        "cost_expired_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "generation receipt cost state only; expired never means zero"
         }
       }
     },

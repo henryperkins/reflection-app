@@ -54,6 +54,7 @@ export class LocalGeneration {
       error_code: string | null;
       expires_at: number;
       edition_id: string | null;
+      next_event: number;
     }>();
     if (!row) throw new RecordError(404, 'NOT_FOUND');
     await this.base.ownedSession(session, row.session_id);
@@ -84,7 +85,7 @@ export class LocalGeneration {
         editionId: e.edition_id,
         errorCode: e.error_code,
       })),
-      nextSequence: events.results.at(-1)?.sequence ?? 0,
+      nextSequence: Math.max(row.next_event - 1, events.results.at(-1)?.sequence ?? 0),
       editionId: row.edition_id,
       errorCode: row.error_code,
       expiresAt: iso(row.expires_at),

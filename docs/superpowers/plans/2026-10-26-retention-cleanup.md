@@ -45,10 +45,10 @@
 
 **Interfaces:** `RetentionMaintenance(db).run()` processes at most 100 eligible rows per family per invocation, uses execution-time SQL predicates, and returns content-free counts. Every batch checks the offline fence. Saved/source references and pending/held states are guard predicates, not assumptions from an earlier read.
 
-- [ ] Write failures for 24h/7d/30d/90d boundaries, bounded pages, saved accepted text/provenance preservation, failure/candidate body purge, financial expiry, unresolved costs, referenced buckets/attempts, exporter invalidation and retry accounting.
-- [ ] Run targeted retention tests; expect missing behavior. Implement guarded batches and scheduled integration, replacing unbounded overlapping identity TTL cleanup.
-- [ ] Add a delayed-maintenance fence regression and observe RED before the commit-time guard. Verify current consent-off history/reflection/export remain available after cleanup.
-- [ ] Run `npm test` and TypeScript; expect green. Commit locally.
+- [x] Write failures for 24h/7d/30d/90d boundaries, bounded pages, saved accepted text/provenance preservation, failure/candidate body purge, financial expiry, unresolved costs, referenced buckets/attempts, exporter invalidation and retry accounting.
+- [x] Run targeted retention tests; expect missing behavior. Implement guarded batches and scheduled integration, replacing unbounded overlapping identity TTL cleanup.
+- [x] Add a delayed-maintenance fence regression and observe RED before the commit-time guard. Verify current consent-off history/reflection/export remain available after cleanup.
+- [x] Run `npm test` and TypeScript; expect green. Commit locally.
 
 ### Task 3: Offline recovery-record cleanup and evidence
 

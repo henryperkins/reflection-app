@@ -4,6 +4,7 @@ import { readingRoute, type ReadingBindings } from './readings/routes.ts';
 import { RecordBase } from './readings/base.ts';
 import { SessionErasure } from './readings/erasure.ts';
 import { LocalGeneration } from './readings/generation.ts';
+import { RetentionMaintenance } from './maintenance/retention.ts';
 
 export interface Env extends IdentityBindings, ReadingBindings {
   ASSETS?: Fetcher;
@@ -74,5 +75,6 @@ export default {
       await new LocalGeneration(base).maintenance();
       await new SessionErasure(base, env.RECOVERY).maintenance();
     }
+    if (identity) await new RetentionMaintenance(env.DB).run();
   },
 } satisfies ExportedHandler<Env>;
