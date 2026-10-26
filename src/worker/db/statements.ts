@@ -28,7 +28,11 @@ export function currentGuard(
   if (stage === 'start')
     source = source
       .replace('AND r.run_epoch=:run_epoch AND r.lease_token=:lease_token', '')
-      .replace(`AND r.lease_expires_at>${DB_NOW}`, '');
+      .replace(`AND r.lease_expires_at>${DB_NOW}`, '')
+      .replace(
+        'AND sys.generation_enabled=1',
+        "AND sys.dispatch_mode IN('model','outage_template') AND sys.generation_enabled=1",
+      );
   if (stage === 'dispatch')
     source = source.replace(
       'AND sys.generation_enabled=1',

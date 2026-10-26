@@ -519,7 +519,7 @@ export class SyntheticGenerationPrototype {
       'SELECT id,state FROM cost_reservations WHERE dispatch_id=?',
       dispatchId,
     ).first<{ id: string; state: string }>();
-    if (!cost || cost.state !== 'reserved') return;
+    if (cost?.state !== 'reserved') return;
     await this.db.batch([
       q(
         this.db,

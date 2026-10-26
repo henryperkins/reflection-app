@@ -522,3 +522,33 @@ test('a trusted fixture request ID binds publication and cannot be reused by a d
     await sql(env.DB, 'SELECT request_id FROM reading_editions WHERE id=?', edition).first(),
   ).toEqual({ request_id: plan.requestId });
 });
+
+test('dispatch mode off denies new admission and rolls back request and quota writes', async () => {
+  const plan = await seedDatabase(env.DB);
+  await env.DB.prepare("UPDATE system_state SET dispatch_mode='off'").run();
+  const service = new SyntheticGenerationPrototype(env.DB, writer);
+  await expect(service.start(plan)).rejects.toThrow();
+  for (const table of [
+    'generation_requests',
+    'quota_reservations',
+    'quota_buckets',
+    'quota_events',
+    'request_events',
+    'idempotency_keys',
+  ]) {
+    expect(await count(table)).toBe(0);
+  }
+  expect(writer.write).not.toHaveBeenCalled();
+});
+
+test('outage template mode still admits work but cannot authorize a model dispatch', async () => {
+  const plan = await seedDatabase(env.DB);
+  await env.DB.prepare("UPDATE system_state SET dispatch_mode='outage_template'").run();
+  const service = new SyntheticGenerationPrototype(env.DB, writer);
+  const requestId = await service.start(plan);
+  const lease = (await service.claim(OWNER, requestId))!;
+  await expect(service.dispatch(lease, new Uint8Array([1]))).rejects.toThrow();
+  expect(await count('generation_requests')).toBe(1);
+  expect(await count('provider_dispatches')).toBe(0);
+  expect(writer.write).not.toHaveBeenCalled();
+});
