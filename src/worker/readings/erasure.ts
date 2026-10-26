@@ -337,7 +337,7 @@ export class SessionErasure {
   }
   async status(id: string, token: string | null) {
     const job = await this.job(id);
-    if (!token || token.length !== 43) throw new RecordError(404, 'NOT_FOUND');
+    if (token?.length !== 43) throw new RecordError(404, 'NOT_FOUND');
     if (job && job.receipt_token_hash !== (await this.ledger.token(id, token)))
       throw new RecordError(404, 'NOT_FOUND');
     if (!(await this.bucket.head(`erasures/v1/${id}/intent.json`)))

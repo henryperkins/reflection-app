@@ -4,6 +4,8 @@ Milestone 1 is complete. Milestone 2 now has local identity/recovery and saved-r
 
 Implementation evidence: [Milestone 1 baseline](docs/MILESTONE_1_RESULTS.md) and [local identity/recovery results](docs/IDENTITY_RECOVERY_RESULTS.md), plus [saved-reading return results](docs/SAVED_READING_RESULTS.md). The architecture baseline remains [`278d5fd`](https://github.com/henryperkins/reflection-architecture/commit/278d5fdb1636225887220368fbef52dc0d7ab889).
 
+The [local privacy and restore slice](docs/PRIVACY_RESTORE_RESULTS.md) adds account/exact-reflection-revision deletion and synthetic offline replay of erasures and identity checkpoints. See the [local restore runbook](docs/LOCAL_RESTORE_RUNBOOK.md); hosted restore and deployment remain disabled/unqualified.
+
 Use Node 26.12.1 and Python 3 with SQLite supporting `unixepoch('subsec')` (3.42 or newer):
 
 ```sh
@@ -22,6 +24,7 @@ npm run build
 npm run dev:worker
 npm run dev:identity
 npm run test:browser
+npm run restore:rehearse
 npm run release -- --check
 ```
 

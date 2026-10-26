@@ -3,6 +3,7 @@ import type { z } from 'zod';
 import { apiSchemas, type AcceptedReading, type Reflection } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
 import { signIn } from './passkeys.ts';
+import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type RecordView = z.infer<typeof apiSchemas.SessionRecord>;
@@ -35,6 +36,17 @@ export function ReadingWorkspace({
   const [reading, setReading] = useState<z.infer<typeof AcceptedReading> | null>(null);
   const [reflection, setReflection] = useState<Thought | null>(null);
   const [latestReflection, setLatestReflection] = useState<Thought | null>(null);
+  const [revisionChoice, setRevisionChoice] = useState(1),
+    [revisionNote, setRevisionNote] = useState<Thought | null>(null),
+    [eraseRevisionChecked, setEraseRevisionChecked] = useState(false);
+  const [revisionReceipt, setRevisionReceipt] = useState<{
+    proof: DeletionProof;
+    initial: z.infer<typeof apiSchemas.DeletionStatus> | null;
+  } | null>(null);
+  const revisionIntent = useRef<{
+    payload: string;
+    intent: ReturnType<typeof deletionIntent>;
+  } | null>(null);
   const [draft, setDraft] = useState(''),
     [stance, setStance] = useState<Thought['stance']>('unspecified');
   const [question, setQuestion] = useState(''),
@@ -70,6 +82,10 @@ export function ReadingWorkspace({
     setConflict(false);
     setConfirmDelete(false);
     setDeleteChecked(false);
+    setRevisionNote(null);
+    setRevisionReceipt(null);
+    setEraseRevisionChecked(false);
+    revisionIntent.current = null;
   };
   const intents = useRef(new Map<string, { payload: string; key: string; intent: string }>());
   const deletion = useRef<{
@@ -272,6 +288,71 @@ export function ReadingWorkspace({
           } else throw error;
         }
       });
+  };
+  const viewRevision = () => {
+    if (reflection)
+      void run(async (current) => {
+        setRevisionNote(null);
+        setEraseRevisionChecked(false);
+        try {
+          const value = await api(
+            `/reflections/${reflection.id}?revision=${revisionChoice}`,
+            apiSchemas.Reflection,
+          );
+          if (current()) setRevisionNote(value);
+        } catch (error) {
+          if (current() && error instanceof ApiFailure && error.status === 410)
+            setMessage('The selected revision has been erased.');
+          else throw error;
+        }
+      });
+  };
+  const eraseRevision = () => {
+    if (!record || !reflection || !revisionNote) return;
+    const currentRevision = revisionNote.revision === reflection.revision;
+    if (currentRevision && !canLeave()) return;
+    void run(async (current) => {
+      const payload = JSON.stringify([reflection.id, revisionNote.revision, reflection.revision]);
+      if (revisionIntent.current?.payload !== payload)
+        revisionIntent.current = { payload, intent: deletionIntent() };
+      const intent = revisionIntent.current.intent,
+        proof = { receiptId: intent.receiptId, receiptToken: intent.receiptToken };
+      try {
+        const receipt = await api(
+          `/reflections/${reflection.id}/revisions/${revisionNote.revision}`,
+          apiSchemas.DeletionReceipt,
+          proof,
+          currentUser.current.csrfToken,
+          { method: 'DELETE', revision: reflection.revision, key: intent.key },
+        );
+        if (!current()) return;
+        setRevisionReceipt({
+          proof,
+          initial: { state: receipt.state, backupExpiresBy: receipt.backupExpiresBy },
+        });
+        if (receipt.state === 'complete') {
+          await open(record.id, current, !currentRevision);
+          if (current()) {
+            setRevisionNote(null);
+            setEraseRevisionChecked(false);
+            revisionIntent.current = null;
+            setMessage('Reflection revision erased.');
+          }
+        }
+      } catch (error) {
+        if (current() && error instanceof ApiFailure && error.code === 'CONFLICT') {
+          revisionIntent.current = null;
+          setRevisionNote(null);
+          setEraseRevisionChecked(false);
+          await open(record.id, current, true);
+          if (current())
+            setMessage('The reflection changed. View the revision and confirm erasure again.');
+        } else {
+          if (current()) setRevisionReceipt({ proof, initial: null });
+          throw error;
+        }
+      }
+    });
   };
   const exportRecords = () =>
     void run(async (current) => {
@@ -686,6 +767,68 @@ export function ReadingWorkspace({
               Save reflection
             </button>
           </section>
+          {reflection && (
+            <details className="deletion-actions">
+              <summary>Reflection revisions</summary>
+              <label htmlFor="reflection-revision">Saved reflection revision</label>
+              <select
+                id="reflection-revision"
+                value={revisionChoice}
+                onChange={(event) => {
+                  setRevisionChoice(Number(event.target.value));
+                  setRevisionNote(null);
+                  setEraseRevisionChecked(false);
+                }}
+                disabled={busy}
+              >
+                {Array.from({ length: reflection.revision }, (_, i) => i + 1).map((value) => (
+                  <option key={value} value={value}>
+                    Revision {value}
+                    {value === reflection.revision ? ' (current)' : ''}
+                  </option>
+                ))}
+              </select>
+              <button type="button" className="secondary" onClick={viewRevision} disabled={busy}>
+                View revision
+              </button>
+              {revisionNote && (
+                <div className="notice">
+                  <p>
+                    Saved revision {revisionNote.revision} · {date(revisionNote.updatedAt)}
+                  </p>
+                  <blockquote>{revisionNote.text}</blockquote>
+                  <p>
+                    Erasing this revision keeps the reading and other authored revisions. Erasing
+                    the current revision removes it from the editor; older revisions remain
+                    available in export.
+                  </p>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={eraseRevisionChecked}
+                      onChange={(event) => setEraseRevisionChecked(event.target.checked)}
+                      disabled={busy}
+                    />
+                    Permanently erase this reflection revision
+                  </label>
+                  <button
+                    type="button"
+                    disabled={busy || !eraseRevisionChecked}
+                    onClick={eraseRevision}
+                  >
+                    Erase revision {revisionNote.revision}
+                  </button>
+                </div>
+              )}
+            </details>
+          )}
+          {revisionReceipt && (
+            <DeletionReceiptPanel
+              key={revisionReceipt.proof.receiptId}
+              {...revisionReceipt}
+              onDismiss={() => setRevisionReceipt(null)}
+            />
+          )}
           <div className="deletion-actions">
             {!confirmDelete ? (
               <button

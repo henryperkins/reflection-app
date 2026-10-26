@@ -4,6 +4,7 @@ import { apiSchemas, type AuthResult } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
 import { enroll, signIn } from './passkeys.ts';
 import { ReadingWorkspace } from './readings.tsx';
+import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type Kit = z.infer<typeof apiSchemas.RecoveryCodes>;
@@ -29,6 +30,11 @@ export function IdentityApp() {
   const [busy, setBusy] = useState(false),
     [checking, setChecking] = useState(true);
   const [message, setMessage] = useState('');
+  const [accountDeleteChecked, setAccountDeleteChecked] = useState(false);
+  const [deletionReceipt, setDeletionReceipt] = useState<{
+    proof: DeletionProof;
+    initial: z.infer<typeof apiSchemas.DeletionStatus> | null;
+  } | null>(null);
   const [handle, setHandle] = useState(''),
     [code, setCode] = useState('');
   const [downloaded, setDownloaded] = useState(false),
@@ -54,6 +60,8 @@ export function IdentityApp() {
     setCode('');
     setDownloaded(false);
     setAcknowledged(false);
+    setAccountDeleteChecked(false);
+    setDeletionReceipt(null);
   }, []);
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
@@ -150,6 +158,7 @@ export function IdentityApp() {
     });
   const complete = async (result: z.infer<typeof AuthResult>, isCurrent: () => boolean) => {
     if (!isCurrent()) return;
+    setDeletionReceipt(null);
     // Preserve the one-time kit even if the follow-up session read is temporarily unavailable.
     if (result.recoveryHandle)
       receiveKit({ recoveryHandle: result.recoveryHandle, codes: result.recoveryCodes });
@@ -315,7 +324,7 @@ export function IdentityApp() {
         ) : session ? (
           <section>
             <p>You’re signed in. Your passkey and recovery kit protect access to this account.</p>
-            <div hidden={checking}>
+            <div hidden={checking || busy}>
               <ReadingWorkspace
                 key={session.subjectId}
                 user={session}
@@ -326,6 +335,59 @@ export function IdentityApp() {
                 }}
               />
             </div>
+            <details className="deletion-actions">
+              <summary>Delete account</summary>
+              <p>
+                This permanently deletes your account, readings, reflections and passkeys. Your
+                recovery kit will no longer restore this account. Downloaded copies are unchanged.
+              </p>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={accountDeleteChecked}
+                  onChange={(event) => setAccountDeleteChecked(event.target.checked)}
+                  disabled={busy}
+                />
+                Permanently delete my account, readings and reflections
+              </label>
+              <button
+                type="button"
+                disabled={busy || !accountDeleteChecked}
+                onClick={() =>
+                  void run(async (isCurrent) => {
+                    let csrf = session.csrfToken;
+                    if (Date.parse(session.recentAuthUntil) <= Date.now()) {
+                      const verified = await signIn('reauthenticate', csrf);
+                      if (!isCurrent()) return;
+                      csrf = verified.csrfToken;
+                    }
+                    const intent = deletionIntent(),
+                      proof = { receiptId: intent.receiptId, receiptToken: intent.receiptToken };
+                    let initial: z.infer<typeof apiSchemas.DeletionStatus> | null = null;
+                    try {
+                      const receipt = await api(
+                        '/account',
+                        apiSchemas.DeletionReceipt,
+                        proof,
+                        csrf,
+                        { method: 'DELETE', key: intent.key },
+                      );
+                      initial = { state: receipt.state, backupExpiresBy: receipt.backupExpiresBy };
+                    } catch (error) {
+                      // A network/5xx failure may follow the access fence; retain the scoped receipt.
+                      if (error instanceof ApiFailure && error.status < 500) throw error;
+                    }
+                    if (!isCurrent()) return;
+                    clear();
+                    setDeletionReceipt({ proof, initial });
+                    channel.current?.postMessage('signed-out');
+                    navigate('/');
+                  })
+                }
+              >
+                Delete account permanently
+              </button>
+            </details>
             <p>
               Storage is encrypted and readable by the service for authorized operations. This is
               not end-to-end encryption.
@@ -467,6 +529,13 @@ export function IdentityApp() {
         )}
         {busy && <p role="status">Completing your account action…</p>}
       </div>
+      {deletionReceipt && (
+        <DeletionReceiptPanel
+          key={deletionReceipt.proof.receiptId}
+          {...deletionReceipt}
+          onDismiss={() => setDeletionReceipt(null)}
+        />
+      )}
       <footer>No email or password is collected. Keep recovery files off shared devices.</footer>
     </main>
   );

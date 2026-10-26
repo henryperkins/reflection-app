@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import type { z } from 'zod';
 import {
   ErasureIntent,
   ErasureTarget,
@@ -7,7 +7,7 @@ import {
   RecoveryCiphertext,
 } from '../../contracts/index.ts';
 import { canonicalJson, sha256Json } from '../../domain/json.ts';
-import { IdentityCrypto } from '../identity/crypto.ts';
+import type { IdentityCrypto } from '../identity/crypto.ts';
 
 export type Target = z.infer<typeof ErasureTarget>;
 export type Intent = z.infer<typeof ErasureIntent>;
@@ -40,7 +40,7 @@ export async function objects(bucket: R2Bucket, prefix: string) {
     if (!page.cursor || cursors.has(page.cursor)) throw new Error('Incomplete ledger inventory');
     cursor = page.cursor;
     cursors.add(cursor);
-  } while (true);
+  } while (cursor !== undefined);
   return entries;
 }
 
