@@ -847,7 +847,7 @@ export const apiSchemas = {
     confirmedRecovery: ImportRecovery,
   }),
   DeleteRequest: z.strictObject({
-    receiptId: Id,
+    receiptId: Id.regex(/^[0-9a-f-]+$/),
     receiptToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
   }),
   DeletionStatus: z.strictObject({

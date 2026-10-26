@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { Env } from '../index.ts';
-import { IdentityCheckpoint } from '../../contracts/index.ts';
+import { Id, IdentityCheckpoint } from '../../contracts/index.ts';
 import { sha256Json } from '../../domain/json.ts';
 import { statement as q, DB_NOW } from '../db/core.ts';
 import {
@@ -94,10 +94,14 @@ export class OfflineRestore {
       const jobs = [
         ...new Set(
           inventory.erasures.map((item) => {
-            const match = new RegExp(
-              `^erasures/v1/(${uuid})/(intent\\.json|passes/[1-9][0-9]*/(start|complete)\\.json)$`,
-            ).exec(item.key);
-            if (!match) throw new Error('Unexpected erasure object');
+            // Older accepted receipts may contain uppercase UUID digits. Preserve their exact
+            // signed identities; new DeleteRequest admission permits canonical lowercase only.
+            const match =
+              /^erasures\/v1\/([^/]+)\/(intent\.json|passes\/[1-9][0-9]*\/(start|complete)\.json)$/.exec(
+                item.key,
+              );
+            if (!match || !Id.safeParse(match[1]).success)
+              throw new Error('Unexpected erasure object');
             return match[1]!;
           }),
         ),

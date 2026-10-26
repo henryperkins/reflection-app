@@ -60,4 +60,4 @@
 - [x] Write browser failures for deleting a selected old revision while preserving the current reading/reflection, and account deletion with a usable receipt after logout/lost response.
 - [x] Implement the controls, RAM-only receipt recovery and status; preserve consent-off access and dirty-draft protections.
 - [x] Run browser checks and `npm run verify`; expect all stages and prior regressions pass. Run `npm run release -- --check`; expect `deploymentAllowed:false`.
-- [ ] Record exact local evidence, restore limits and remaining gates. Obtain one fresh whole-branch review, fix material findings with reproducing tests, run the complete gate, and commit locally. Keep branch unpushed.
+- [x] Record exact local evidence, restore limits and remaining gates. Obtain one fresh whole-branch review, fix material findings with reproducing tests, run the complete gate, and commit locally. Keep branch unpushed.

@@ -255,13 +255,43 @@ export class SessionErasure {
     if (target.scope === 'session') await data.session({ id }, target);
     else if (target.scope === 'reflection_revision') await data.reflection({ id }, target);
     else if (target.scope === 'account') {
+      await this.retireCheckpoints(target.subjectId);
       await data.account(target);
-      for (const key of this.ledger.keys.values()) {
-        const prefix = `identity/v1/${await key.hash('identity-subject', target.subjectId)}/`;
-        for (const object of await objects(this.bucket, prefix))
-          await this.bucket.delete(object.key);
-      }
     } else throw new Error('Unsupported erasure family');
+  }
+  private async retireCheckpoints(owner: string) {
+    const prefixes = await Promise.all(
+      [...this.ledger.keys.values()].map(
+        async (key) => `identity/v1/${await key.hash('identity-subject', owner)}/`,
+      ),
+    );
+    const retire = async (key: string) => {
+      if (!prefixes.some((prefix) => key.startsWith(prefix)))
+        throw new Error('Checkpoint ownership/key unavailable');
+      if ((await this.bucket.head(key))?.size === 0) return;
+      // Empty terminal markers erase the checkpoint body without reopening its immutable key.
+      // A delayed apply() uses create-only put, so it cannot restore credential/verifier bytes.
+      const marker = await this.bucket.put(key, '');
+      if (!marker || marker.size !== 0) throw new Error('Checkpoint retirement unavailable');
+    };
+    // Account fencing forbids new operations. Preserve every known writer's key before the
+    // cascade removes this inventory, including a writer whose object is not visible yet.
+    let cursor = '';
+    for (;;) {
+      const page = await q(
+        this.base.db,
+        'SELECT ledger_key FROM security_operations WHERE owner_id=? AND ledger_key>? ORDER BY ledger_key LIMIT 100',
+        owner,
+        cursor,
+      ).all<{ ledger_key: string }>();
+      if (!page.results.length) break;
+      for (const row of page.results) await retire(row.ledger_key);
+      cursor = page.results.at(-1)!.ledger_key;
+    }
+    for (const prefix of prefixes)
+      for (const object of await objects(this.bucket, prefix)) await retire(object.key);
+    // Markers must remain while delayed writers or supported backups can reference their keys.
+    // General ledger/marker purge is a separate, currently disabled qualification gate.
   }
   async project(intent: Intent, target: Target, completion: Completion | null) {
     const owner = await q(
