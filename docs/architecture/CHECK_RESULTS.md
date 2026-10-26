@@ -4,7 +4,7 @@ Checked locally on 2026-10-26 using synthetic inputs. These results concern the 
 
 ## Environment and reproducible commands
 
-Run from the `successor-spec` directory. Exact JavaScript dependencies are pinned in `package-lock.json`. Observed environment: Node v26.12.1, npm 11.20.0, Python 3.14.4, Python SQLite 3.46.1; TypeScript 5.9.3, Zod 4.6.7, tsx 4.21.0, YAML 2.8.2 and Swagger Parser 12.1.0. These are artifact-check versions, not a qualified production Worker compatibility matrix.
+Run from the repository root containing `package.json`. Exact JavaScript dependencies are pinned in `package-lock.json`. Observed environment: Node v26.12.1, npm 11.20.0, Python 3.14.4, Python SQLite 3.46.1; TypeScript 5.9.3, Zod 4.6.7, tsx 4.21.0, YAML 2.8.2 and Swagger Parser 12.1.0. These are artifact-check versions, not a qualified production Worker compatibility matrix.
 
 ```sh
 npm ci
@@ -15,7 +15,7 @@ npm run check:openapi
 python3 checks/check-package.py
 ```
 
-Dependencies were installed with npm during authoring. The listed `npm ci` is the clean reproduction step, not an assertion that every possible clean machine was tested. Schema generation precedes the independent checks. `make-registry.py` and `make-corpus.py` are authoring helpers, deliberately outside verification: regenerating a registry cannot substitute for reviewing a new column's policy.
+A fresh `npm ci` and every command above succeeded in this workspace during the completion check on 2026-10-26. Regenerating both schemas produced no diff from the committed artifacts. [RESULTS.json](../../checks/RESULTS.json) records the command outputs, including the separate dependency audit. Schema generation precedes the independent checks. `make-registry.py` and `make-corpus.py` are authoring helpers, deliberately outside verification: regenerating a registry cannot substitute for reviewing a new column's policy.
 
 | Executed command / actual inputs | Actual result | What it does not establish |
 |---|---|---|
@@ -27,7 +27,9 @@ Dependencies were installed with npm during authoring. The listed `npm ci` is th
 | `npm run check:openapi`: actual generated YAML | Syntax, schema and references validated; all 37 operation IDs unique. | Correct HTTP handlers, cookie enforcement or end-to-end compatibility. |
 | `python3 checks/check-package.py`: supplied package | Required files and local Markdown links resolve; JSON artifacts parse; model projection uses closed objects with every property required. | Remote link permanence, legal clearance or model-quality guarantees. |
 
-An early TypeScript check caught an explicitly undefined optional operation property under `exactOptionalPropertyTypes`; it was corrected before the passing run. An initial npm command was invoked from the parent directory and failed because no package.json existed there; subsequent commands used `successor-spec`. Node emitted the non-failing tsx `DEP0205` deprecation warning for `module.register()`. No failed or blocked application check has been relabeled a pass.
+An early authoring TypeScript check caught an explicitly undefined optional operation property under `exactOptionalPropertyTypes`; it was corrected before the passing run. The completion check corrected a stale working-directory instruction. Node emitted the non-failing tsx `DEP0205` deprecation warning for `module.register()`. No failed or blocked application check has been relabeled a pass.
+
+The clean install also reported two development-tool advisories. `npm audit --json` exited 1: [YAML stack overflow](https://github.com/advisories/GHSA-48c2-rrv3-qjmp), moderate, affects the pinned YAML 2.8.2; [esbuild Windows development-server file read](https://github.com/advisories/GHSA-g7r4-m6w7-qqqr), low, affects transitive esbuild 0.27.7. The artifact commands parse repository-controlled YAML and do not start a development server. Dependency updates remain implementation setup work; the existing lockfile was preserved for reproducibility. This is a passing artifact check run with outstanding dependency advisories, not a clean dependency audit.
 
 ## SQL checks actually exercised
 
@@ -85,6 +87,8 @@ The following traces are consistency walkthroughs of the specification, **not ex
 | Import with incomplete provenance | ImportPreview shows known text and gaps → POST `/imports`, then selected commit → bounded version adapter preserves original JSON/IDs/time/roles and validates parent graph → atomic per-session group, typed owned aliases, `legacy.imported.v1`, no new context grant → no provider call → unverified historical text and explicit unknowns reopen/export unchanged; unresolved parent group fails visibly; re-import is idempotent. A12. |
 
 ## Outstanding qualification, not missing specification
+
+The specification is complete: all seven required deliverables are present, local links resolve, and the current contracts, generated schemas, SQL assertions and field registry checks pass. The recorded design and evidence are sufficient for the next implementation milestone. No additional optional source investigation or approval is required to finish this specification. The qualifications below remain future implementation and rollout work; none is claimed complete by the artifact checks.
 
 Implementation starts with milestone 1's local contracts, deterministic composition, actual D1 harness, intercepted provider and release-gate implementation. Real-user rollout still requires qualified passkey/runtime behavior; approved launch content and rights; authorized live-provider quality/latency/retention checks; browser/accessibility and fault/egress tests; actual main-branch failed-test/preview isolation proof; and full synthetic erasure/security/spend restore. Geography/age policy, domain/resource identifiers and accepted financial limits remain explicit owner/environment inputs. Legacy user/subscription inventory blocks retirement decisions, not writing the successor.
 

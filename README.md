@@ -2,6 +2,8 @@
 
 Complete proposed architecture package, prepared 2026-10-26 from the supplied brief and selected evidence. This directory is outside the predecessor repositories. It contains specifications and disposable artifact checks, not an implemented application.
 
+Specification work is complete. The selected design and recorded evidence are sufficient to start milestone 1 in IMPLEMENTATION_PLAN. Remaining runtime, editorial, provider and deployment qualifications have defined checks and rollout gates; they do not leave the specification awaiting approval or optional research.
+
 Start with [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md), which supplies the reading order, scope, decisions, source ledger and bounded unknowns. The seven required deliverables are:
 
 - [ARCHITECTURE.md](docs/architecture/ARCHITECTURE.md)

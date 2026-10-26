@@ -1,31 +1,59 @@
 {
   "checkedOn": "2026-10-26",
   "scope": "Disposable specification artifact checks only; no application, paid provider, browser or hosted runtime verification.",
+  "environment": {
+    "node": "v26.12.1",
+    "npm": "11.20.0",
+    "python": "3.14.4",
+    "sqlite": "3.46.1"
+  },
+  "artifactChecks": "passed",
+  "dependencyAudit": "Two development-tool advisories remain (one low, one moderate); audit exit 1 is not an artifact validation pass.",
   "results": [
+    {
+      "command": "npm ci",
+      "exitCode": 0,
+      "output": "\nadded 25 packages, and audited 26 packages in 644ms\n\n8 packages are looking for funding\n  run `npm fund` for details\n\n2 vulnerabilities (1 low, 1 moderate)\n\nTo address issues that do not require attention, run:\n  npm audit fix\n\nTo address all issues, run:\n  npm audit fix --force\n\nRun `npm audit` for details.\nnpm warn install-scripts 1 package has install scripts not yet covered by allowScripts:\nnpm warn install-scripts   esbuild@0.27.7 (postinstall: node install.js)\nnpm warn install-scripts\nnpm warn install-scripts Run `npm install-scripts ls` to review, or `npm install-scripts approve <pkg>` to allow.\n"
+    },
+    {
+      "command": "npm run schemas",
+      "exitCode": 0,
+      "output": "\n> reflection-architecture-checks@0.0.0 schemas\n> tsx checks/generate-openapi.ts\n\nGenerated 37 operations and 41 schemas.\n(node:68294) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\n"
+    },
     {
       "command": "npm run check:contracts",
       "exitCode": 0,
-      "stdout": "\n> reflection-architecture-checks@0.0.0 check:contracts\n> tsc --noEmit && tsx checks/check-contracts.ts\n\n(node:50844) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nContract schemas and representative payloads passed; 60 corpus records well formed; AES-GCM AAD property passed. No semantic validator/provider exercised.\n"
+      "output": "\n> reflection-architecture-checks@0.0.0 check:contracts\n> tsc --noEmit && tsx checks/check-contracts.ts\n\n(node:68426) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nContract schemas and representative payloads passed; 60 corpus records well formed; AES-GCM AAD property passed. No semantic validator/provider exercised.\n"
     },
     {
       "command": "npm run check:sql",
       "exitCode": 0,
-      "stdout": "\n> reflection-architecture-checks@0.0.0 check:sql\n> python3 checks/check-sql.py\n\n{\n  \"sqlite\": \"3.46.1\",\n  \"tables\": 36,\n  \"columns\": 307,\n  \"checks\": [\n    \"valid current publication guard\",\n    \"revoked permission\",\n    \"cancelled request\",\n    \"stale run\",\n    \"expired lease\",\n    \"key rotation\",\n    \"account deletion\",\n    \"content withdrawn\",\n    \"missing selected row\",\n    \"null reviewed hash rejected\",\n    \"cross-owner basis FK rejected\",\n    \"duplicate intent rejected\",\n    \"failed statement rolls back preceding edition in SQLite transaction\",\n    \"parent old-content withdrawal guarded\",\n    \"parent populated account cascade\",\n    \"selected old-content withdrawal guarded\",\n    \"selected populated account cascade\",\n    \"quota bound enforced\",\n    \"exact registry/table/column coverage\"\n  ],\n  \"count\": 19\n}\n"
+      "output": "\n> reflection-architecture-checks@0.0.0 check:sql\n> python3 checks/check-sql.py\n\n{\n  \"sqlite\": \"3.46.1\",\n  \"tables\": 36,\n  \"columns\": 307,\n  \"checks\": [\n    \"valid current publication guard\",\n    \"revoked permission\",\n    \"cancelled request\",\n    \"stale run\",\n    \"expired lease\",\n    \"key rotation\",\n    \"account deletion\",\n    \"content withdrawn\",\n    \"missing selected row\",\n    \"null reviewed hash rejected\",\n    \"cross-owner basis FK rejected\",\n    \"duplicate intent rejected\",\n    \"failed statement rolls back preceding edition in SQLite transaction\",\n    \"parent old-content withdrawal guarded\",\n    \"parent populated account cascade\",\n    \"selected old-content withdrawal guarded\",\n    \"selected populated account cascade\",\n    \"quota bound enforced\",\n    \"exact registry/table/column coverage\"\n  ],\n  \"count\": 19\n}\n"
     },
     {
       "command": "npm run check:openapi",
       "exitCode": 0,
-      "stdout": "\n> reflection-architecture-checks@0.0.0 check:openapi\n> tsx checks/check-openapi.ts\n\n(node:52359) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nOpenAPI syntax/schema/references validated; 37 unique operations. This does not prove handler behavior.\n"
+      "output": "\n> reflection-architecture-checks@0.0.0 check:openapi\n> tsx checks/check-openapi.ts\n\n(node:68395) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nOpenAPI syntax/schema/references validated; 37 unique operations. This does not prove handler behavior.\n"
     },
     {
-      "command": "node --version && npm --version && python3 --version && python3 -c 'import sqlite3; print(sqlite3.sqlite_version)'",
+      "command": "git diff --exit-code -- docs/architecture/openapi.yaml docs/architecture/model-output.schema.json",
       "exitCode": 0,
-      "stdout": "v26.12.1\n11.20.0\nPython 3.14.4\n3.46.1\n"
+      "output": ""
+    },
+    {
+      "command": "npm audit --json",
+      "exitCode": 1,
+      "output": "{\n  \"auditReportVersion\": 2,\n  \"vulnerabilities\": {\n    \"esbuild\": {\n      \"name\": \"esbuild\",\n      \"severity\": \"low\",\n      \"isDirect\": false,\n      \"via\": [\n        {\n          \"source\": 1120680,\n          \"name\": \"esbuild\",\n          \"dependency\": \"esbuild\",\n          \"title\": \"esbuild allows arbitrary file read when running the development server on Windows\",\n          \"url\": \"https://github.com/advisories/GHSA-g7r4-m6w7-qqqr\",\n          \"severity\": \"low\",\n          \"cwe\": [\n            \"CWE-22\"\n          ],\n          \"cvss\": {\n            \"score\": 2.5,\n            \"vectorString\": \"CVSS:3.1/AV:L/AC:H/PR:L/UI:N/S:U/C:N/I:L/A:N\"\n          },\n          \"range\": \">=0.27.3 <0.28.1\"\n        }\n      ],\n      \"effects\": [],\n      \"range\": \"0.27.3 - 0.28.0\",\n      \"nodes\": [\n        \"node_modules/esbuild\"\n      ],\n      \"fixAvailable\": true\n    },\n    \"yaml\": {\n      \"name\": \"yaml\",\n      \"severity\": \"moderate\",\n      \"isDirect\": true,\n      \"via\": [\n        {\n          \"source\": 1115556,\n          \"name\": \"yaml\",\n          \"dependency\": \"yaml\",\n          \"title\": \"yaml is vulnerable to Stack Overflow via deeply nested YAML collections\",\n          \"url\": \"https://github.com/advisories/GHSA-48c2-rrv3-qjmp\",\n          \"severity\": \"moderate\",\n          \"cwe\": [\n            \"CWE-674\"\n          ],\n          \"cvss\": {\n            \"score\": 4.3,\n            \"vectorString\": \"CVSS:3.1/AV:N/AC:L/PR:L/UI:N/S:U/C:N/I:N/A:L\"\n          },\n          \"range\": \">=2.0.0 <2.8.3\"\n        }\n      ],\n      \"effects\": [],\n      \"range\": \"2.0.0 - 2.8.2\",\n      \"nodes\": [\n        \"node_modules/yaml\"\n      ],\n      \"fixAvailable\": {\n        \"name\": \"yaml\",\n        \"version\": \"2.9.1\",\n        \"isSemVerMajor\": false\n      }\n    }\n  },\n  \"metadata\": {\n    \"vulnerabilities\": {\n      \"info\": 0,\n      \"low\": 1,\n      \"moderate\": 1,\n      \"high\": 0,\n      \"critical\": 0,\n      \"total\": 2\n    },\n    \"dependencies\": {\n      \"prod\": 1,\n      \"dev\": 51,\n      \"optional\": 27,\n      \"peer\": 1,\n      \"peerOptional\": 0,\n      \"total\": 51\n    }\n  }\n}\n"
     },
     {
       "command": "python3 checks/check-package.py",
       "exitCode": 0,
-      "stdout": "{\n  \"required_files\": 7,\n  \"local_markdown_links\": 29,\n  \"json_files\": 3,\n  \"closed_model_objects\": 2,\n  \"result\": \"passed\"\n}\n"
+      "output": "{\n  \"required_files\": 7,\n  \"local_markdown_links\": 30,\n  \"json_files\": 3,\n  \"closed_model_objects\": 2,\n  \"result\": \"passed\"\n}\n"
+    },
+    {
+      "command": "git diff --check",
+      "exitCode": 0,
+      "output": ""
     }
   ]
 }
