@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "kind": {
+      "type": "string",
+      "const": "tarot.interpretation.v1"
+    },
+    "units": {
+      "minItems": 3,
+      "maxItems": 3,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "string",
+            "enum": [
+              "situation",
+              "tension",
+              "possibility"
+            ]
+          },
+          "factIds": {
+            "minItems": 1,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "card:situation",
+                "card:tension",
+                "card:possibility",
+                "count:wands",
+                "count:cups",
+                "count:swords",
+                "count:pentacles"
+              ]
+            }
+          },
+          "sourceIds": {
+            "minItems": 1,
+            "maxItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interpretation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 650
+          },
+          "reflectionQuestion": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "required": [
+          "position",
+          "factIds",
+          "sourceIds",
+          "interpretation",
+          "reflectionQuestion"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "closing": {
+      "type": "string",
+      "maxLength": 250
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "units",
+    "closing"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,31 @@
+{
+  "checkedOn": "2026-10-26",
+  "scope": "Disposable specification artifact checks only; no application, paid provider, browser or hosted runtime verification.",
+  "results": [
+    {
+      "command": "npm run check:contracts",
+      "exitCode": 0,
+      "stdout": "\n> reflection-architecture-checks@0.0.0 check:contracts\n> tsc --noEmit && tsx checks/check-contracts.ts\n\n(node:50844) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nContract schemas and representative payloads passed; 60 corpus records well formed; AES-GCM AAD property passed. No semantic validator/provider exercised.\n"
+    },
+    {
+      "command": "npm run check:sql",
+      "exitCode": 0,
+      "stdout": "\n> reflection-architecture-checks@0.0.0 check:sql\n> python3 checks/check-sql.py\n\n{\n  \"sqlite\": \"3.46.1\",\n  \"tables\": 36,\n  \"columns\": 307,\n  \"checks\": [\n    \"valid current publication guard\",\n    \"revoked permission\",\n    \"cancelled request\",\n    \"stale run\",\n    \"expired lease\",\n    \"key rotation\",\n    \"account deletion\",\n    \"content withdrawn\",\n    \"missing selected row\",\n    \"null reviewed hash rejected\",\n    \"cross-owner basis FK rejected\",\n    \"duplicate intent rejected\",\n    \"failed statement rolls back preceding edition in SQLite transaction\",\n    \"parent old-content withdrawal guarded\",\n    \"parent populated account cascade\",\n    \"selected old-content withdrawal guarded\",\n    \"selected populated account cascade\",\n    \"quota bound enforced\",\n    \"exact registry/table/column coverage\"\n  ],\n  \"count\": 19\n}\n"
+    },
+    {
+      "command": "npm run check:openapi",
+      "exitCode": 0,
+      "stdout": "\n> reflection-architecture-checks@0.0.0 check:openapi\n> tsx checks/check-openapi.ts\n\n(node:52359) [DEP0205] DeprecationWarning: `module.register()` is deprecated. Use `module.registerHooks()` instead.\n(Use `node --trace-deprecation ...` to show where the warning was created)\nOpenAPI syntax/schema/references validated; 37 unique operations. This does not prove handler behavior.\n"
+    },
+    {
+      "command": "node --version && npm --version && python3 --version && python3 -c 'import sqlite3; print(sqlite3.sqlite_version)'",
+      "exitCode": 0,
+      "stdout": "v26.12.1\n11.20.0\nPython 3.14.4\n3.46.1\n"
+    },
+    {
+      "command": "python3 checks/check-package.py",
+      "exitCode": 0,
+      "stdout": "{\n  \"required_files\": 7,\n  \"local_markdown_links\": 29,\n  \"json_files\": 3,\n  \"closed_model_objects\": 2,\n  \"result\": \"passed\"\n}\n"
+    }
+  ]
+}

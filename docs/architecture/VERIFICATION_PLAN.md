@@ -1,0 +1,84 @@
+# Verification, qualification and traceability
+
+Distinguish four results: deterministic artifact validation (executed results in CHECK_RESULTS), future implementation verification (not yet implemented), editorial approval (human decision on exact bytes), and product value (study evidence). None establishes the others. Live model/API, hosted release and production-data checks were not authorized for execution in this task.
+
+## Requirement → mechanism → contract → acceptance
+
+| Requirement | Component / contract or lifecycle rule | Required tests/proof |
+|---|---|---|
+| R01 ownership/identity | identity service, Principal, composite owner FKs, challenge/session/epoch | A01 cross-owner graph/read/write, A02 single-use challenge/recovery and worker/browser passkey qualification |
+| R02 tarot basis | domain/tarot, TarotBasis, versioned unbiased draw | A03 seeded golden draw/orientation vectors, rejection-sampling edge values, count/binding closure |
+| R03 accepted/reopen | ModelCandidate→AcceptedReading, unique request edition, content-free events | A04 rejected text never visible, reopen no provider calls, lost-delivery same edition |
+| R04 authorship/save | Reflection CAS/revisions, atomic save flag | A05 interrupted/lost acknowledgement/conflict/reopen/disagreement browser journey |
+| R05 permission/context | current permission/grant/source checks, SelectedFragment/transmission | A06 pre-dispatch revoke, post-dispatch prepublish revoke, missing snapshot, unselected-marker egress |
+| R06 lifecycle | request states/leases/attempts/dispatch uniqueness, guard SQL | A07 duplicate starts, stale epochs, crash matrix, timeout unknown, atomic publication/accounting |
+| R07 privacy/erasure | Ciphertext AAD/index key, registry, SECURITY_RESTORE sagas | A08 encrypt/rotate/erase, snapshot copies, erasure receipt ack, restore replay/security/spend fences |
+| R08 provenance | plan/content/prompt/validator/policy hashes, source snapshots | A09 hash identity, source coverage does not confer support; exact saved text/render values |
+| R09 UI/a11y | routes and states in USER_EXPERIENCE | A10 keyboard, screen readers,320px/200% text, contrast, offline/privacy cache checks |
+| R10 history/follow-up | exact parent edition/source selection, keyset cursors | A11 no automatic biography, quiet/disagree follow-ups, parent withdrawal under new content |
+| R11 import/export | LegacyRecord/PortableRecord and typed alias mapping | A12 lossless original text/IDs/time/gaps/parents, partial group rollback, duplicate/import ownership, metadata pagination |
+| R12 releases | verify command + main wrapper + account isolation | A13 deterministic gate local; hosted intentionally failing test/non-main/isolation proof before rollout |
+| R13 accounting/ops | quota CAS, unique cost adjustments, ceilings, monitoring | A14 midnight/period refunds, uncertain cost, duplicate reconciliation, cap/restore reconciliation |
+| R14 safe outcomes | local input/output analyzers, approved English non-reading copy | A15 balanced ordinary/metaphor/crisis/language/refusal corpus, no hidden inference |
+| R15 content/rights | CanonSource/ContentBundle, hash-bound approval, withdrawal | A16 null approval CHECK, concurrent activation, withdrawal and historical redaction; asset manifest gate |
+| R16 later astrology | AstrologyInput/Basis/CalculationService, no v1 runtime | A17 representative fixtures and contract contradictions only; later engine/licensing proof deferred |
+| R17 schema compatibility | generated schemas, registry, migration window | A18 strict TS/Zod/OpenAPI refs, schema generation drift, registry unknown-column fail, N/N−1 migrations |
+
+## Repository deterministic gate to implement
+
+`npm run verify` is the release command, proposed p95≤8min with9min deadline: format/lint/strict TS≤90s; generated schema/registry and unit/contract tests≤90s; Workers-pool D1 batches, migrations and deterministic fault/egress tests≤150s; production build≤45s; selected Playwright+axe journeys≤90s; receipt packaging≤15s. These are allocations, not measured timing. Run the full gate once per candidate; failures block deploy. A browser dependency absent in hosted image is a failing setup requirement, not an excuse to omit the journey. Install/pin audited required browser binaries/dependencies in the build setup and measure clean-cache gate duration.
+
+Set provider network deny mode before importing application modules. Test spies for fetch must reject every unregistered URL and detect private markers in method/headers/body/redirect/error logging, not merely count SDK calls. No API key in deterministic gate environment. Time, randomness and scheduler are controllable fixtures; cryptographic production interfaces remain tested against Web Crypto. Use TypeScript strict/noUncheckedIndexedAccess/exactOptionalPropertyTypes; runtime parse every boundary. Derive OpenAPI and strict model JSON Schema from Zod and fail on git diff; test unsupported schema-keyword projection separately.
+
+Database tests run **actual schema.sql/migrations and publication_guard.sql**, not a simplified parallel schema. SQLite checks constraints/FKs/transaction rollback only. Cloudflare Vitest Workers pool additionally exercises D1 `batch`, thrown CHECK rollback, result shape, concurrent invocations and workerd bindings. Neither proves hosted replication/scheduling/build privileges; those need synthetic hosted proofs. D1 migration dry-run and SQLite syntax do not prove deploy authorization.
+
+## Controlled concurrency and failure schedules
+
+Use a barrier-controlled fake provider and database fault injection; every schedule identifies the exact pause point, competing operation and expected durable result. Assert invariants after each run: one request per intent; ≤1 dispatch; ≤1 publication; quota held+consumed consistent; no private rows accessible after fence; stale epoch never publishes; erasure/cost work remains discoverable.
+
+| Pause/fault | Required competing event and expected outcome |
+|---|---|
+| Two start batches before unique insert | Same intent/key → one reservation and shared result; changed payload→409; rollback all losing increments. |
+| After reserve before wake | Kill worker; Cron claims and prepares; persisted intention survives without browser. |
+| During prepare before commit | Kill and reclaim; no committed draw changed; old lease cannot publish. |
+| After dispatch commit before fetch | Crash; mark unknown, no re-send; eligible template or terminal; provider cost maximum retained even if actual call never happened. |
+| After HTTP send before receipt | Provider completes, response dropped; same unknown policy, no exactly-once claim. |
+| After durable candidate before validation | Recovery revalidates stored candidate, does not call writer. |
+| After validation before publish | Revoke grant, cancel, rotate key, delete source/account, withdraw old parent content; assertion batch fails and quota release happens once. |
+| Mid-publication statement | Inject error after edition insert/before quota/event; D1 batch rolls back edition/evidence/state/accounting together. |
+| After successful publication before HTTP delivery | Retry joins committed edition; no extra cost/quota. |
+| Lease expires while stale worker runs | New epoch wins DB; stale writes fail; unique dispatch suppresses repeat inference. |
+| Context snapshot row missing | Count/plan consistency fails; NOT EXISTS alone cannot vacuously authorize. |
+| Revoke old A source while request uses B | Parent/selected-source eligibility joins reject publication even before historical body suppression finishes. |
+| Midnight/month rollover | Refund original reserved day/month, not current periods; duplicate release is no-op. |
+| Cost usage acknowledgement lost | Duplicate unique adjustment returns original, no double refund of budget; uncertain charge remains until known reconciliation. |
+| D1 fence before R2 erasure failure | No successful202 acceptance; pending logical fence retained; retry receipt token can observe ledger_pending. |
+| R2 receipt/checkpoint success before D1 failure | Recovery applies durable operation exactly once; cannot revive deleted source or old factor. |
+| Restore pre-dispatch bookmark | Cancel all restored nonterminal work and freeze spend; no inference until reconciliation and new explicit request. |
+| Restore before passkey removal/code consumption | Latest independent security checkpoint prevents use of removed factor/spent code; all model/context permissions reset. |
+
+Synthetic hosted recovery proof: provision test account/passkeys+recovery codes, save known marker, create backup bookmark, remove one credential/use code, revoke context, delete marker and acknowledge receipt, then restore bookmark while ingress/egress are disabled. Prove old factor fails, used code fails, marker absent in every registry field/alias/candidate/ledger projection/cache/export, permission off, no old request dispatch, and known spend not reset. Record RPO/RTO and actual data loss interval. Repeat with ledger unreachable: reopening must fail. No real records needed or authorized here.
+
+## Evaluation corpus and review status
+
+[EVAL_CORPUS.json](EVAL_CORPUS.json) supplies concrete synthetic seed cases, shared fully resolved tarot basis/candidate fixtures, versions, inputs/patches, expected outcomes, rationale and assertions. Cases reference a named complete fixture and explicit changes, not an unstated situation. All new synthetic prose is marked **unreviewed**; no human-approved examples are claimed. Historical T-A agent-review references are recorded as references only; private subscription outputs are not copied or relabeled as approved. When actual human-approved examples are supplied with rights/consent, add exact content hash/reviewer/date and freeze the corpus edition; never overwrite review status.
+
+Layers: deterministic domain/contract cases; local heuristic corpus tests (expected output of the proposed policy, not proof policy implementation exists); concurrency/egress integration schedules; later astrology boundary fixtures. Must-accept includes ordinary metaphors, useful quiet interpretations, quotations, negations, comparisons, conditional invitations and numeric reflection instructions. Must-reject includes undrawn entities, wrong bindings/counts, valid citations paired with unsupported relations, prediction, present/past biography and unsafe advice. Non-reading expected cases cover language uncertainty, explicit crisis, refusal, cancellation/deletion and revoked eligibility. Reject-all behavior fails acceptance metrics.
+
+Expand seed set to a frozen240-case launch corpus:80 supported/must-accept (including20 quiet/short,20 follow-up and at least20 actually human-approved examples once available),80 adversarial must-reject (balanced domain/relations/personal claims),40 appropriate non-reading outcomes,40 lifecycle/privacy/import sequences. Keep similar templates in the same split to prevent train/test leakage;60% development,20% calibration,20% untouched holdout. Human approval absence is an editorial gate, not substituted with an agent score. Candidate prompts/validators may be tuned on development only; changing them freezes a new manifest/version and reruns holdout once after calibration, not repeated score shopping.
+
+Metrics and proposed launch thresholds: mechanical invalid-fact escape0 in supplied deterministic adversarial corpus; cross-owner/private marker leakage0; publication race failures0; must-accept useful acceptance≥90%; unsupported personal/prediction escape≤1% observed with **zero severe** cases; false crisis escalation on ordinary phrase/metaphor cases≤2%; valid-template rate reported separately, target<10% normal supported live requests; source-selection correctness100%; every accepted rendering retains all mandatory facts. Confidence intervals/report sample size; zero in finite tests is not zero real-world risk. Human rubric0–4 for clarity, grounding, autonomy, usefulness and tone; target mean≥3 with no coercive/diagnostic item. Human review source quality separately from model prose. Agent/model scores are auxiliary and do not create human approval.
+
+Continuity evaluation uses intentionally authored sequences with exact selected parents: repeat an earlier interpretation, user disagrees, user changes context, user declines to share reflection, and same question after a week. Measure unsolicited assumptions, repeated sentences/ideas, whether disagreement is respected and whether source context is genuinely used. No automatic extraction from production journals. Product study hypotheses/targets are in ARCHITECTURE, separate from automated/editorial scores.
+
+## Three most design-sensitive qualification tasks
+
+1. **Runtime/lifecycle proof:** in workerd and synthetic hosted staging, test18s provider budget/25s driver, Cron reclaim and D1 batch rollback. Reconsider D1+Cron execution if p95 accepted latency exceeds25s for qualified model prompts, recovery exceeds120s repeatedly, or provider timeout/unknown fraction exceeds2% under stable service. Add Queue consumer only if that resolves measured scheduling/runtime limit; publication truth remains D1. A failed atomic guard proof blocks rollout and requires correcting SQL/driver before any alternate coordinator.
+2. **Rendering/writing qualification:** freeze60 balanced supported/adversarial question/basis cases and compare controlled fact sentences (chosen), structured relationship assertions rendered in code, and field placeholders as an offline experiment. Same provider/model, prompt budget, approved source edition and up to3 repetitions; blinded human readability/autonomy scores plus useful acceptance/unsupported-relationship escape/fallback rate. Overturn current rendering only if alternative improves useful acceptance by≥10 percentage points or readability≥0.5/4, while zero mechanical escapes and no increased severe personal-claim escape. Affects ModelCandidate, validator, renderer, prompt and content examples together; never silently changes saved editions. Coding current plan can begin; launch waits on qualification.
+3. **Identity/recovery/release proof:** verify SimpleWebAuthn in pinned Worker runtime, representative real browsers and recover-to-new-passkey; then intentional failed-test production path and full erasure/security/spend restore. Any lost private saved record outside measured RPO, revived revoked factor, leaked production preview marker or promotion after failed test blocks launch. If auth library cannot run in Worker, revisit auth adapter with a separate ADR; if Builds cannot enforce gate, choose another hosted pipeline. Do not quietly substitute a desktop runner or GitHub Actions.
+
+Writing-provider qualification in addition to rendering comparison:240-case frozen corpus×up to3 repeats, ≤720 calls **total across all variants**, not720 plus extra unbudgeted experiments. Rate≤2 concurrent, maximum input8k/output1600, wall18s, per-call ceiling$0.04, run hard cap$40 including uncertainty. Failed/unknown calls reserve full ceiling; retry consumes another planned case budget only under explicit offline-evaluation policy (production remains one dispatch). Capture exact prompts/output privately in owner-local encrypted eval files with integrity manifest/90-day TTL, synthetic or explicitly authorized examples only. No live evaluations executed here. Returned-model alias changes or pricing/schema-capability changes require refreezing/qualification. Readability studies can start with deterministic mock fixtures without paid calls.
+
+## Local artifact check scope
+
+The supplied checks parse/typecheck actual contracts, generate/validate OpenAPI, apply actual SQL and assert meaningful constraints/rollback/publication guard behavior using synthetic fixtures. They are disposable specification checks, not tests of an implemented app. `checks/make-registry.py` is explicitly not a gate; `checks/check-sql.py` detects registry drift. Commands/versions/results are recorded in CHECK_RESULTS after execution. Do not mark any hosted/model/accessibility/application acceptance item passed because these artifacts parse.
