@@ -45,6 +45,7 @@ Use a barrier-controlled fake provider and database fault injection; every sched
 | After HTTP send before receipt | Provider completes, response dropped; same unknown policy, no exactly-once claim. |
 | After durable candidate before validation | Recovery revalidates stored candidate, does not call writer. |
 | After validation before publish | Revoke grant, cancel, rotate key, delete source/account, withdraw old parent content; assertion batch fails and quota release happens once. |
+| Worker samples time before deadline, SQL runs after it | The actual publication guard rejects by database execution time without a competing state change; exercise lease expiry, absolute expiry and equality. Apply the same predicates to dispatch and the final authorization UPDATE, including delay between guard and update. |
 | Mid-publication statement | Inject error after edition insert/before quota/event; D1 batch rolls back edition/evidence/state/accounting together. |
 | After successful publication before HTTP delivery | Retry joins committed edition; no extra cost/quota. |
 | Lease expires while stale worker runs | New epoch wins DB; stale writes fail; unique dispatch suppresses repeat inference. |
@@ -56,8 +57,12 @@ Use a barrier-controlled fake provider and database fault injection; every sched
 | R2 receipt/checkpoint success before D1 failure | Recovery applies durable operation exactly once; cannot revive deleted source or old factor. |
 | Restore pre-dispatch bookmark | Cancel all restored nonterminal work and freeze spend; no inference until reconciliation and new explicit request. |
 | Restore before passkey removal/code consumption | Latest independent security checkpoint prevents use of removed factor/spent code; all model/context permissions reset. |
+| Restore before D1 deletion job exists | Authenticate/decrypt the independent ErasureTarget with retained older keys; erase the exact subject/session/reflection revision and copies. Missing keys keep maintenance active. |
+| Restore again after completed erasure | Start a new immutable pass before replay; incomplete pass blocks purge/status completion. Append a linked completion revision and extend both deadlines. Reordered listings, missing revisions and invalid hashes cannot select a shorter/older deadline. |
 
 Synthetic hosted recovery proof: provision test account/passkeys+recovery codes, save known marker, create backup bookmark, remove one credential/use code, revoke context, delete marker and acknowledge receipt, then restore bookmark while ingress/egress are disabled. Prove old factor fails, used code fails, marker absent in every registry field/alias/candidate/ledger projection/cache/export, permission off, no old request dispatch, and known spend not reset. Record RPO/RTO and actual data loss interval. Repeat with ledger unreachable: reopening must fail. No real records needed or authorized here.
+
+A12 import/history cases also include: identical source across chunks/re-export yields duplicate; changed content requires a confirmed new source revision; colliding upstream IDs in distinct datasets remain distinct; an erased entity blocks every source revision label until a confirmed new namespace is selected; tombstones survive source deletion. A501-unit question and a surrogate-pair boundary case must pass import → history preview → full reopen → export with original text/identity unchanged. Missing previewHash, mismatched recovery confirmation and a tombstone created after preview reject commit.
 
 ## Evaluation corpus and review status
 
@@ -81,4 +86,4 @@ Writing-provider qualification in addition to rendering comparison:240-case froz
 
 ## Local artifact check scope
 
-The supplied checks parse/typecheck actual contracts, generate/validate OpenAPI, apply actual SQL and assert meaningful constraints/rollback/publication guard behavior using synthetic fixtures. They are disposable specification checks, not tests of an implemented app. `checks/make-registry.py` is explicitly not a gate; `checks/check-sql.py` detects registry drift. Commands/versions/results are recorded in CHECK_RESULTS after execution. Do not mark any hosted/model/accessibility/application acceptance item passed because these artifacts parse.
+The supplied checks parse/typecheck actual contracts, generate/validate OpenAPI, apply actual SQL and assert meaningful constraints/rollback/publication guard behavior using synthetic fixtures. check-recovery.ts and check-imports.ts exercise the specified algorithms with real contract parsers, local cryptography and synthetic in-memory reference state; they run through check:contracts. They are disposable specification checks, not tests of implemented recovery/import/history services. `checks/make-registry.py` is explicitly not a gate; `checks/check-sql.py` detects registry drift. Commands/versions/results are recorded in CHECK_RESULTS after execution. Do not mark any hosted/model/accessibility/application acceptance item passed because these artifacts parse.

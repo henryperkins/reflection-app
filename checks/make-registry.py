@@ -36,7 +36,7 @@ policies={
 'export_tickets':('60 minutes','never','expiry/account cascade; no export bodies stored'),
 'import_batches':('preview24h; committed metadata30d','import origin projected from editions','expiry/owner cascade'),
 'import_items':('preview raw24h; completed body purged after copy into edition','only committed original in edition','purge preview after24h; raw original in edition also erased'),
-'import_identities':('with imported records; erased alias tombstone while account lives','original source records decrypted; no keyed indexes','null source_record_enc on copy erasure; retain erased alias to prevent silent reimport; account cascade'),
+'import_identities':('with imported records; erased alias tombstone while account lives','original source records decrypted; no keyed indexes','set erased_at; null body and entity FKs before deletion; retain both identity HMACs to prevent silent reimport; account cascade'),
 'deletion_jobs':('45 days after completed erasure; pending never purged','receipt status only','null target_enc on completion; remove identifiers at retention end'),
 'security_operations':('D1 applied operation30d; R2 current checkpoint until superseded; old45d; pending indefinite','never','account deletion removes checkpoint after durable erasure; details in SECURITY_RESTORE'),
 'rate_buckets':('48 hours','never','expiry; rotating HMAC prevents durable network tracking'),
@@ -55,7 +55,7 @@ for (table,) in db.execute("select name from sqlite_master where type='table' or
   if cls=='E':
    record={'reflection_revisions':'reflection_id || : || revision','generation_context':'request_id || : || ordinal','import_items':'batch_id || : || item_index','import_identities':'source_key_hmac'}.get(table,'id')
    aad=f'[env,{table},{name},owner_id,{record},envelope.aadRevision,1,envelope.keyVersion]'
-   if table=='deletion_jobs':aad='[env,deletion-target,id,scope,envelope.aadRevision,1,recoveryKeyVersion]'
+   if table=='deletion_jobs':aad="JCS([env,'erasure-target.v1',jobId,scope,subjectHmac,targetHmac,hmacKeyId,requestedAt,target.keyId]); same RecoveryCiphertext as R2 intent"
    if table=='security_operations':aad='[env,identity-checkpoint,HMAC(subjectId),epoch,id,1] under RECOVERY_KEK'
   if cls=='K':aad=f'[env,account-wrap,owner_id,version,wrap_key_id,{name}]'
   cols[name]={'aadRule':aad,'class':cls,'sqlType':typ,'nullable':not bool(notnull or pk),'default':default,'export':'never' if cls in ('S','K') else export}

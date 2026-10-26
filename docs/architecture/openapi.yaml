@@ -3417,8 +3417,11 @@ paths:
       operationId: history
       summary: history
       description: History saved by default; status=open resumes unsaved <=24h
-        sessions. Keyset created_at DESC,id DESC, limit20 default/50 max. Cursor
-        MAC binds owner/filter/page; no plaintext search.
+        sessions. questionPreview is the longest full-code-point prefix
+        within500 UTF-16 units; questionTruncated reports omission. Null
+        questions stay null; full text is available on reopen/export. Keyset
+        created_at DESC,id DESC, limit20 default/50 max. Cursor MAC binds
+        owner/filter/page; no plaintext search.
       security:
         - sessionCookie: []
       parameters:
@@ -3594,8 +3597,9 @@ paths:
     get:
       operationId: session
       summary: session
-      description: Owned available session. Reopen references stored editions; no
-        provider call. Open sessions expire24h unless saved.
+      description: Owned available session, including full nullable imported question
+        up to10000 UTF-16 units. Reopen references stored editions; no provider
+        call. Open sessions expire24h unless saved.
       security:
         - sessionCookie: []
       parameters:
@@ -5747,8 +5751,13 @@ paths:
       operationId: previewImport
       summary: previewImport
       description: 10/day/account,2MiB HTTP cap,200k-character document cap,<=100
-        records. Parse exact allowlisted format offline; encrypt preview24h.
-        Show duplicate/conflict/invalid items without any model egress.
+        records. Bind stable source namespace/revision and explicit recovery
+        action on every chunk. Canonical embedded source matches source for
+        none, previousSource for recovery. new_revision preserves namespace with
+        a new label and existing live prior identity; reimport_erased requires a
+        different namespace and existing prior tombstone. Encrypt preview24h;
+        return effective identities, previewHash and
+        ready/duplicate/conflict/erased/invalid statuses. No model egress.
       security:
         - sessionCookie: []
       parameters:
@@ -5924,10 +5933,14 @@ paths:
     post:
       operationId: commitImport
       summary: commitImport
-      description: Commit selected ready items in dependency order; atomic per session
-        group, partial results explicit. Duplicate hash no-op; same original key
-        with changed content conflicts. Imported facts/review remain unverified.
-        Provider eligibility defaults absent.
+      description: Require previewHash and confirmedRecovery exactly matching
+        displayed preview; recheck aliases/tombstones atomically, stale
+        preview409. Commit selected ready groups in dependency order; partial
+        results explicit. Same identity/content is a duplicate; changed content
+        requires confirmed new source revision. Erased entity cannot be revived
+        by a revision-label change; confirmed new namespace is required.
+        Imported facts/review remain unverified. Provider eligibility defaults
+        absent.
       security:
         - sessionCookie: []
       parameters:
@@ -7657,6 +7670,90 @@ components:
                 format:
                   type: string
                   const: reflection-import.v1
+                identity:
+                  type: object
+                  properties:
+                    source:
+                      type: object
+                      properties:
+                        namespaceId:
+                          type: string
+                          format: uuid
+                          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                        revision:
+                          type: string
+                          pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                      required:
+                        - namespaceId
+                        - revision
+                      additionalProperties: false
+                    kind:
+                      type: string
+                      enum:
+                        - session
+                        - reading
+                        - reflection
+                        - revisit
+                        - generation_receipt
+                        - permission
+                        - grant
+                    recordId:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                    recordRevision:
+                      type: integer
+                      minimum: 1
+                      maximum: 9007199254740991
+                  required:
+                    - source
+                    - kind
+                    - recordId
+                    - recordRevision
+                  additionalProperties: false
+                parentIdentity:
+                  anyOf:
+                    - type: object
+                      properties:
+                        source:
+                          type: object
+                          properties:
+                            namespaceId:
+                              type: string
+                              format: uuid
+                              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                            revision:
+                              type: string
+                              pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                          required:
+                            - namespaceId
+                            - revision
+                          additionalProperties: false
+                        kind:
+                          type: string
+                          enum:
+                            - session
+                            - reading
+                            - reflection
+                            - revisit
+                            - generation_receipt
+                            - permission
+                            - grant
+                        recordId:
+                          type: string
+                          minLength: 1
+                          maxLength: 200
+                        recordRevision:
+                          type: integer
+                          minimum: 1
+                          maximum: 9007199254740991
+                      required:
+                        - source
+                        - kind
+                        - recordId
+                        - recordRevision
+                      additionalProperties: false
+                    - type: "null"
                 source:
                   type: string
                   enum:
@@ -7665,9 +7762,11 @@ components:
                     - pixel-perfect
                     - successor
                 originalId:
-                  type: string
-                  minLength: 1
-                  maxLength: 200
+                  anyOf:
+                    - type: string
+                      minLength: 1
+                      maxLength: 200
+                    - type: "null"
                 originalParentId:
                   anyOf:
                     - type: string
@@ -7807,6 +7906,8 @@ components:
                   const: legacy_unknown
               required:
                 - format
+                - identity
+                - parentIdentity
                 - source
                 - originalId
                 - originalParentId
@@ -7892,7 +7993,10 @@ components:
             - open
             - saved
         question:
-          type: string
+          anyOf:
+            - type: string
+              maxLength: 10000
+            - type: "null"
         editionIds:
           type: array
           items:
@@ -7972,9 +8076,13 @@ components:
                 type: integer
                 minimum: 1
                 maximum: 9007199254740991
-              question:
-                type: string
-                maxLength: 500
+              questionPreview:
+                anyOf:
+                  - type: string
+                    maxLength: 500
+                  - type: "null"
+              questionTruncated:
+                type: boolean
               createdAt:
                 type: string
                 format: date-time
@@ -8002,7 +8110,8 @@ components:
             required:
               - id
               - revision
-              - question
+              - questionPreview
+              - questionTruncated
               - createdAt
               - savedAt
               - latestEditionId
@@ -8061,6 +8170,47 @@ components:
                   kind:
                     type: string
                     const: session
+                  identity:
+                    type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
                   originalId:
                     type: string
                   value:
@@ -8080,7 +8230,10 @@ components:
                           - open
                           - saved
                       question:
-                        type: string
+                        anyOf:
+                          - type: string
+                            maxLength: 10000
+                          - type: "null"
                       editionIds:
                         type: array
                         items:
@@ -8145,6 +8298,7 @@ components:
                     additionalProperties: false
                 required:
                   - kind
+                  - identity
                   - originalId
                   - value
                 additionalProperties: false
@@ -8153,6 +8307,47 @@ components:
                   kind:
                     type: string
                     const: reading
+                  identity:
+                    type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
                   originalId:
                     type: string
                   value:
@@ -8648,6 +8843,90 @@ components:
                               format:
                                 type: string
                                 const: reflection-import.v1
+                              identity:
+                                type: object
+                                properties:
+                                  source:
+                                    type: object
+                                    properties:
+                                      namespaceId:
+                                        type: string
+                                        format: uuid
+                                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                      revision:
+                                        type: string
+                                        pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                                    required:
+                                      - namespaceId
+                                      - revision
+                                    additionalProperties: false
+                                  kind:
+                                    type: string
+                                    enum:
+                                      - session
+                                      - reading
+                                      - reflection
+                                      - revisit
+                                      - generation_receipt
+                                      - permission
+                                      - grant
+                                  recordId:
+                                    type: string
+                                    minLength: 1
+                                    maxLength: 200
+                                  recordRevision:
+                                    type: integer
+                                    minimum: 1
+                                    maximum: 9007199254740991
+                                required:
+                                  - source
+                                  - kind
+                                  - recordId
+                                  - recordRevision
+                                additionalProperties: false
+                              parentIdentity:
+                                anyOf:
+                                  - type: object
+                                    properties:
+                                      source:
+                                        type: object
+                                        properties:
+                                          namespaceId:
+                                            type: string
+                                            format: uuid
+                                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                          revision:
+                                            type: string
+                                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                                        required:
+                                          - namespaceId
+                                          - revision
+                                        additionalProperties: false
+                                      kind:
+                                        type: string
+                                        enum:
+                                          - session
+                                          - reading
+                                          - reflection
+                                          - revisit
+                                          - generation_receipt
+                                          - permission
+                                          - grant
+                                      recordId:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 200
+                                      recordRevision:
+                                        type: integer
+                                        minimum: 1
+                                        maximum: 9007199254740991
+                                    required:
+                                      - source
+                                      - kind
+                                      - recordId
+                                      - recordRevision
+                                    additionalProperties: false
+                                  - type: "null"
                               source:
                                 type: string
                                 enum:
@@ -8656,9 +8935,11 @@ components:
                                   - pixel-perfect
                                   - successor
                               originalId:
-                                type: string
-                                minLength: 1
-                                maxLength: 200
+                                anyOf:
+                                  - type: string
+                                    minLength: 1
+                                    maxLength: 200
+                                  - type: "null"
                               originalParentId:
                                 anyOf:
                                   - type: string
@@ -8798,6 +9079,8 @@ components:
                                 const: legacy_unknown
                             required:
                               - format
+                              - identity
+                              - parentIdentity
                               - source
                               - originalId
                               - originalParentId
@@ -8868,6 +9151,7 @@ components:
                         additionalProperties: false
                 required:
                   - kind
+                  - identity
                   - originalId
                   - value
                 additionalProperties: false
@@ -8876,6 +9160,47 @@ components:
                   kind:
                     type: string
                     const: reflection
+                  identity:
+                    type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
                   originalId:
                     type: string
                   value:
@@ -8922,6 +9247,7 @@ components:
                     additionalProperties: false
                 required:
                   - kind
+                  - identity
                   - originalId
                   - value
                 additionalProperties: false
@@ -8930,6 +9256,47 @@ components:
                   kind:
                     type: string
                     const: revisit
+                  identity:
+                    type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
                   originalId:
                     type: string
                   value:
@@ -8958,6 +9325,7 @@ components:
                     additionalProperties: false
                 required:
                   - kind
+                  - identity
                   - originalId
                   - value
                 additionalProperties: false
@@ -8966,6 +9334,47 @@ components:
                   kind:
                     type: string
                     const: generation_receipt
+                  identity:
+                    type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
                   originalId:
                     type: string
                   value:
@@ -9044,6 +9453,7 @@ components:
                     additionalProperties: false
                 required:
                   - kind
+                  - identity
                   - originalId
                   - value
                 additionalProperties: false
@@ -9052,6 +9462,47 @@ components:
                   kind:
                     type: string
                     const: permission
+                  identity:
+                    type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
                   originalId:
                     type: string
                   value:
@@ -9073,6 +9524,7 @@ components:
                     additionalProperties: false
                 required:
                   - kind
+                  - identity
                   - originalId
                   - value
                 additionalProperties: false
@@ -9081,6 +9533,47 @@ components:
                   kind:
                     type: string
                     const: grant
+                  identity:
+                    type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
                   originalId:
                     type: string
                   value:
@@ -9140,6 +9633,7 @@ components:
                     additionalProperties: false
                 required:
                   - kind
+                  - identity
                   - originalId
                   - value
                 additionalProperties: false
@@ -9210,6 +9704,79 @@ components:
           type: string
           format: date-time
           pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+        source:
+          type: object
+          properties:
+            namespaceId:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            revision:
+              type: string
+              pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+          required:
+            - namespaceId
+            - revision
+          additionalProperties: false
+        recovery:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: none
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: new_revision
+                previousSource:
+                  type: object
+                  properties:
+                    namespaceId:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    revision:
+                      type: string
+                      pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                  required:
+                    - namespaceId
+                    - revision
+                  additionalProperties: false
+              required:
+                - kind
+                - previousSource
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: reimport_erased
+                previousSource:
+                  type: object
+                  properties:
+                    namespaceId:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    revision:
+                      type: string
+                      pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                  required:
+                    - namespaceId
+                    - revision
+                  additionalProperties: false
+              required:
+                - kind
+                - previousSource
+              additionalProperties: false
+        previewHash:
+          type: string
+          pattern: ^[a-f0-9]{64}$
         items:
           maxItems: 100
           type: array
@@ -9226,7 +9793,51 @@ components:
                   - ready
                   - duplicate
                   - conflict
+                  - erased
                   - invalid
+              identity:
+                anyOf:
+                  - type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
+                  - type: "null"
               originalId:
                 type:
                   - string
@@ -9238,12 +9849,16 @@ components:
             required:
               - index
               - status
+              - identity
               - originalId
               - error
             additionalProperties: false
       required:
         - id
         - expiresAt
+        - source
+        - recovery
+        - previewHash
         - items
       additionalProperties: false
     ImportResult:
@@ -9263,6 +9878,49 @@ components:
                 type: integer
                 minimum: 0
                 maximum: 9007199254740991
+              identity:
+                anyOf:
+                  - type: object
+                    properties:
+                      source:
+                        type: object
+                        properties:
+                          namespaceId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: string
+                            pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                        required:
+                          - namespaceId
+                          - revision
+                        additionalProperties: false
+                      kind:
+                        type: string
+                        enum:
+                          - session
+                          - reading
+                          - reflection
+                          - revisit
+                          - generation_receipt
+                          - permission
+                          - grant
+                      recordId:
+                        type: string
+                        minLength: 1
+                        maxLength: 200
+                      recordRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                    required:
+                      - source
+                      - kind
+                      - recordId
+                      - recordRevision
+                    additionalProperties: false
+                  - type: "null"
               status:
                 type: string
                 enum:
@@ -9310,6 +9968,7 @@ components:
                   - type: "null"
             required:
               - index
+              - identity
               - status
               - sessionId
               - errorCode
@@ -10130,11 +10789,83 @@ components:
             - tarot-json
             - patternlike-export
             - pixel-json
+        source:
+          type: object
+          properties:
+            namespaceId:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            revision:
+              type: string
+              pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+          required:
+            - namespaceId
+            - revision
+          additionalProperties: false
+        recovery:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: none
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: new_revision
+                previousSource:
+                  type: object
+                  properties:
+                    namespaceId:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    revision:
+                      type: string
+                      pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                  required:
+                    - namespaceId
+                    - revision
+                  additionalProperties: false
+              required:
+                - kind
+                - previousSource
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: reimport_erased
+                previousSource:
+                  type: object
+                  properties:
+                    namespaceId:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    revision:
+                      type: string
+                      pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                  required:
+                    - namespaceId
+                    - revision
+                  additionalProperties: false
+              required:
+                - kind
+                - previousSource
+              additionalProperties: false
         document:
           type: string
           maxLength: 200000
       required:
         - format
+        - source
+        - recovery
         - document
       additionalProperties: false
     ImportCommit:
@@ -10148,8 +10879,69 @@ components:
             type: integer
             minimum: 0
             maximum: 99
+        previewHash:
+          type: string
+          pattern: ^[a-f0-9]{64}$
+        confirmedRecovery:
+          oneOf:
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: none
+              required:
+                - kind
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: new_revision
+                previousSource:
+                  type: object
+                  properties:
+                    namespaceId:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    revision:
+                      type: string
+                      pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                  required:
+                    - namespaceId
+                    - revision
+                  additionalProperties: false
+              required:
+                - kind
+                - previousSource
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  const: reimport_erased
+                previousSource:
+                  type: object
+                  properties:
+                    namespaceId:
+                      type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    revision:
+                      type: string
+                      pattern: ^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$
+                  required:
+                    - namespaceId
+                    - revision
+                  additionalProperties: false
+              required:
+                - kind
+                - previousSource
+              additionalProperties: false
       required:
         - indices
+        - previewHash
+        - confirmedRecovery
       additionalProperties: false
     DeleteRequest:
       type: object

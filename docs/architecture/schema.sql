@@ -282,26 +282,29 @@ CREATE TABLE import_items (
 );
 CREATE TABLE import_identities (
   owner_id TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
-  source_key_hmac TEXT NOT NULL, original_hmac TEXT NOT NULL, session_id TEXT,
+  source_key_hmac TEXT NOT NULL, source_entity_hmac TEXT NOT NULL, original_hmac TEXT NOT NULL, session_id TEXT,
   entity_kind TEXT NOT NULL CHECK(entity_kind IN('session','edition','reflection_revision','revisit','receipt','permission','grant')),
   edition_id TEXT, reflection_id TEXT, reflection_revision INTEGER, revisit_id TEXT,
-  source_record_enc TEXT, key_version INTEGER NOT NULL,
+  source_record_enc TEXT, key_version INTEGER NOT NULL, erased_at INTEGER,
   PRIMARY KEY(owner_id,source_key_hmac),
   FOREIGN KEY(owner_id,session_id) REFERENCES reading_sessions(owner_id,id) ON DELETE CASCADE,
   FOREIGN KEY(owner_id,edition_id) REFERENCES reading_editions(owner_id,id),
   FOREIGN KEY(owner_id,reflection_id,reflection_revision) REFERENCES reflection_revisions(owner_id,reflection_id,revision),
   FOREIGN KEY(owner_id,revisit_id) REFERENCES revisits(owner_id,id),
   FOREIGN KEY(owner_id,key_version) REFERENCES account_keys(owner_id,version),
-  CHECK(entity_kind NOT IN('session','edition','reflection_revision','revisit') OR session_id IS NOT NULL),
-  CHECK((entity_kind='edition')=(edition_id IS NOT NULL)),
-  CHECK((entity_kind='reflection_revision' AND reflection_id IS NOT NULL AND reflection_revision IS NOT NULL) OR
+  CHECK(erased_at IS NOT NULL OR entity_kind NOT IN('session','edition','reflection_revision','revisit') OR session_id IS NOT NULL),
+  CHECK(erased_at IS NOT NULL OR (entity_kind='edition')=(edition_id IS NOT NULL)),
+  CHECK(erased_at IS NOT NULL OR (entity_kind='reflection_revision' AND reflection_id IS NOT NULL AND reflection_revision IS NOT NULL) OR
     (entity_kind!='reflection_revision' AND reflection_id IS NULL AND reflection_revision IS NULL)),
-  CHECK((entity_kind='revisit')=(revisit_id IS NOT NULL))
+  CHECK(erased_at IS NOT NULL OR (entity_kind='revisit')=(revisit_id IS NOT NULL)),
+  CHECK(erased_at IS NULL OR (source_record_enc IS NULL AND session_id IS NULL AND edition_id IS NULL
+    AND reflection_id IS NULL AND reflection_revision IS NULL AND revisit_id IS NULL))
 );
+CREATE INDEX import_erased_identity ON import_identities(owner_id,source_entity_hmac,erased_at);
 CREATE TABLE deletion_jobs (
   id TEXT PRIMARY KEY NOT NULL, owner_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
   scope TEXT NOT NULL CHECK(scope IN('account','session','reflection_revision','context_copy')),
-  target_hmac TEXT NOT NULL, target_enc TEXT, receipt_token_hash TEXT NOT NULL UNIQUE,
+  target_hmac TEXT NOT NULL, target_enc TEXT, receipt_token_hash TEXT UNIQUE,
   state TEXT NOT NULL CHECK(state IN('fencing','ledger_pending','erasing','complete')),
   ledger_key TEXT NOT NULL UNIQUE, attempts INTEGER NOT NULL DEFAULT 0 CHECK(attempts>=0),
   next_run_at INTEGER NOT NULL, created_at INTEGER NOT NULL, completed_at INTEGER, backup_expires_by INTEGER

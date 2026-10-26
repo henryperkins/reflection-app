@@ -19,8 +19,9 @@ def seed():
  d.execute("insert into basis_snapshots values('basis',?,'session','tarot.v1',1,'cipher',1,0)",(A,))
  d.execute("""insert into generation_requests(id,owner_id,session_id,client_intent_id,basis_id,operation,payload_hmac,state,run_epoch,lease_token,lease_expires_at,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,created_at,expires_at)
  values('request',?,'session','intent','basis','initial','payload','validating',1,'lease',5000,0,1,1,?,1,?,'cipher','cipher','plan',0,99999)""",(A,H,POL))
+ d.execute("UPDATE generation_requests SET lease_expires_at=CAST(unixepoch('subsec')*1000 AS INTEGER)+60000, expires_at=CAST(unixepoch('subsec')*1000 AS INTEGER)+180000")
  return d
-params={'request_id':'request','owner_id':A,'key_version':1,'run_epoch':1,'lease_token':'lease','now':1000,'expected_state':'validating','plan_hmac':'plan','context_count':0}
+params={'request_id':'request','owner_id':A,'key_version':1,'run_epoch':1,'lease_token':'lease','expected_state':'validating','plan_hmac':'plan','context_count':0}
 def ok(name,f):f();checks.append(name)
 def rejects(d,sql,args=()):
  try:d.execute(sql,args)
@@ -32,12 +33,35 @@ for name,sql in [
  ('cancelled request',"update generation_requests set state='cancelled'"),
  ('stale run','update generation_requests set run_epoch=2'),
  ('expired lease','update generation_requests set lease_expires_at=999'),
+ ('expired absolute request','update generation_requests set expires_at=999'),
  ('key rotation','update accounts set key_version=2'),
  ('account deletion',"update accounts set status='deleting'"),
  ('content withdrawn',"update content_editions set state='withdrawn'"),
  ('missing selected row','update generation_requests set context_count=1'),
 ]:
  d=seed();d.execute(sql);rejects(d,guard,params);checks.append(name)
+# Worker sampled eligibility before the deadline; the unchanged SQL executes later.
+# No sleep or alternate guard: both deadlines are in the actual database clock's past.
+d=seed();execution_now=d.execute("SELECT CAST(unixepoch('subsec')*1000 AS INTEGER)").fetchone()[0]
+worker_now=execution_now-60000;deadline=execution_now-1000
+assert worker_now<deadline<execution_now
+d.execute('UPDATE generation_requests SET lease_expires_at=?, expires_at=?',(deadline,deadline))
+rejects(d,guard,{**params,'now':worker_now}) # Extra legacy binding cannot authorize publication.
+checks.append('stale worker timestamp cannot authorize expired publication')
+# Freeze only the clock for the exact equality boundary; use the same guard SQL.
+d=seed();d.create_function('unixepoch',1,lambda modifier:2000.0)
+d.execute('UPDATE generation_requests SET lease_expires_at=2000000, expires_at=2000000')
+rejects(d,guard,params);checks.append('deadline equality rejects publication')
+d=seed();d.execute('UPDATE generation_requests SET lease_expires_at=2000000, expires_at=2000000')
+d.execute('begin')
+d.execute("insert into reading_editions values('late',?,'session',1,'request','basis',NULL,'accepted','model','cipher',1,?,0,NULL)",(A,H))
+d.create_function('unixepoch',1,lambda modifier:2001.0)
+try:
+ d.execute(guard,params)
+except sqlite3.IntegrityError:d.execute('rollback')
+else:raise AssertionError('late publication guard must abort')
+assert d.execute('select count(*) from reading_editions').fetchone()[0]==0
+checks.append('execution-time expiry rolls back a preceding edition insert')
 d=seed();rejects(d,"insert into content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at) values(?,'approved','{}',NULL,'human_approved','synthetic','cleared',0,0)",(H2,));checks.append('null reviewed hash rejected')
 d=seed();rejects(d,"insert into basis_snapshots values('bad',?,'session','tarot.v1',1,'cipher',1,0)",(B,));checks.append('cross-owner basis FK rejected')
 d=seed();rejects(d,"insert into generation_requests select 'other',owner_id,session_id,client_intent_id,parent_edition_id,basis_id,operation,payload_hmac,state,revision,run_epoch,lease_token,lease_expires_at,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,context_count,next_event,error_code,fallback_reason,created_at,expires_at,finished_at from generation_requests");checks.append('duplicate intent rejected')
@@ -62,6 +86,17 @@ for relation in ('parent','selected'):
  d.execute("update content_editions set state='withdrawn' where hash=?",(H,));rejects(d,guard,p);checks.append(relation+' old-content withdrawal guarded')
  d.execute('delete from accounts where id=?',(A,));assert not d.execute('pragma foreign_key_check').fetchall();checks.append(relation+' populated account cascade')
 d=seed();d.execute("insert into quota_buckets values(?,'day:2026-10-26',3,2,1)",(A,));rejects(d,'update quota_buckets set held=held+1');checks.append('quota bound enforced')
+d=seed()
+d.execute("INSERT INTO import_identities(owner_id,source_key_hmac,source_entity_hmac,original_hmac,session_id,entity_kind,source_record_enc,key_version) VALUES(?,'source-key','source-entity','original','session','session','private-original',1)",(A,))
+rejects(d,"UPDATE import_identities SET erased_at=1000")
+checks.append('erased import alias rejects retained private body or entity link')
+d.execute("UPDATE import_identities SET erased_at=1000, source_record_enc=NULL, session_id=NULL")
+d.execute("DELETE FROM reading_sessions WHERE id='session'")
+assert d.execute("SELECT source_key_hmac,source_entity_hmac,erased_at FROM import_identities").fetchone()==('source-key','source-entity',1000)
+assert not d.execute('pragma foreign_key_check').fetchall()
+checks.append('detached erased alias survives source deletion')
+rejects(d,"INSERT INTO import_identities(owner_id,source_key_hmac,source_entity_hmac,original_hmac,entity_kind,key_version,erased_at) VALUES(?,'source-key','source-entity','changed','session',1,1000)",(A,))
+checks.append('erased source key still prevents duplicate alias insertion')
 registry=json.loads((root/'COLUMN_REGISTRY.json').read_text())['tables'];d=new()
 actual={r[0] for r in d.execute("select name from sqlite_master where type='table'")};assert actual==set(registry)
 for t in actual:

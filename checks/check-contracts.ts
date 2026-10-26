@@ -29,4 +29,6 @@ assert.equal(envelope.aadRevision,1);
 const opened=await webcrypto.subtle.decrypt({name:'AES-GCM',iv:nonce,additionalData:aad},key,encrypted);
 assert.equal(new TextDecoder().decode(opened),'SYNTHETIC_PRIVATE_MARKER');
 await assert.rejects(()=>webcrypto.subtle.decrypt({name:'AES-GCM',iv:nonce,additionalData:new TextEncoder().encode('other-owner')},key,encrypted));
+await import('./check-recovery.ts');
+await import('./check-imports.ts');
 console.log(`Contract schemas and representative payloads passed; ${corpus.cases.length} corpus records well formed; AES-GCM AAD property passed. No semantic validator/provider exercised.`);

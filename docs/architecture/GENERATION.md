@@ -29,7 +29,7 @@ All transitions use a single D1 batch containing guard assertions, state mutatio
 | fallback_pending → published | Driver creates deterministic result, validates template and invokes publication guard. | Template releases product quota; actual/uncertain provider cost is retained. |
 | any nonterminal → cancelled | Owner cancel with CAS (or deleting account/source invalidation service). Increment revision/run_epoch, clear lease; release held quota once; STOPPED event. | Immediate DB fence. Abort local fetch best effort; remote execution may continue. |
 | any nonterminal → blocked | Current permission/source/key/account/input/content eligibility lost, sensitive or unsupported input, invalid mandatory plan. | No template. Release product quota; retain provider cost. Exact error determines whether new user action is required. |
-| any nonterminal → expired | Cron at absolute deadline (or local driver before transition); fence run and release quota. | No late publication; no automatic new request. |
+| any nonterminal → expired | Cron at absolute deadline (or local driver before transition); fence run and release quota. | No authorization at or beyond the database-clock deadline; no automatic new request. |
 | any nonterminal → failed | Nonrecoverable internal failure, three local attempts exhausted, or deterministic template fails. | Release held quota once; alert aggregate error. |
 
 Nonterminal includes `uncertain`; terminal states are `published,cancelled,expired,blocked,failed`. Polling may briefly show uncertain while deciding a template, never “failed” followed silently by success. Terminal success cannot transition back; later content withdrawal/deletion changes edition availability rather than rewriting request success. Delivered is a client observation, not a new generation state. The accepted event and GET suffice; lost delivery does not refund or regenerate.
@@ -37,6 +37,10 @@ Nonterminal includes `uncertain`; terminal states are `published,cancelled,expir
 Cron runs each minute, scans due indexed rows (20/run), claims at most four concurrently, skips leases not expired, and ends within 50 s wall / 25 s CPU. If overlapping Cron or fast wakes occur, CAS wins one lease. A pre-dispatch expired lease can be reclaimed; any existing dispatch authorization suppresses another external call. At most three local epochs, then fail/expire. Missed scheduler invocations are detected by oldest due age; scheduler reliability is a launch proof, not an assumption of exact delivery. Backlog admission returns 503 with Retry-After when oldest queued age >60 s or 100 pending requests globally.
 
 ## Transaction assertions and critical pseudocode
+
+Deadline eligibility uses `CAST(unixepoch('subsec') * 1000 AS INTEGER)` **inside the authoritative SQL statement**, with strict `lease_expires_at > database_now` and `expires_at > database_now`. Equality is expired. A bound Worker timestamp is never authority, even if sampled immediately before `batch()`. [SQLite's date/time contract](https://www.sqlite.org/lang_datefunc.html) provides subsecond Unix time and a consistent current-time value within a statement. Qualify this expression in the pinned workerd/D1 runtime; a missing/null clock fails closed. Worker clocks may drive polling and abort timers only.
+
+For both dispatch and publication, execute the eligibility assertion immediately before the authorization state update in the same transaction; assert the update's row count. Earlier inserts/reservations roll back if the final assertion fails. That execution-time check is the deadline boundary. It does not promise that commit visibility, the HTTP acknowledgement or the already-authorized external call occurs before the deadline. A delayed batch starting after expiry cannot authorize; a lost/late acknowledgement still requires reading authoritative state. Derive admission expiry and lease creation/renewal from the same database clock, and repeat deadline predicates on the authorization update so time crossing between statements also rejects the update.
 
 `guardCurrent` means the predicates in [publication_guard.sql](publication_guard.sql), with the expected stage substituted as described below; it is **inside** the write batch. It checks account status/write fence/current key, current permission, parent and basis, every selected grant/source, plan identity, content policy and release eligibility, run token/lease/deadline, and configured provider policy. Captured context_count must equal the actual snapshot row count and the validated plan selection count; fragment_hmac values must match the locally validated plan in ordinal order. Parent/selected native reading content must also remain eligible even when the new request uses a newer content edition. For prepare/start, the missing basis/plan checks are replaced by validation of the captured source versions and input. For dispatch the permitted state is exactly `prepared`; the plan/basis/source clauses are identical. Dispatch additionally requires system_state.dispatch_mode=model. outage_template permits only the enumerated OUTAGE template; off denies new work with DEPENDENCY_UNAVAILABLE or SPEND_LIMIT. generation_enabled=0 is a full publication/admission kill switch. No caller-provided SQL or field names.
 
@@ -59,7 +63,7 @@ start(principal, key, input):
   schedule ctx.waitUntil(drive(requestId)); return 202 IDs (never candidate)
 
 drive/dispatch(requestId):
-  batch CAS-claim eligible due request; increment run_epoch; lease=now+30s; create attempt
+  batch CAS-claim eligible due request; increment run_epoch; lease=database_now+30s; create attempt
   if any dispatch exists: recover durable response/uncertainty; NEVER call writer again
   construct/restore basis, complete prepared plan, prompt projection; persist with guard
   bound all bytes/tokens and validate input/topic/content; required overflow -> blocked INPUT_TOO_LARGE
@@ -67,7 +71,9 @@ drive/dispatch(requestId):
     reserve worst-case $0.04 in UTC day/month spend buckets; assert both within ceilings
     assert global active dispatch count <10 and no prior dispatch
     insert provider_dispatches authorized with exact encrypted request bytes + HMAC
-    insert cost_reservation; update request dispatching; assert changes()=1; event WRITING
+    insert cost_reservation
+    repeat dispatch guard immediately before state update, using the database execution clock
+    update request dispatching WHERE both deadlines > database_now; assert changes()=1; event WRITING
   immediately call provider once, no SDK retry, redirects disabled, hard 18s abort
   classify transport response; bounded decrypt/validate of received data is local
   persist received response + usage with same fence; reconcile cost even if candidate rejected
@@ -78,14 +84,15 @@ complete/publish(request, candidateOrTemplate):
   if primary request is published: authorize owner and return existing edition
   locally validate complete artifact; encrypt reading with the observed current key version
   batch:
-    execute publication_guard.sql with :expected_state validating OR fallback_pending
     assert artifact IDs, plan HMAC and key version agree with request (local validated values bound)
     insert edition with UNIQUE(request_id), next MAX(edition_number)+1 scoped to owned session
     assert quota reservation is held
     update reservation to consumed for model, released for template; assert changes()=1
     decrement held in original day/month buckets; increment consumed only for model; assert changes()=2
     insert unique quota consume/release event
-    update request published, finished_at, clear lease, revision++; assert changes()=1
+    execute publication_guard.sql with :expected_state validating OR fallback_pending
+    update request published, finished_at=database_now, clear lease, revision++
+      WHERE both deadlines > database_now; assert changes()=1
     insert ACCEPTED event with next_event; increment next_event and account.data_revision/storage_bytes
   on uncertain DB response: reread primary by request_id; retry only if not published and fence still live
   return only after committed batch; HTTP disconnect has no effect on accepted record

@@ -1,5 +1,6 @@
--- Run as the FIRST statement of the publication D1 batch, not as a prior read.
--- Every parameter is computed by the service; :now is trusted UTC epoch ms.
+-- Run inside the publication D1 batch, immediately before the published-state
+-- update. Earlier statements roll back on failure; a prior read is insufficient.
+-- Deadline authority is the database execution clock, never a bound worker time.
 -- Failure deliberately violates CHECK(ok=1), rolling back the whole batch.
 INSERT INTO assertion_probe(ok)
 SELECT 0
@@ -19,7 +20,8 @@ WHERE NOT EXISTS (
     AND a.permission_revision=r.permission_revision AND p.model_allowed=1
     AND s.status IN('open','saved') AND b.body_enc IS NOT NULL
     AND r.run_epoch=:run_epoch AND r.lease_token=:lease_token
-    AND r.lease_expires_at>:now AND r.expires_at>:now
+    AND r.lease_expires_at>CAST(unixepoch('subsec') * 1000 AS INTEGER)
+    AND r.expires_at>CAST(unixepoch('subsec') * 1000 AS INTEGER)
     AND r.state=:expected_state AND r.state IN('validating','fallback_pending')
     AND r.plan_hmac=:plan_hmac AND r.plan_enc IS NOT NULL
     AND r.context_count=:context_count

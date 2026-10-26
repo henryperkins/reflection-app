@@ -1,6 +1,8 @@
-# Reflection — proposed architecture, revision 1
+# Reflection — proposed architecture, revision 2
 
 Prepared 2026-10-26. **Specification only. No application, hosted infrastructure, model qualification, live migration, or deployment has been implemented or proven.** “Reflection” is a neutral working name. The three predecessors are retired as foundations by owner decision.
+
+Revision2 resolves the review of e505ca3: database-clock deadline eligibility, independent encrypted erasure targets and completion revisions, explicit import source/recovery identity, and bounded history previews. These are refinements to the pre-implementation v1 contracts; the architecture and milestone scope remain as specified.
 
 ## Reading order and authority
 

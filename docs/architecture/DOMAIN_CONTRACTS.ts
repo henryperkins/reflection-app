@@ -151,8 +151,19 @@ export const LegacyBasis = z.strictObject({method:z.enum(['tarot','astrology','u
   sourceIds:z.array(z.string()).max(100), rawBasisJson:JsonText.nullable(),
   verification:z.literal('legacy_unverified'),
 });
+export const ImportSource = z.strictObject({namespaceId:Id,
+  revision:z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$/)});
+export const ImportRecordIdentity = z.strictObject({source:ImportSource,
+  kind:z.enum(['session','reading','reflection','revisit','generation_receipt','permission','grant']),
+  recordId:z.string().min(1).max(200),recordRevision:Revision});
+export const ImportRecovery = z.discriminatedUnion('kind',[
+  z.strictObject({kind:z.literal('none')}),
+  z.strictObject({kind:z.literal('new_revision'),previousSource:ImportSource}),
+  z.strictObject({kind:z.literal('reimport_erased'),previousSource:ImportSource}),
+]);
 export const LegacyRecord = z.strictObject({ format:z.literal('reflection-import.v1'),
-  source:z.enum(['tarot','patternlike','pixel-perfect','successor']), originalId:z.string().min(1).max(200),
+  identity:ImportRecordIdentity,parentIdentity:ImportRecordIdentity.nullable(),
+  source:z.enum(['tarot','patternlike','pixel-perfect','successor']), originalId:z.string().min(1).max(200).nullable(),
   originalParentId:z.string().max(200).nullable(), originalTimestamp:z.string().max(200).nullable(),
   occurredAt:Instant.nullable(), question:z.string().max(10000).nullable(),
   generatedText:z.string().max(30000).nullable(),
@@ -208,9 +219,10 @@ export const AuthResult = z.strictObject({subjectId:Id,csrfToken:Base64url,recov
 export const SessionView = z.strictObject({subjectId:Id,csrfToken:Base64url,permission:Permission,
   remainingDay:z.number().int().min(0),remainingMonth:z.number().int().min(0),recentAuthUntil:Instant});
 export const SessionRecord = z.strictObject({id:Id,revision:Revision,status:z.enum(['open','saved']),
-  question:z.string(),editionIds:z.array(Id),reflectionIds:z.array(Id),savedAt:Instant.nullable(),createdAt:Instant,
+  question:z.string().max(10000).nullable(),editionIds:z.array(Id),reflectionIds:z.array(Id),savedAt:Instant.nullable(),createdAt:Instant,
   requests:z.array(z.strictObject({requestId:Id,state:RequestState})).max(51)});
-export const HistoryItem = z.strictObject({id:Id,revision:Revision,question:z.string().max(500),
+export const HistoryItem = z.strictObject({id:Id,revision:Revision,questionPreview:z.string().max(500).nullable(),
+  questionTruncated:z.boolean(),
   createdAt:Instant,savedAt:Instant.nullable(),latestEditionId:Id.nullable(),requestId:Id.nullable(),imported:z.boolean()});
 export const HistoryPage = z.strictObject({items:z.array(HistoryItem).max(50),nextCursor:z.string().nullable()});
 export const ExportTicket = z.strictObject({id:Id,snapshotRevision:Revision,expiresAt:Instant});
@@ -220,24 +232,26 @@ export const GenerationReceipt = z.strictObject({requestId:Id,state:RequestState
   actualCostMicroUsd:z.number().int().nullable(),costState:z.enum(['none','reserved','actual','unknown','expired']),
   transmission:JsonText.nullable(),reproduction:z.enum(['complete','redacted','legacy_unknown'])});
 export const PortableRecord = z.discriminatedUnion('kind',[
-  z.strictObject({kind:z.literal('session'),originalId:z.string(),value:SessionRecord}),
-  z.strictObject({kind:z.literal('reading'),originalId:z.string(),value:Reading}),
-  z.strictObject({kind:z.literal('reflection'),originalId:z.string(),value:Reflection}),
-  z.strictObject({kind:z.literal('revisit'),originalId:z.string(),value:Revisit}),
-  z.strictObject({kind:z.literal('generation_receipt'),originalId:z.string(),value:GenerationReceipt}),
-  z.strictObject({kind:z.literal('permission'),originalId:z.string(),value:Permission}),
-  z.strictObject({kind:z.literal('grant'),originalId:z.string(),value:Grant}),
+  z.strictObject({kind:z.literal('session'),identity:ImportRecordIdentity,originalId:z.string(),value:SessionRecord}),
+  z.strictObject({kind:z.literal('reading'),identity:ImportRecordIdentity,originalId:z.string(),value:Reading}),
+  z.strictObject({kind:z.literal('reflection'),identity:ImportRecordIdentity,originalId:z.string(),value:Reflection}),
+  z.strictObject({kind:z.literal('revisit'),identity:ImportRecordIdentity,originalId:z.string(),value:Revisit}),
+  z.strictObject({kind:z.literal('generation_receipt'),identity:ImportRecordIdentity,originalId:z.string(),value:GenerationReceipt}),
+  z.strictObject({kind:z.literal('permission'),identity:ImportRecordIdentity,originalId:z.string(),value:Permission}),
+  z.strictObject({kind:z.literal('grant'),identity:ImportRecordIdentity,originalId:z.string(),value:Grant}),
 ]);
 export const ExportPage = z.strictObject({format:z.literal('reflection-export.v1'),exportId:Id,
   snapshotRevision:Revision,records:z.array(PortableRecord).max(100),nextCursor:z.string().nullable(),
   exportedAt:Instant,
   account:z.strictObject({subjectId:Id,createdAt:Instant,credentials:z.array(z.strictObject({id:Base64url,
     createdAt:Instant,backedUp:z.boolean()})).max(10)}).nullable()});
-export const ImportPreview = z.strictObject({id:Id,expiresAt:Instant,
-  items:z.array(z.strictObject({index:z.number().int().min(0),status:z.enum(['ready','duplicate','conflict','invalid']),
-    originalId:z.string().nullable(),error:z.string().nullable()})).max(100)});
+export const ImportPreview = z.strictObject({id:Id,expiresAt:Instant,source:ImportSource,
+  recovery:ImportRecovery,previewHash:Hash,
+  items:z.array(z.strictObject({index:z.number().int().min(0),status:z.enum(['ready','duplicate','conflict','erased','invalid']),
+    identity:ImportRecordIdentity.nullable(),originalId:z.string().nullable(),error:z.string().nullable()})).max(100)});
 export const ImportResult = z.strictObject({id:Id,items:z.array(z.strictObject({index:z.number().int().min(0),
-  status:z.enum(['imported','duplicate','failed']),sessionId:Id.nullable(),errorCode:ErrorCode.nullable()})).max(100)});
+  identity:ImportRecordIdentity.nullable(),status:z.enum(['imported','duplicate','failed']),
+  sessionId:Id.nullable(),errorCode:ErrorCode.nullable()})).max(100)});
 export const DeletionReceipt = z.strictObject({receiptId:Id,receiptToken:Base64url,
   state:z.enum(['fencing','ledger_pending','erasing','complete']),backupExpiresBy:Instant.nullable()});
 
@@ -266,8 +280,9 @@ export const apiSchemas = {
   Revisit,
   RevisitPage:z.strictObject({items:z.array(Revisit).max(50),nextCursor:z.string().nullable()}),
   ImportWrite:z.strictObject({format:z.enum(['reflection-import.v1','reflection-export.v1','tarot-json','patternlike-export','pixel-json']),
-    document:JsonText}),
-  ImportCommit:z.strictObject({indices:z.array(z.number().int().min(0).max(99)).min(1).max(100)}),
+    source:ImportSource,recovery:ImportRecovery,document:JsonText}),
+  ImportCommit:z.strictObject({indices:z.array(z.number().int().min(0).max(99)).min(1).max(100),
+    previewHash:Hash,confirmedRecovery:ImportRecovery}),
   DeleteRequest:z.strictObject({receiptId:Id,receiptToken:z.string().regex(/^[A-Za-z0-9_-]{43}$/)}),
   DeletionStatus:z.strictObject({state:DeletionReceipt.shape.state,backupExpiresBy:Instant.nullable()}),
 } as const;
@@ -327,13 +342,27 @@ export interface PortabilityService {
   createExport(p:Principal,key:string):Promise<z.infer<typeof ExportTicket>>;
   exportPage(p:Principal,id:string,cursor:string|null):Promise<z.infer<typeof ExportPage>>;
   previewImport(p:Principal,key:string,input:z.infer<typeof apiSchemas.ImportWrite>):Promise<z.infer<typeof ImportPreview>>;
-  commitImport(p:Principal,id:string,key:string,indices:number[]):Promise<z.infer<typeof ImportResult>>;
+  commitImport(p:Principal,id:string,key:string,input:z.infer<typeof apiSchemas.ImportCommit>):Promise<z.infer<typeof ImportResult>>;
 }
+export const LedgerKeyId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+export const RecoveryCiphertext = z.strictObject({v:z.literal(1),alg:z.literal('A256GCM'),
+  keyId:LedgerKeyId,nonce:Base64url,data:Base64url.max(8192)});
+export const ErasureTarget = z.discriminatedUnion('scope',[
+  z.strictObject({scope:z.literal('account'),subjectId:Id}),
+  z.strictObject({scope:z.literal('session'),subjectId:Id,sessionId:Id}),
+  z.strictObject({scope:z.literal('reflection_revision'),subjectId:Id,reflectionId:Id,revision:Revision}),
+  z.strictObject({scope:z.literal('context_copy'),subjectId:Id,source:Grant.shape.source}),
+]);
 export const ErasureIntent = z.strictObject({v:z.literal(1),jobId:Id,
   scope:z.enum(['account','session','reflection_revision','context_copy']),subjectHmac:Hash,targetHmac:Hash,
+  hmacKeyId:LedgerKeyId,target:RecoveryCiphertext,receiptTokenHmac:Hash.nullable(),
   requestedAt:Instant,operationMac:Hash});
-export const ErasureCompletion = z.strictObject({v:z.literal(1),jobId:Id,erasedAt:Instant,
-  backupExpiresBy:Instant,purgeAfter:Instant,intentSha256:Hash,operationMac:Hash});
+export const ErasurePass = z.strictObject({v:z.literal(1),jobId:Id,revision:Revision,
+  intentSha256:Hash,previousCompletionSha256:Hash.nullable(),startedAt:Instant,
+  hmacKeyId:LedgerKeyId,operationMac:Hash});
+export const ErasureCompletion = z.strictObject({v:z.literal(1),jobId:Id,revision:Revision,
+  passSha256:Hash,erasedAt:Instant,backupExpiresBy:Instant,purgeAfter:Instant,
+  intentSha256:Hash,hmacKeyId:LedgerKeyId,operationMac:Hash});
 export const IdentityCheckpoint = z.strictObject({v:z.literal(1),operationId:Id,subjectId:Id,epoch:Revision,
   createdAt:Instant,recoveryHandleHash:Hash,recoveryAcknowledgedAt:Instant.nullable(),
   credentials:z.array(z.strictObject({id:Base64url,publicKey:Base64url,signCount:z.number().int().min(0),
@@ -341,8 +370,12 @@ export const IdentityCheckpoint = z.strictObject({v:z.literal(1),operationId:Id,
   recoveryCodes:z.array(z.strictObject({codeHash:Hash,usedAt:Instant.nullable(),createdAt:Instant})).max(10)});
 export interface RecoveryLedger {
   putErasure(input:z.infer<typeof ErasureIntent>):Promise<void>; // conditional same-byte idempotency
+  beginErasurePass(input:z.infer<typeof ErasurePass>):Promise<void>;
   putIdentity(input:z.infer<typeof IdentityCheckpoint>):Promise<void>; // encrypt under independent recovery KEK
   completeErasure(input:z.infer<typeof ErasureCompletion>):Promise<void>;
+  listErasures(cursor:string|null):Promise<{objects:Array<{key:string;
+    value:z.infer<typeof ErasureIntent>|z.infer<typeof ErasurePass>|z.infer<typeof ErasureCompletion>}>;
+    nextCursor:string|null}>; // At most 100 objects/page; validate the complete per-job chain before replay/purge.
 }
 export interface ContentService {
   stage(bundle:z.infer<typeof ContentBundle>):Promise<{hash:string}>;

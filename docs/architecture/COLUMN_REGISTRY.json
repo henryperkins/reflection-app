@@ -823,7 +823,7 @@
           "export": "receipt status only"
         },
         "target_enc": {
-          "aadRule": "[env,deletion-target,id,scope,envelope.aadRevision,1,recoveryKeyVersion]",
+          "aadRule": "JCS([env,'erasure-target.v1',jobId,scope,subjectHmac,targetHmac,hmacKeyId,requestedAt,target.keyId]); same RecoveryCiphertext as R2 intent",
           "class": "E",
           "sqlType": "TEXT",
           "nullable": true,
@@ -834,7 +834,7 @@
           "aadRule": null,
           "class": "S",
           "sqlType": "TEXT",
-          "nullable": false,
+          "nullable": true,
           "default": null,
           "export": "never"
         },
@@ -1446,7 +1446,7 @@
     },
     "import_identities": {
       "retention": "with imported records; erased alias tombstone while account lives",
-      "erasure": "null source_record_enc on copy erasure; retain erased alias to prevent silent reimport; account cascade",
+      "erasure": "set erased_at; null body and entity FKs before deletion; retain both identity HMACs to prevent silent reimport; account cascade",
       "columns": {
         "owner_id": {
           "aadRule": null,
@@ -1533,6 +1533,22 @@
           "class": "M",
           "sqlType": "INTEGER",
           "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "source_entity_hmac": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "original source records decrypted; no keyed indexes"
+        },
+        "erased_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
           "default": null,
           "export": "original source records decrypted; no keyed indexes"
         }

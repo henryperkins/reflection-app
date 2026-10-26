@@ -15,7 +15,7 @@ npm run check:openapi
 python3 checks/check-package.py
 ```
 
-A fresh `npm ci` and every command above succeeded in this workspace during the completion check on 2026-10-26. Regenerating both schemas produced no diff from the committed artifacts. [RESULTS.json](../../checks/RESULTS.json) records the command outputs, including the separate dependency audit. Schema generation precedes the independent checks. `make-registry.py` and `make-corpus.py` are authoring helpers, deliberately outside verification: regenerating a registry cannot substitute for reviewing a new column's policy.
+The revision2 check reruns the commands above against the reviewed contracts and SQL. Regenerating the updated schemas must produce identical bytes; the intended OpenAPI changes carry the new import/history contracts, while the model-output schema is unchanged. [RESULTS.json](../../checks/RESULTS.json) records the current command outputs and separately retains the earlier dependency audit (not rerun for this patch). Schema generation precedes the independent checks. `make-registry.py` and `make-corpus.py` are authoring helpers, deliberately outside verification: regenerating a registry cannot substitute for reviewing a new column's policy.
 
 | Executed command / actual inputs | Actual result | What it does not establish |
 |---|---|---|
@@ -23,7 +23,8 @@ A fresh `npm ci` and every command above succeeded in this workspace during the 
 | `npm run check:contracts`: strict TypeScript and representative payloads | Type-check passed. Valid tarot/start/model fixtures, an unavailable reading and later astrology input parsed. Unknown model field, unsupported language and wrong basis discriminator were rejected. Every named API schema exported to JSON Schema. | A complete domain/semantic validator, browser compatibility or calculation correctness. |
 | Same contract command: `EVAL_CORPUS.json` | 60 unique case IDs with rationale/assertion metadata checked; shared baseline basis/candidate/start fixtures parsed. | The 60 expected outcomes were **not** executed against an implemented validator. No prose was promoted to human-approved status. |
 | Same command: disposable Web Crypto experiment | AES-256-GCM round trip succeeded with matching AAD; decryption with different owner-context AAD rejected; versioned envelope parsed. | The proposed encryption service, key rotation, entropy deployment, restore or entire field registry implementation. |
-| `npm run check:sql`: actual `schema.sql` and `publication_guard.sql` in in-memory SQLite | 36 tables, 307 columns; all 19 named assertions below passed. Fixed column registry exactly covered the schema. | Cloudflare D1 binding semantics, concurrent Worker execution, scheduled recovery or hosted rollback behavior. |
+| Same contract command: `check-recovery.ts` and `check-imports.ts` | Synthetic reference cases parse the actual ledger/import/history contracts, authenticate/decrypt independent targets, validate completion chains, and exercise identity/recovery/long-question projections. Detailed cases below. | Implemented D1/R2 replay, importer, history/reopen/export handlers or a live end-to-end journey. |
+| `npm run check:sql`: actual `schema.sql` and `publication_guard.sql` in in-memory SQLite | 36 tables, 309 columns; all 26 named assertions below passed. Fixed column registry exactly covered the schema. | Cloudflare D1 binding semantics, concurrent Worker execution, scheduled recovery or hosted rollback behavior. |
 | `npm run check:openapi`: actual generated YAML | Syntax, schema and references validated; all 37 operation IDs unique. | Correct HTTP handlers, cookie enforcement or end-to-end compatibility. |
 | `python3 checks/check-package.py`: supplied package | Required files and local Markdown links resolve; JSON artifacts parse; model projection uses closed objects with every property required. | Remote link permanence, legal clearance or model-quality guarantees. |
 
@@ -52,8 +53,28 @@ The clean install also reported two development-tool advisories. `npm audit --js
 17. Deleting an account with populated selected-edition relationships satisfies the actual cascade constraints.
 18. Quota held plus consumed exceeding allowance fails its CHECK.
 19. Table and column sets exactly match the fixed lifecycle registry.
+20. Expired absolute request deadline rejects publication independently of the lease.
+21. A worker timestamp from before the deadline cannot authorize SQL executing after both deadlines.
+22. Equality with the database-clock deadline rejects publication (clock frozen only for this boundary fixture).
+23. Execution-time expiry in the actual guard rolls back a preceding edition insert in the SQLite transaction.
+24. An erased import alias cannot retain a private body or entity FK.
+25. A detached erased alias survives deletion of its source session.
+26. The erased source key still rejects a duplicate alias insert.
 
 These are selected probes, not exhaustive tests of every enum, statement, race or retention process. The future workerd/hosted tests must use the same SQL and verify D1 `batch()` failure and rollback directly.
+
+## Focused resolution of the e505ca3 review
+
+Both reported reproductions were confirmed before editing: the old guard accepted expired deadlines with a stale :now; a501-unit question passed LegacyRecord and failed HistoryItem. The patch resolves all four findings without changing the architecture or implementation sequence:
+
+| Finding | Specification change and focused evidence |
+|---|---|
+| Stale publication timestamp | Guard now uses SQLite execution-time milliseconds. Dispatch/publication share strict deadline predicates, repeated on the final authorization update. Actual SQL checks cover stale time, absolute/lease expiry, equality and rollback. Hosted scheduling/clock behavior remains A07 qualification. |
+| Incomplete erasure replay/completion | Independent authenticated encrypted targets identify each scope without a D1 job. Immutable numbered passes/completions bind intent/previous-completion hashes, retain named older keys, and extend deadlines on restore. Synthetic reference checks cover a missing job, exact reflection revision/owner, missing and retained older keys, tampering, pending replay, reordered/gapped chains and two subsequent restores. No recovery service is claimed implemented. |
+| Unexpressible import recovery | ImportSource/ImportRecordIdentity/ImportRecovery appear in request, preview, commit and portable records. Confirmation is bound to previewHash; source-entity tombstones cannot be bypassed by a revision label. Reference cases cover identical/chunk-stable re-import, changed content, confirmed new revision, colliding dataset IDs, erasure after preview, explicit new namespace and preserved old tombstone. SQL checks exercise alias detachment/constraints. |
+| Imported question/history mismatch | HistoryItem has questionPreview/questionTruncated; SessionRecord and imported/exported records preserve full nullable text. Reference import → history → reopen → portable-export projections retain a501-unit question and Unicode boundary text exactly, with a bounded preview. Handler/browser execution remains milestone3 work. |
+
+The new TypeScript cases use synthetic in-memory reference state and local cryptography around the real schemas. They do not implement or qualify application services. The two added SQL columns and erasure-envelope policy were individually updated in the reviewed registry; the authoring generator was not used to fill coverage automatically.
 
 ## Independent review and resolution
 

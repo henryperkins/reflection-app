@@ -8,9 +8,13 @@ Deliverables: initialize strict TypeScript/Hono/React/Vite/Zod project, exact lo
 
 Acceptance: strict contracts parse, generated schema drift fails, registry catches a new private column, approved content with null review fails; owner FKs and quota bounds fail correctly; stale lease/permission/source/parent-content/key changes abort the entire publication batch; duplicate intent produces one request/dispatch/publication; all synthetic privacy markers stay within selection; deterministic composition uses exact same plan as model projection; source citations make only their stated guarantee. Gate completes under proposed9-minute deadline locally/hosted-image-equivalent measurements recorded. Outcomes from CHECK_RESULTS here are initial artifact checks, not completion of this milestone's application implementation.
 
+Deadline proof uses the database execution clock in dispatch/publication assertions and final state updates. Delay SQL past lease/absolute expiry after the worker's eligibility sample and verify the whole batch rolls back; equality is expired. A Worker abort or late acknowledgement never substitutes for that database predicate.
+
 ## Milestone 2 — first real-user slice
 
 Dependencies: milestone1, stable domain/RP ID, exact runtime and library compatibility, minimal reviewed/cleared launch canon, provider privacy/access/pricing confirmation. Build identity/recovery and checkpoint saga, server-readable encryption/index keys/write fences, same-origin sessions/CSRF, requests/quotas/spend/guarded publication, precise reading+basis/source UI, separately authored reflection+save/reopen, export/deletion and erasure ledger, accessible interruption/conflict/offline states. Implement default templates and non-reading outcomes with human-reviewed English copy. Global generation starts disabled.
+
+Implement SECURITY_RESTORE's independent encrypted targets and immutable pass/completion chain before the restore exercise. Include missing D1 jobs, exact revision erasure, retained older keys and repeated restore extending deadlines; pending passes prohibit cleanup.
 
 Rollout gates **before any real private persistence/provider egress**: working identity/ownership/privacy/export/delete; passkey/recovery/CSRF/cross-owner checks; intercepted egress proof; approved content/rights; bounded provider qualification under explicit separate authorization; hosted main failing-test proof and preview separation; D1 hosted batch/race proof; actual synthetic restore with erased record, used recovery code, removed credential and pre-dispatch bookmark; monitored pending jobs/erasure/security saga/spend; runbooks including incident, deletion lag and key recovery; manual keyboard/screen-reader/mobile/a11y checks. Owner selects geography/age policy and accepts budgets. Private pilot uses real identity/data only after all applicable gates; “small pilot” does not waive privacy obligations.
 
@@ -21,6 +25,8 @@ Pilot conditions: invitations/limited admission only if implemented as an explic
 Add keyset history and deliberate revisits, exact-parent follow-ups and source grants/list/preview/revoke, context-copy erasure, canonical/tarot selected legacy imports and aliases, portable metadata/tombstone export and import round trips. P exports may be preserved as unverified structured legacy records using the bounded adapter; native X adapter remains explicitly unsupported until its schema is inspected and fixtures added. Real legacy access is unnecessary: synthetic/versioned export fixtures prove behavior first.
 
 Acceptance: all R10/R11 cases, parent A/new content B withdrawal race, old reflection supersession, missing-provenance import, per-group partial failure and exact re-import idempotency; no automatic biography or permission restoration; history resumes pending sessions with nullable edition IDs; long permission/grant history exports page-by-page; deletion removes raw imported copies; current state and public error messages align. Repeat hosted restore proof only if schema/key/lifecycle changes affect it. Qualify selected-context prompt variant independently before enabling follow-ups.
+
+Implement stable source identities across chunks/exports, confirmed revision conflict recovery and explicit new-namespace re-import after erasure. Preserve full imported questions while history returns questionPreview/questionTruncated; verify the longer-than500-unit round trip and detached alias tombstones.
 
 ## Milestone 4 — later methods and commercial features
 
