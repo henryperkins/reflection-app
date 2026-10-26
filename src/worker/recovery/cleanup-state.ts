@@ -60,7 +60,8 @@ export class CleanupJournal {
       key = this.ledger.key(value.keyId);
     if (
       canonicalJson(value) !== raw ||
-      signature !== (await key.hash('cleanup-state.v1', [key.secrets.environment, unsigned]))
+      signature !==
+        (await key.recoveryHash('cleanup-state.v1', [key.secrets.environment, unsigned]))
     )
       throw new Error('Invalid cleanup state authentication');
     if (
@@ -85,7 +86,7 @@ export class CleanupJournal {
     };
     const value = State.parse({
       ...unsigned,
-      signature: await key.hash('cleanup-state.v1', [key.secrets.environment, unsigned]),
+      signature: await key.recoveryHash('cleanup-state.v1', [key.secrets.environment, unsigned]),
     });
     const raw = canonicalJson(value);
     if (new TextEncoder().encode(raw).length > CLEANUP_BYTES)

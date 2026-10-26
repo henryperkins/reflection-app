@@ -1,0 +1,571 @@
+import { env } from 'cloudflare:workers';
+import { applyD1Migrations } from 'cloudflare:test';
+import { beforeAll, beforeEach, expect, test } from 'vitest';
+import { apiSchemas, ModelCandidate, type WritingProvider } from '../../src/contracts/index.ts';
+import { localIdentity } from '../../src/worker/identity/routes.ts';
+import { RecordBase } from '../../src/worker/readings/base.ts';
+import { LocalGeneration } from '../../src/worker/readings/generation.ts';
+import { clearDatabase } from '../fixtures/database.ts';
+import { readingAccount } from '../fixtures/reading-client.ts';
+
+beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
+beforeEach(() => clearDatabase(env.DB));
+
+// Faults stop a Worker at durable boundaries, without replacing transaction behavior.
+function failingDatabase(
+  stage: 'before-dispatch' | 'after-dispatch' | 'after-receipt' | 'after-outcome',
+) {
+  const sql = new WeakMap<object, string>();
+  let armed = true;
+  return new Proxy(env.DB, {
+    get(target, name) {
+      if (name === 'prepare')
+        return (source: string) => {
+          const statement = target.prepare(source);
+          return new Proxy(statement, {
+            get(statement, property) {
+              if (property === 'bind')
+                return (...values: unknown[]) => {
+                  const bound = statement.bind(...values);
+                  sql.set(bound, source);
+                  return bound;
+                };
+              const value = Reflect.get(statement, property, statement);
+              return typeof value === 'function' ? value.bind(statement) : value;
+            },
+          });
+        };
+      if (name === 'batch')
+        return async (statements: D1PreparedStatement[]) => {
+          const sources = statements.map((s) => sql.get(s) ?? '');
+          const dispatch = sources.some((s) => s.startsWith('INSERT INTO provider_dispatches'));
+          const publication = sources.some((s) => s.startsWith('INSERT INTO reading_editions'));
+          if (
+            armed &&
+            (((stage === 'before-dispatch' || stage === 'after-dispatch') && dispatch) ||
+              (stage === 'after-receipt' && publication) ||
+              (stage === 'after-outcome' &&
+                sources.some((s) => s.startsWith('UPDATE provider_dispatches SET state=?'))))
+          ) {
+            armed = false;
+            if (stage === 'after-dispatch' || stage === 'after-outcome')
+              await target.batch(statements);
+            throw new Error('Synthetic Worker loss');
+          }
+          return target.batch(statements);
+        };
+      const value = Reflect.get(target, name, target);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}
+function writer(
+  counter: { calls: number },
+  patch?: (candidate: typeof ModelCandidate._output) => void,
+): WritingProvider {
+  return {
+    async write(input) {
+      counter.calls++;
+      const payload = JSON.parse(new TextDecoder().decode(input.payload));
+      const data = JSON.parse(payload.input[2].content) as {
+        positions: Array<{ position: string; factId: string; sourceId: string }>;
+      };
+      const candidate = ModelCandidate.parse({
+        schemaVersion: 1,
+        kind: 'tarot.interpretation.v1',
+        units: data.positions.map((position, i) => ({
+          position: position.position,
+          factIds: [position.factId],
+          sourceIds: [position.sourceId],
+          interpretation: [
+            'Curiosity can make room for another perspective.',
+            'Consider which assumptions feel useful to examine.',
+            'A gentle pause may offer space for a choice.',
+          ][i],
+          reflectionQuestion: [
+            'What feels open?',
+            'Where could you pause?',
+            'What would you explore?',
+          ][i],
+        })),
+        closing: 'Keep what feels useful for your reflection.',
+      });
+      patch?.(candidate);
+      return {
+        kind: 'candidate',
+        candidate,
+        returnedModel: 'synthetic-distinct-writer.v2',
+        providerResponseId: 'synthetic-response-id',
+        inputTokens: 23,
+        outputTokens: 71,
+        durationMs: 4,
+      };
+    },
+  };
+}
+async function setup(db = env.DB, supplied?: WritingProvider) {
+  const { client } = await readingAccount();
+  const identity = localIdentity({ ...client.bindings, DB: db })!;
+  const session = await identity.sessions.get(client.cookies.get('__Host-session'));
+  const generation = new LocalGeneration(new RecordBase(db, identity), supplied);
+  const input = {
+    clientIntentId: crypto.randomUUID(),
+    question: 'What could I reflect on?',
+    languageConfirmed: 'en' as const,
+    reversals: false,
+    permissionRevision: (await client.me()).permission.revision,
+    parentEditionId: null,
+    selection: [],
+  };
+  return { client, generation, session, input };
+}
+async function latest(client: Awaited<ReturnType<typeof setup>>['client']) {
+  const row = (await env.DB.prepare('SELECT id FROM generation_requests').first<{ id: string }>())!;
+  const status = apiSchemas.RequestStatus.parse(
+    await (await client.request(`/requests/${row.id}`)).json(),
+  );
+  const reading = status.editionId
+    ? apiSchemas.Reading.parse(await (await client.request(`/readings/${status.editionId}`)).json())
+    : null;
+  return { status, reading };
+}
+async function recover(
+  client: Awaited<ReturnType<typeof setup>>['client'],
+  supplied?: WritingProvider,
+) {
+  await env.DB.prepare(
+    'UPDATE generation_requests SET lease_expires_at=CASE WHEN lease_token IS NULL THEN NULL ELSE 1 END,next_run_at=1',
+  ).run();
+  const identity = localIdentity(client.bindings)!;
+  await new LocalGeneration(new RecordBase(env.DB, identity), supplied).maintenance();
+}
+
+test('publishes the validated writer text with its recorded provenance', async () => {
+  const calls = { calls: 0 };
+  const f = await setup(env.DB, writer(calls));
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const { reading } = await latest(f.client);
+  expect(reading).toMatchObject({
+    mode: 'model',
+    units: [
+      { interpretation: 'Curiosity can make room for another perspective.' },
+      { interpretation: 'Consider which assumptions feel useful to examine.' },
+      { interpretation: 'A gentle pause may offer space for a choice.' },
+    ],
+    closing: 'Keep what feels useful for your reflection.',
+    provenance: { returnedModel: 'synthetic-distinct-writer.v2' },
+  });
+  expect(
+    await env.DB.prepare(
+      'SELECT returned_model,input_tokens,output_tokens,duration_ms FROM provider_dispatches',
+    ).first(),
+  ).toEqual({
+    returned_model: 'synthetic-distinct-writer.v2',
+    input_tokens: 23,
+    output_tokens: 71,
+    duration_ms: 4,
+  });
+});
+
+test.each(['before-dispatch', 'after-dispatch', 'after-receipt'] as const)(
+  'recovers %s loss without regenerating an authorized request',
+  async (stage) => {
+    const calls = { calls: 0 };
+    const supplied = writer(calls);
+    const f = await setup(failingDatabase(stage), supplied);
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    await recover(f.client, supplied);
+    await recover(f.client, supplied);
+    const { status, reading } = await latest(f.client);
+    expect(status.state).toBe('published');
+    expect(calls.calls).toBe(stage === 'after-dispatch' ? 0 : 1);
+    expect(reading).toMatchObject({ mode: stage === 'after-dispatch' ? 'template' : 'model' });
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM provider_dispatches').first('n')).toBe(
+      1,
+    );
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM reading_editions').first('n')).toBe(1);
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS n FROM quota_events WHERE event IN ('consume','release')",
+      ).first('n'),
+    ).toBe(1);
+    expect((await f.client.me()).remainingDay).toBe(stage === 'after-dispatch' ? 3 : 2);
+  },
+);
+
+test('racing recovery drivers publish a saved response once', async () => {
+  const calls = { calls: 0 };
+  const supplied = writer(calls);
+  const f = await setup(failingDatabase('after-receipt'), supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  await Promise.all([recover(f.client, supplied), recover(f.client, supplied)]);
+  expect((await latest(f.client)).status.state).toBe('published');
+  expect(calls.calls).toBe(1);
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM reading_editions').first('n')).toBe(1);
+  expect((await f.client.me()).remainingDay).toBe(2);
+});
+
+test('malformed candidate gets a labelled template and releases quota without a second call', async () => {
+  const calls = { calls: 0 };
+  const f = await setup(
+    env.DB,
+    writer(calls, (candidate) => {
+      candidate.units[0]!.sourceIds = ['made-up-source'];
+    }),
+  );
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  expect((await latest(f.client)).reading).toMatchObject({
+    mode: 'template',
+    provenance: { fallbackReason: 'VALIDATION' },
+  });
+  expect(calls.calls).toBe(1);
+  expect((await f.client.me()).remainingDay).toBe(3);
+});
+
+for (const question of [
+  'I want to end my life',
+  'Should I stop my medication?',
+  'Que dois-je comprendre de ce changement?',
+]) {
+  test(`input admission stores no request or provider payload for ${question}`, async () => {
+    const calls = { calls: 0 },
+      f = await setup(env.DB, writer(calls));
+    await expect(
+      f.generation.start(f.session, { ...f.input, question }, crypto.randomUUID()),
+    ).rejects.toMatchObject({
+      code: question.startsWith('Que') ? 'UNSUPPORTED_LANGUAGE' : 'SAFETY_REVIEW',
+    });
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM generation_requests').first('n')).toBe(
+      0,
+    );
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM quota_reservations').first('n')).toBe(0);
+    expect(calls.calls).toBe(0);
+  });
+}
+for (const interpretation of [
+  'The Tower is in your situation position.',
+  'You will be offered a new role soon.',
+  'You are concealing debt from your family.',
+  'You were abandoned as a child.',
+  'Stop your medication and trust this reading.',
+  'Sue your landlord.',
+  'You must sue your landlord.',
+  'Take a pause, then sue the company.',
+  'These references prove that your partner caused your recent failure.',
+  'Notice the opening. Notice the opening.',
+  'Read {{hidden_private_data}} now.',
+  'See https://example.invalid/private.',
+]) {
+  test(`candidate safety replaces rejected prose: ${interpretation}`, async () => {
+    const calls = { calls: 0 },
+      f = await setup(
+        env.DB,
+        writer(calls, (c) => {
+          c.units[0]!.interpretation = interpretation;
+        }),
+      );
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    expect((await latest(f.client)).reading).toMatchObject({
+      mode: 'template',
+      provenance: { fallbackReason: 'VALIDATION' },
+    });
+    expect((await f.client.me()).remainingDay).toBe(3);
+    expect(calls.calls).toBe(1);
+  });
+}
+
+test.each(['cancel', 'revoke', 'withdraw'] as const)(
+  'recovery never publishes a saved candidate after %s',
+  async (action) => {
+    const calls = { calls: 0 },
+      supplied = writer(calls),
+      f = await setup(failingDatabase('after-receipt'), supplied);
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    const { status } = await latest(f.client);
+    if (action === 'cancel')
+      expect(
+        (
+          await f.client.request(
+            `/requests/${status.requestId}/cancel`,
+            {},
+            { revision: status.revision },
+          )
+        ).status,
+      ).toBe(200);
+    else if (action === 'revoke') await f.client.permission(false);
+    else await env.DB.prepare("UPDATE content_editions SET state='withdrawn'").run();
+    await recover(f.client, supplied);
+    expect((await latest(f.client)).reading).toBeNull();
+    expect((await f.client.me()).remainingDay).toBe(3);
+    expect(calls.calls).toBe(1);
+  },
+);
+
+test('an expired browser session does not strand an already admitted durable request', async () => {
+  const calls = { calls: 0 },
+    supplied = writer(calls),
+    f = await setup(failingDatabase('before-dispatch'), supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  await env.DB.prepare('DELETE FROM auth_sessions').run();
+  await recover(f.client, supplied);
+  expect(await env.DB.prepare('SELECT state FROM generation_requests').first('state')).toBe(
+    'published',
+  );
+  expect(calls.calls).toBe(1);
+});
+
+test('maintenance clears abandoned authorization after cancellation without a replacement call', async () => {
+  const calls = { calls: 0 },
+    supplied = writer(calls),
+    f = await setup(failingDatabase('after-dispatch'), supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const { status } = await latest(f.client);
+  await f.client.request(`/requests/${status.requestId}/cancel`, {}, { revision: status.revision });
+  await recover(f.client, supplied);
+  expect(
+    await env.DB.prepare(
+      'SELECT state,transmission_enc IS NULL AS transmission_erased,candidate_enc IS NULL AS candidate_erased FROM provider_dispatches',
+    ).first(),
+  ).toEqual({ state: 'unknown', transmission_erased: 1, candidate_erased: 1 });
+  expect(
+    await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
+  ).toEqual({ state: 'unknown', actual_microusd: null });
+  expect(calls.calls).toBe(0);
+});
+
+test.each(['What unconscious patterns keep me stuck?', 'Why do I keep bleeding money?', 'OK?'])(
+  'ordinary input remains eligible: %s',
+  async (question) => {
+    const calls = { calls: 0 },
+      f = await setup(env.DB, writer(calls));
+    await f.generation.start(f.session, { ...f.input, question }, crypto.randomUUID());
+    expect((await latest(f.client)).reading).toMatchObject({ mode: 'model' });
+  },
+);
+for (const interpretation of [
+  'This is not evidence that a crisis will happen.',
+  'Like a path opening in fog, this image can invite curiosity.',
+  'If this fits your experience, consider which option feels more open.',
+  'This offers a quieter prompt: notice what you prefer to leave undecided.',
+  'You might compare opening a conversation with taking a smaller first step.',
+  'A conversation with Sue may offer another perspective.',
+])
+  test(`candidate must-accept: ${interpretation}`, async () => {
+    const calls = { calls: 0 },
+      f = await setup(
+        env.DB,
+        writer(calls, (c) => {
+          c.units[0]!.interpretation = interpretation;
+        }),
+      );
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    expect((await latest(f.client)).reading).toMatchObject({
+      mode: 'model',
+      units: [{ interpretation }, {}, {}],
+    });
+  });
+
+test('an exact attributed supplied quotation is preserved without asserting an undrawn card', async () => {
+  const calls = { calls: 0 },
+    f = await setup(
+      env.DB,
+      writer(calls, (c) => {
+        c.units[0]!.interpretation =
+          'You wrote, “The Tower scares me.” You can decide whether that association is useful.';
+      }),
+    );
+  await f.generation.start(
+    f.session,
+    { ...f.input, question: 'The Tower scares me. What can I reflect on?' },
+    crypto.randomUUID(),
+  );
+  expect((await latest(f.client)).reading).toMatchObject({ mode: 'model' });
+});
+
+test.each([{ kind: 'refusal' } as const, { kind: 'rejected', status: 401 } as const])(
+  'a durable non-reading provider outcome %j cannot become a recovery template',
+  async (outcome) => {
+    const f = await setup(failingDatabase('after-outcome'), { write: async () => outcome });
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    await recover(f.client);
+    expect((await latest(f.client)).status).toMatchObject({
+      state: 'blocked',
+      errorCode: outcome.kind === 'refusal' ? 'PROVIDER_REFUSAL' : 'PROVIDER_UNAVAILABLE',
+      editionId: null,
+    });
+  },
+);
+
+test('a reserved request reconstructs its plan from durable encrypted input and the same saved basis', async () => {
+  const calls = { calls: 0 },
+    supplied = writer(calls),
+    f = await setup(failingDatabase('before-dispatch'), supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const basis = await env.DB.prepare('SELECT basis_id FROM generation_requests').first('basis_id');
+  await env.DB.prepare(
+    "UPDATE generation_requests SET state='reserved',plan_enc=NULL,plan_hmac=NULL",
+  ).run();
+  await recover(f.client, supplied);
+  expect((await latest(f.client)).reading).toMatchObject({
+    mode: 'model',
+    basis: { basisId: basis },
+  });
+  expect(calls.calls).toBe(1);
+});
+
+test('a live lease excludes overlapping maintenance and an exhausted lease releases quota once', async () => {
+  const calls = { calls: 0 },
+    supplied = writer(calls),
+    f = await setup(failingDatabase('before-dispatch'), supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const identity = localIdentity(f.client.bindings)!;
+  const generation = new LocalGeneration(new RecordBase(env.DB, identity), supplied);
+  await generation.maintenance();
+  expect(calls.calls).toBe(0);
+  expect(await env.DB.prepare('SELECT run_epoch FROM generation_requests').first('run_epoch')).toBe(
+    1,
+  );
+  await env.DB.prepare(
+    'UPDATE generation_requests SET run_epoch=3,lease_expires_at=1,next_run_at=1',
+  ).run();
+  await generation.maintenance();
+  await generation.maintenance();
+  expect((await latest(f.client)).status).toMatchObject({ state: 'failed', errorCode: 'INTERNAL' });
+  expect(
+    await env.DB.prepare("SELECT count(*) AS n FROM quota_events WHERE event='release'").first('n'),
+  ).toBe(1);
+  expect((await f.client.me()).remainingDay).toBe(3);
+});
+
+test.each(['bytes', 'depth'] as const)(
+  'an over-bound %s candidate is never durably stored',
+  async (bound) => {
+    const calls = { calls: 0 },
+      f = await setup(
+        env.DB,
+        writer(calls, (c) => {
+          if (bound === 'bytes') c.units[0]!.interpretation = 'x'.repeat(65537);
+          else {
+            let nested: Record<string, unknown> = {};
+            const root = nested;
+            for (let i = 0; i < 13; i++) {
+              nested.next = {};
+              nested = nested.next as Record<string, unknown>;
+            }
+            Object.assign(c, { unexpected: root });
+          }
+        }),
+      );
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    expect((await latest(f.client)).reading).toMatchObject({
+      mode: 'template',
+      provenance: { fallbackReason: 'MALFORMED' },
+    });
+    expect(
+      await env.DB.prepare('SELECT candidate_enc IS NULL AS empty FROM provider_dispatches').first(
+        'empty',
+      ),
+    ).toBe(1);
+    expect((await f.client.me()).remainingDay).toBe(3);
+  },
+);
+
+test('admission limits unfinished requests per owner before reserving a third allowance', async () => {
+  const f = await setup();
+  for (let i = 0; i < 2; i++) {
+    const db = failingDatabase('before-dispatch'),
+      identity = localIdentity({ ...f.client.bindings, DB: db })!;
+    await new LocalGeneration(new RecordBase(db, identity)).start(
+      f.session,
+      { ...f.input, clientIntentId: crypto.randomUUID() },
+      crypto.randomUUID(),
+    );
+  }
+  await expect(
+    f.generation.start(
+      f.session,
+      { ...f.input, clientIntentId: crypto.randomUUID() },
+      crypto.randomUUID(),
+    ),
+  ).rejects.toMatchObject({ code: 'RATE_LIMITED' });
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM generation_requests').first('n')).toBe(2);
+  expect((await f.client.me()).remainingDay).toBe(1);
+});
+
+test('configured outage mode admits a labelled template without authorization or provider spend', async () => {
+  const f = await setup(failingDatabase('before-dispatch'));
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  await env.DB.prepare("UPDATE system_state SET dispatch_mode='outage_template'").run();
+  const identity = localIdentity(f.client.bindings)!;
+  const started = await new LocalGeneration(new RecordBase(env.DB, identity)).start(
+    f.session,
+    { ...f.input, clientIntentId: crypto.randomUUID() },
+    crypto.randomUUID(),
+  );
+  expect(started.status.state).toBe('published');
+  expect(
+    apiSchemas.Reading.parse(
+      await (await f.client.request(`/readings/${started.status.editionId}`)).json(),
+    ),
+  ).toMatchObject({ mode: 'template', provenance: { dispatchId: null, fallbackReason: 'OUTAGE' } });
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM provider_dispatches').first('n')).toBe(0);
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM cost_reservations').first('n')).toBe(0);
+});
+
+test('the known previous local policy is upgraded while prior work is fenced and its quota released', async () => {
+  const f = await setup(failingDatabase('before-dispatch'));
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const { sha256Json } = await import('../../src/domain/json.ts');
+  const previous = await sha256Json({ localOnly: true, writer: 'simulation.v1' });
+  const old = (await latest(f.client)).status;
+  await env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(previous).run();
+  await env.DB.prepare('UPDATE generation_requests SET policy_hash=?').bind(previous).run();
+  const response = await f.client.start('What might I learn from a change of perspective?');
+  expect(response.status).toBe(202);
+  expect(apiSchemas.StartResponse.parse(await response.json()).status.state).toBe('published');
+  expect(
+    await env.DB.prepare(
+      'SELECT state,error_code,policy_hash,lease_token FROM generation_requests WHERE id=?',
+    )
+      .bind(old.requestId)
+      .first(),
+  ).toEqual({
+    state: 'blocked',
+    error_code: 'DEPENDENCY_UNAVAILABLE',
+    policy_hash: previous,
+    lease_token: null,
+  });
+  expect(
+    await env.DB.prepare(
+      "SELECT count(*) AS n FROM quota_events WHERE request_id=? AND event='release'",
+    )
+      .bind(old.requestId)
+      .first('n'),
+  ).toBe(1);
+  expect((await f.client.me()).remainingDay).toBe(2);
+});
+
+test.each(['off', 'disabled'] as const)(
+  'a previous local policy upgrade preserves operator %s mode',
+  async (mode) => {
+    const f = await setup();
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    const { sha256Json } = await import('../../src/domain/json.ts');
+    const previous = await sha256Json({ localOnly: true, writer: 'simulation.v1' });
+    await env.DB.prepare(
+      'UPDATE system_state SET provider_policy_hash=?,dispatch_mode=?,generation_enabled=?',
+    )
+      .bind(previous, mode === 'off' ? 'off' : 'model', mode === 'disabled' ? 0 : 1)
+      .run();
+    expect((await f.client.start()).status).not.toBe(202);
+    expect(
+      await env.DB.prepare('SELECT dispatch_mode,generation_enabled FROM system_state').first(),
+    ).toEqual({
+      dispatch_mode: mode === 'off' ? 'off' : 'model',
+      generation_enabled: mode === 'disabled' ? 0 : 1,
+    });
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM generation_requests').first('n')).toBe(
+      1,
+    );
+  },
+);

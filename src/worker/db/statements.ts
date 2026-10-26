@@ -1,4 +1,4 @@
-import publicationGuard from './publication_guard.sql?raw';
+import publicationGuard from './publication-guard.ts';
 
 import { statement, DB_NOW, type Binding } from './core.ts';
 export {
@@ -15,10 +15,15 @@ export {
 export function currentGuard(
   db: D1Database,
   values: Record<string, Binding>,
-  stage: 'start' | 'dispatch' | 'publish',
+  stage: 'start' | 'dispatch' | 'publish' | 'recover',
 ) {
   let source = publicationGuard;
-  if (stage !== 'publish')
+  if (stage === 'recover')
+    source = source.replace(
+      "r.state IN('validating','fallback_pending')",
+      "r.state IN('reserved','prepared','dispatching','received','validating','fallback_pending','uncertain')",
+    );
+  else if (stage !== 'publish')
     source = source.replace("r.state IN('validating','fallback_pending')", "r.state='prepared'");
   if (stage === 'start')
     source = source

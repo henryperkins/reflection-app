@@ -43,9 +43,13 @@ export class SessionErasure {
     return q(this.base.db, 'SELECT * FROM deletion_jobs WHERE id=?', id).first<Job>();
   }
   private async matches(job: Job, target: Target, receipt: Receipt) {
+    const intent = job.target_enc
+      ? await this.ledger.fromPending(job)
+      : (await this.ledger.load(job.id)).intent;
+    const crypt = this.ledger.key(intent.hmacKeyId);
     return (
-      job.receipt_token_hash === (await this.ledger.token(job.id, receipt.receiptToken)) &&
-      job.target_hmac === (await this.ledger.targetHash(target))
+      job.receipt_token_hash === (await this.ledger.token(job.id, receipt.receiptToken, crypt)) &&
+      job.target_hmac === (await this.ledger.targetHash(target, crypt))
     );
   }
   async remove(session: Session, id: string, revision: number, key: string, receipt: Receipt) {
@@ -263,7 +267,7 @@ export class SessionErasure {
   private async retireCheckpoints(owner: string) {
     const prefixes = await Promise.all(
       [...this.ledger.keys.values()].map(
-        async (key) => `identity/v1/${await key.hash('identity-subject', owner)}/`,
+        async (key) => `identity/v1/${await key.recoveryHash('identity-subject', owner)}/`,
       ),
     );
     const retire = async (key: string) => {
@@ -273,7 +277,7 @@ export class SessionErasure {
       // Empty terminal markers erase the checkpoint body without reopening its immutable key.
       // A delayed apply() uses create-only put, so it cannot restore credential/verifier bytes.
       const marker = await this.bucket.put(key, '');
-      if (!marker || marker.size !== 0) throw new Error('Checkpoint retirement unavailable');
+      if (marker?.size !== 0) throw new Error('Checkpoint retirement unavailable');
     };
     // Account fencing forbids new operations. Preserve every known writer's key before the
     // cascade removes this inventory, including a writer whose object is not visible yet.
@@ -374,10 +378,17 @@ export class SessionErasure {
   async status(id: string, token: string | null) {
     const job = await this.job(id);
     if (token?.length !== 43) throw new RecordError(404, 'NOT_FOUND');
-    if (job && job.receipt_token_hash !== (await this.ledger.token(id, token)))
-      throw new RecordError(404, 'NOT_FOUND');
-    if (!(await this.bucket.head(`erasures/v1/${id}/intent.json`)))
+    if (!(await this.bucket.head(`erasures/v1/${id}/intent.json`))) {
+      if (job) {
+        const intent = await this.ledger.fromPending(job);
+        if (
+          job.receipt_token_hash !==
+          (await this.ledger.token(id, token, this.ledger.key(intent.hmacKeyId)))
+        )
+          throw new RecordError(404, 'NOT_FOUND');
+      }
       throw new RecordError(job ? 503 : 404, job ? 'DEPENDENCY_UNAVAILABLE' : 'NOT_FOUND');
+    }
     const chain = await this.ledger.load(id);
     if (
       chain.intent.receiptTokenHmac !==

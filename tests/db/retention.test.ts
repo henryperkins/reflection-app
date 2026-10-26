@@ -129,13 +129,17 @@ test('failed private payloads expire at 24 hours while recent failures retain th
 });
 
 test('30-day failed metadata cleanup releases references without refunding financial spend', async () => {
-  const { kit, started } = await failed();
+  const { started } = await failed();
   const dispatch = await env.DB.prepare('SELECT id FROM provider_dispatches').first<string>('id');
   await env.DB.prepare("INSERT INTO spend_buckets VALUES ('synthetic-liability',100,40)").run();
-  await env.DB.prepare(`INSERT INTO cost_reservations(id,owner_id,dispatch_id,day_period,month_period,state,reserved_microusd,price_basis_json,created_at)
-    VALUES ('liability',?,?,'synthetic-liability','synthetic-liability','unknown',40,'{}',1)`)
-    .bind(kit.subjectId, dispatch)
+  // The driver now creates one reservation per dispatch, including local simulation.
+  // Give that real reservation the synthetic paid liability this retention case exercises.
+  const liability = await env.DB.prepare(
+    `UPDATE cost_reservations SET day_period='synthetic-liability',month_period='synthetic-liability',state='unknown',reserved_microusd=40,actual_microusd=NULL,price_basis_json='{}',created_at=1 WHERE dispatch_id=?`,
+  )
+    .bind(dispatch)
     .run();
+  expect(liability.meta.changes).toBe(1);
   await env.DB.prepare(
     `UPDATE generation_requests SET finished_at=${DB_NOW}-${31 * DAY} WHERE id=?`,
   )
@@ -151,22 +155,24 @@ test('30-day failed metadata cleanup releases references without refunding finan
     ).first(),
   ).toEqual({ owner_id: null, dispatch_id: null, state: 'unknown', reserved_microusd: 40 });
   expect(
-    await env.DB.prepare('SELECT committed_microusd FROM spend_buckets').first(
-      'committed_microusd',
-    ),
+    await env.DB.prepare(
+      "SELECT committed_microusd FROM spend_buckets WHERE period='synthetic-liability'",
+    ).first('committed_microusd'),
   ).toBe(40);
   expect(await env.DB.prepare('PRAGMA foreign_key_check').all()).toMatchObject({ results: [] });
 });
 
 test('settled cost detail expires after 90 days and exported cost becomes expired rather than zero', async () => {
-  const { client, kit } = await readingAccount();
+  const { client } = await readingAccount();
   const { started } = await client.create();
   const dispatch = await env.DB.prepare('SELECT id FROM provider_dispatches').first<string>('id');
   await env.DB.prepare("INSERT INTO spend_buckets VALUES ('synthetic-paid',100,12)").run();
-  await env.DB.prepare(`INSERT INTO cost_reservations(id,owner_id,dispatch_id,day_period,month_period,state,reserved_microusd,actual_microusd,price_basis_json,created_at,settled_at)
-    VALUES ('paid',?,?,'synthetic-paid','synthetic-paid','actual',15,12,'{}',${DB_NOW}-${91 * DAY},${DB_NOW}-${89 * DAY})`)
-    .bind(kit.subjectId, dispatch)
+  const paid = await env.DB.prepare(
+    `UPDATE cost_reservations SET day_period='synthetic-paid',month_period='synthetic-paid',state='actual',reserved_microusd=15,actual_microusd=12,price_basis_json='{}',created_at=${DB_NOW}-${91 * DAY},settled_at=${DB_NOW}-${89 * DAY} WHERE dispatch_id=?`,
+  )
+    .bind(dispatch)
     .run();
+  expect(paid.meta.changes).toBe(1);
   await run();
   expect(await count('cost_reservations')).toBe(1);
   const { ticket, page } = await exportRecords(client);
@@ -174,6 +180,10 @@ test('settled cost detail expires after 90 days and exported cost becomes expire
     value: { requestId: started.requestId, costState: 'actual', actualCostMicroUsd: 12 },
   });
   await env.DB.prepare(`UPDATE cost_reservations SET settled_at=${DB_NOW}-${90 * DAY}-1`).run();
+  await run();
+  // A more recent audited usage adjustment extends detailed-cost retention.
+  expect(await count('cost_reservations')).toBe(1);
+  await env.DB.prepare(`UPDATE cost_adjustments SET created_at=${DB_NOW}-${90 * DAY}-1`).run();
   await run();
   expect(await count('cost_reservations')).toBe(0);
   expect((await client.request(`/exports/${ticket.id}`)).status).toBe(409);
@@ -186,6 +196,10 @@ test('settled cost detail expires after 90 days and exported cost becomes expire
 test('capabilities, seven-day events and applied security operations expire without touching pending security state', async () => {
   const { client, kit } = await readingAccount();
   const { started, reading } = await client.create();
+  const originalStatus = apiSchemas.RequestStatus.parse(
+    await (await client.request(`/requests/${started.requestId}`)).json(),
+  );
+  expect(originalStatus.nextSequence).toBeGreaterThan(0);
   await env.DB.prepare(`UPDATE request_events SET created_at=${DB_NOW}-${7 * DAY}-1`).run();
   await env.DB.prepare('UPDATE idempotency_keys SET expires_at=1').run();
   await env.DB.prepare(`UPDATE security_operations SET applied_at=${DB_NOW}-${30 * DAY}-1`).run();
@@ -210,7 +224,7 @@ test('capabilities, seven-day events and applied security operations expire with
   expect(status).toMatchObject({
     state: 'published',
     editionId: reading.editionId,
-    nextSequence: 3,
+    nextSequence: originalStatus.nextSequence,
     events: [],
   });
 });

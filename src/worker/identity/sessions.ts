@@ -13,6 +13,7 @@ export class IdentitySessions {
     epoch: number,
     authenticatedAt = Date.now(),
     guards: D1PreparedStatement[] = [],
+    passkeyAuthenticatedAt: number | null = null,
   ) {
     const token = randomToken(),
       tokenHash = await this.crypt.hash('session', token);
@@ -30,7 +31,7 @@ export class IdentitySessions {
       ),
       statement(
         this.db,
-        'INSERT INTO auth_sessions(token_hash,owner_id,csrf_hash,auth_epoch,authenticated_at,created_at,idle_expires_at,expires_at) VALUES (?,?,?,?,?,?,?,?)',
+        'INSERT INTO auth_sessions(token_hash,owner_id,csrf_hash,auth_epoch,authenticated_at,created_at,idle_expires_at,expires_at,passkey_authenticated_at) VALUES (?,?,?,?,?,?,?,?,?)',
         tokenHash,
         subjectId,
         csrfHash,
@@ -39,6 +40,7 @@ export class IdentitySessions {
         now,
         now + DAY,
         now + 7 * DAY,
+        passkeyAuthenticatedAt,
       ),
     ]);
     return {
@@ -63,6 +65,7 @@ export class IdentitySessions {
       owner_id: string;
       auth_epoch: number;
       authenticated_at: number;
+      passkey_authenticated_at: number | null;
       csrf_hash: string;
       write_fence: string | null;
     }>();
@@ -84,15 +87,16 @@ export class IdentitySessions {
       subjectId: row.owner_id,
       epoch: row.auth_epoch,
       authenticatedAt: row.authenticated_at,
+      passkeyAuthenticatedAt: row.passkey_authenticated_at,
       tokenHash,
       csrfToken,
       writeFence: row.write_fence,
     };
   }
-  guard(session: Session, recent = false, writable = true): D1PreparedStatement {
+  guard(session: Session, recent = false, writable = true, passkey = false): D1PreparedStatement {
     return assertion(
       this.db,
-      `NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1) AND EXISTS(SELECT 1 FROM auth_sessions s JOIN accounts a ON a.id=s.owner_id WHERE s.token_hash=? AND s.owner_id=? AND s.auth_epoch=? AND a.auth_epoch=s.auth_epoch AND a.status='active' ${writable ? 'AND a.write_fence IS NULL' : ''} AND s.expires_at>${DB_NOW} AND s.idle_expires_at>${DB_NOW}${recent ? ` AND s.authenticated_at>${DB_NOW}-300000` : ''})`,
+      `NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1) AND EXISTS(SELECT 1 FROM auth_sessions s JOIN accounts a ON a.id=s.owner_id WHERE s.token_hash=? AND s.owner_id=? AND s.auth_epoch=? AND a.auth_epoch=s.auth_epoch AND a.status='active' ${writable ? 'AND a.write_fence IS NULL' : ''} AND s.expires_at>${DB_NOW} AND s.idle_expires_at>${DB_NOW}${recent ? ` AND s.authenticated_at>${DB_NOW}-300000` : ''}${passkey ? ` AND s.passkey_authenticated_at>${DB_NOW}-300000` : ''})`,
       session.tokenHash,
       session.subjectId,
       session.epoch,

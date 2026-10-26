@@ -27,6 +27,9 @@ export function IdentityApp() {
   const [session, setSession] = useState<View | null>(null);
   const [kit, setKit] = useState<Kit | null>(null);
   const [grant, setGrant] = useState<Grant | null>(null);
+  const [credentials, setCredentials] = useState<z.infer<typeof apiSchemas.Credentials> | null>(
+    null,
+  );
   const [route, setRoute] = useState(window.location.pathname);
   const [busy, setBusy] = useState(false),
     [checking, setChecking] = useState(true);
@@ -57,13 +60,42 @@ export function IdentityApp() {
     setSession(null);
     setKit(null);
     setGrant(null);
+    setCredentials(null);
     setHandle('');
     setCode('');
     setDownloaded(false);
     setAcknowledged(false);
     setAccountDeleteChecked(false);
     setDeletionReceipt(null);
+    try {
+      sessionStorage.clear();
+    } catch {
+      /* Browser storage may be unavailable. */
+    }
+    if ('caches' in window)
+      void caches
+        .keys()
+        .then((keys) => Promise.all(keys.map((key) => caches.delete(key))))
+        .catch(() => {});
+    navigator.serviceWorker?.controller?.postMessage({ type: 'PURGE_PRIVATE' });
   }, []);
+  useEffect(() => {
+    if (!session || kit || busy) return;
+    let current = true;
+    setCredentials(null);
+    void api('/auth/credentials', apiSchemas.Credentials)
+      .then((listed) => {
+        if (current) setCredentials(listed);
+      })
+      .catch((error) => {
+        if (!current) return;
+        if (error instanceof ApiFailure && error.status === 401) clear();
+        else setMessage('Your passkeys could not be loaded. Refresh this page to try again.');
+      });
+    return () => {
+      current = false;
+    };
+  }, [session, kit, busy, clear]);
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
     const requested = version.current;
@@ -168,6 +200,19 @@ export function IdentityApp() {
     setSession(current);
     setGrant(null);
     if (!requestFromPath()) navigate('/account');
+  };
+  const verifyExistingPasskey = async (isCurrent: () => boolean) => {
+    if (!session) throw new Error('Sign in again.');
+    const verified = await signIn('reauthenticate', session.csrfToken);
+    if (!isCurrent()) return null;
+    // Keep the rotated session usable if the following passkey prompt is cancelled.
+    setSession({
+      ...session,
+      csrfToken: verified.csrfToken,
+      recentAuthUntil: verified.recentAuthUntil,
+    });
+    channel.current?.postMessage('changed');
+    return verified.csrfToken;
   };
   const download = () => {
     if (!kit) return;
@@ -325,6 +370,88 @@ export function IdentityApp() {
         ) : session ? (
           <section>
             <p>You’re signed in. Your passkey and recovery kit protect access to this account.</p>
+            <section aria-label="Manage passkeys">
+              <h2>Your passkeys</h2>
+              <p>
+                Add a passkey on another device before removing one. You’ll verify an existing
+                passkey before each change. Changing passkeys signs out your other sessions.
+              </p>
+              {credentials ? (
+                <ul aria-label="Passkeys">
+                  {credentials.items.map((credential) => (
+                    <li key={credential.id}>
+                      <p>
+                        <strong>Passkey {credential.id.slice(0, 8)}</strong>
+                        {' · '}Added {new Date(credential.createdAt).toLocaleDateString()}
+                        {' · '}
+                        {credential.backedUp
+                          ? 'Backed up by your passkey provider'
+                          : 'Not reported as backed up'}
+                      </p>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy || checking || credentials.items.length <= 1}
+                        aria-label={`Remove passkey ${credential.id.slice(0, 8)}`}
+                        onClick={() =>
+                          void run(async (isCurrent) => {
+                            const csrf = await verifyExistingPasskey(isCurrent);
+                            if (!csrf || !isCurrent()) return;
+                            await api(
+                              `/auth/credentials/${credential.id}`,
+                              apiSchemas.Empty,
+                              {},
+                              csrf,
+                              { method: 'DELETE' },
+                            );
+                            if (!isCurrent()) return;
+                            const current = await readSession(isCurrent);
+                            if (!isCurrent()) return;
+                            setSession(current);
+                            channel.current?.postMessage('changed');
+                            setMessage(
+                              'Passkey removed. Your other sessions have been signed out.',
+                            );
+                          })
+                        }
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p role="status">Loading your passkeys…</p>
+              )}
+              {credentials?.items.length === 1 && <p>Keep at least one passkey on your account.</p>}
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy || checking || !credentials || credentials.items.length >= 10}
+                onClick={() =>
+                  void run(async (isCurrent) => {
+                    const csrf = await verifyExistingPasskey(isCurrent);
+                    if (!csrf || !isCurrent()) return;
+                    const options = await api(
+                      '/auth/options',
+                      apiSchemas.AuthOptions,
+                      { purpose: 'add' },
+                      csrf,
+                    );
+                    if (!isCurrent()) return;
+                    await complete(await enroll(options, csrf), isCurrent);
+                    if (!isCurrent()) return;
+                    channel.current?.postMessage('changed');
+                    setMessage('Passkey added. Your other sessions have been signed out.');
+                  })
+                }
+              >
+                Add a passkey
+              </button>
+              {credentials?.items.length === 10 && (
+                <p>You have ten passkeys. Remove one before adding another.</p>
+              )}
+            </section>
             <div hidden={checking || busy}>
               <ReadingWorkspace
                 key={session.subjectId}
@@ -400,13 +527,13 @@ export function IdentityApp() {
                 disabled={busy}
                 onClick={() =>
                   void run(async (isCurrent) => {
-                    const verified = await signIn('reauthenticate', session.csrfToken);
-                    if (!isCurrent()) return;
+                    const csrf = await verifyExistingPasskey(isCurrent);
+                    if (!csrf || !isCurrent()) return;
                     const rotated = await api(
                       '/auth/recovery-codes',
                       apiSchemas.RecoveryCodes,
                       {},
-                      verified.csrfToken,
+                      csrf,
                     );
                     if (!isCurrent()) return;
                     receiveKit(rotated);
@@ -434,6 +561,22 @@ export function IdentityApp() {
                 }
               >
                 Sign out
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={busy}
+                onClick={() =>
+                  void run(async (isCurrent) => {
+                    await api('/auth/logout-all', apiSchemas.Empty, {}, session.csrfToken);
+                    if (!isCurrent()) return;
+                    clear();
+                    channel.current?.postMessage('signed-out');
+                    navigate('/');
+                  })
+                }
+              >
+                Log out all devices
               </button>
             </div>
           </section>

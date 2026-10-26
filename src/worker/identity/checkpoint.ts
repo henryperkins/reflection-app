@@ -129,6 +129,28 @@ export class IdentityCheckpoints {
         ),
       );
     }
+    // Reserve newly introduced IDs in the same transaction as the account fence.
+    // The global credentials PK rejects cross-account races before any R2 write;
+    // write_fence keeps these provisional factors unusable until final apply.
+    const existingIds = new Set(
+      options.initialKeys ? [] : options.expected!.credentials.map((credential) => credential.id),
+    );
+    for (const credential of snapshot.credentials) {
+      if (existingIds.has(credential.id)) continue;
+      writes.push(
+        statement(
+          this.db,
+          'INSERT INTO credentials(id,owner_id,public_key,sign_count,backed_up,transports_json,created_at) VALUES (?,?,?,?,?,?,?)',
+          credential.id,
+          snapshot.subjectId,
+          decode(credential.publicKey).buffer,
+          credential.signCount,
+          Number(credential.backedUp),
+          JSON.stringify(credential.transports),
+          Date.parse(credential.createdAt),
+        ),
+      );
+    }
     writes.push(
       statement(
         this.db,
@@ -165,7 +187,8 @@ export class IdentityCheckpoints {
     ).first<Operation>();
     if (!op || op.state === 'applied') return;
     const snapshot = await this.crypt.openCheckpoint(op.owner_id, op.epoch, op.id, op.snapshot_enc);
-    if ((await this.crypt.checkpointKey(snapshot)) !== op.ledger_key)
+    const crypt = this.crypt.forKey(this.crypt.envelopeKeyId(op.snapshot_enc));
+    if ((await crypt.checkpointKey(snapshot)) !== op.ledger_key)
       throw new Error('Checkpoint key mismatch');
     const put = await this.bucket.put(op.ledger_key, op.snapshot_enc, {
       onlyIf: { etagDoesNotMatch: '*' },

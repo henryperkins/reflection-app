@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Reflection Milestone 1: local synthetic foundation",
+  "description": "Reflection: verified local tarot MVP; deployment disabled",
   "engines": {
     "node": ">=26.0.0 <27"
   },
@@ -26,7 +26,10 @@
     "dev:identity": "tsx scripts/local-identity.ts",
     "test:browser": "playwright test",
     "restore:rehearse": "vitest run --config vitest.db.config.ts tests/db/privacy-restore.test.ts tests/db/privacy-review-regressions.test.ts",
-    "cleanup:rehearse": "vitest run --config vitest.db.config.ts tests/db/storage-accounting.test.ts tests/db/retention.test.ts tests/db/recovery-cleanup.test.ts tests/db/cleanup-review-regressions.test.ts"
+    "cleanup:rehearse": "vitest run --config vitest.db.config.ts tests/db/storage-accounting.test.ts tests/db/retention.test.ts tests/db/recovery-cleanup.test.ts tests/db/cleanup-review-regressions.test.ts",
+    "package": "tsx scripts/package.ts",
+    "key:rotate": "tsx scripts/key-rotation.ts",
+    "check:publication-guard": "tsx scripts/generate-publication-guard.ts --check"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",
@@ -45,6 +48,7 @@
     "@types/node": "26.6.5",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
+    "miniflare": "5.20261023.0-beta",
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vite": "8.3.5",

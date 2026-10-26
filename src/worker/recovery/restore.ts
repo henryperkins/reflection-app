@@ -180,10 +180,10 @@ export class OfflineRestore {
     all?: Map<string, Checkpoint>,
   ) {
     const result = new Map<string, Checkpoint>();
-    const byPrefix = new Map<string, { owner: string; crypt: IdentityCrypto }>();
+    const byPrefix = new Map<string, string>();
     for (const owner of new Set([...owners, ...erased]))
       for (const crypt of this.erasure.ledger.keys.values())
-        byPrefix.set(await crypt.hash('identity-subject', owner), { owner, crypt });
+        byPrefix.set(await crypt.recoveryHash('identity-subject', owner), owner);
     const epochs = new Set<string>();
     for (const entry of entries) {
       const match = new RegExp(`^identity/v1/([a-f0-9]{64})/([1-9][0-9]*)-(${uuid})\\.enc$`).exec(
@@ -192,18 +192,21 @@ export class OfflineRestore {
       if (!match || entry.size > 91_000) throw new Error('Invalid identity inventory');
       const expected = byPrefix.get(match[1]!);
       if (!expected) throw new Error('Checkpoint account/key missing from restored inventory');
-      if (erased.has(expected.owner)) continue;
+      if (erased.has(expected)) continue;
       const object = await this.env.RECOVERY!.get(entry.key);
       if (!object || object.etag !== entry.etag) throw new Error('Identity checkpoint unavailable');
       const raw = await object.text();
+      const crypt = this.erasure.ledger.key(this.base.identity.crypt.envelopeKeyId(raw));
+      if ((await crypt.recoveryHash('identity-subject', expected)) !== match[1])
+        throw new Error('Checkpoint key prefix mismatch');
       const snapshot = IdentityCheckpoint.parse(
-        await expected.crypt.openCheckpoint(expected.owner, Number(match[2]), match[3]!, raw),
+        await crypt.openCheckpoint(expected, Number(match[2]), match[3]!, raw),
       );
       all?.set(entry.key, snapshot);
       const epoch = `${snapshot.subjectId}:${snapshot.epoch}`;
       if (epochs.has(epoch)) throw new Error('Ambiguous identity checkpoint epoch');
       epochs.add(epoch);
-      if ((await expected.crypt.checkpointKey(snapshot)) !== entry.key)
+      if ((await crypt.checkpointKey(snapshot)) !== entry.key)
         throw new Error('Checkpoint identity mismatch');
       if (!result.has(snapshot.subjectId) || result.get(snapshot.subjectId)!.epoch < snapshot.epoch)
         result.set(snapshot.subjectId, snapshot);
@@ -220,9 +223,18 @@ export class OfflineRestore {
     ).results;
     if (!keys.some((k) => k.version === version)) throw new Error('Missing account data key');
     for (const key of keys) {
-      if (key.version !== 1) throw new Error('Unsupported account key version');
-      await this.base.identity.crypt.unwrapAccountKey(owner, key.wrapped_key_enc, 'data');
-      await this.base.identity.crypt.unwrapAccountKey(owner, key.wrapped_index_key_enc, 'index');
+      await this.base.identity.crypt.unwrapAccountKey(
+        owner,
+        key.wrapped_key_enc,
+        'data',
+        key.version,
+      );
+      await this.base.identity.crypt.unwrapAccountKey(
+        owner,
+        key.wrapped_index_key_enc,
+        'index',
+        key.version,
+      );
     }
   }
   private async applyCheckpoint(snapshot: Checkpoint) {

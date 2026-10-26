@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { apiSchemas } from '../../contracts/index.ts';
-import { IdentityCrypto } from './crypto.ts';
+import { apiSchemas, Base64url } from '../../contracts/index.ts';
+import { IdentityCrypto, parseIdentitySecrets } from './crypto.ts';
 import { IdentityService } from './service.ts';
 import { IdentityError } from './types.ts';
 
@@ -11,13 +11,6 @@ export interface IdentityBindings {
   IDENTITY_ORIGIN?: string;
   IDENTITY_SECRETS?: string;
 }
-const Secrets = z.strictObject({
-  environment: z.literal('synthetic-local'),
-  keyId: z.string(),
-  wrapKey: z.string(),
-  recoveryKey: z.string(),
-  hmacKey: z.string(),
-});
 export function localIdentity(env: IdentityBindings): IdentityService | null {
   if (
     env.IDENTITY_MODE !== 'synthetic-local' ||
@@ -33,10 +26,12 @@ export function localIdentity(env: IdentityBindings): IdentityService | null {
     !['http:', 'https:'].includes(origin.protocol)
   )
     return null;
+  const secrets = parseIdentitySecrets(env.IDENTITY_SECRETS);
+  if (secrets.environment !== 'synthetic-local') return null;
   return new IdentityService(
     env.DB,
     env.RECOVERY,
-    new IdentityCrypto(Secrets.parse(JSON.parse(env.IDENTITY_SECRETS))),
+    new IdentityCrypto(secrets),
     env.IDENTITY_ORIGIN,
   );
 }
@@ -78,7 +73,9 @@ export async function identityRoute(
                 ? 'DEPENDENCY_UNAVAILABLE'
                 : status === 404
                   ? 'NOT_FOUND'
-                  : 'BAD_INPUT';
+                  : status === 409
+                    ? 'CONFLICT'
+                    : 'BAD_INPUT';
       body = apiSchemas.ErrorEnvelope.parse({
         error: {
           code,
@@ -105,15 +102,19 @@ export async function identityRoute(
       throw new IdentityError(503, 'NOT_AVAILABLE');
     if (request.headers.get('Sec-Fetch-Site') === 'cross-site')
       throw new IdentityError(403, 'FORBIDDEN');
-    if (request.method !== 'GET' && request.method !== 'POST')
+    if (request.method !== 'GET' && request.method !== 'POST' && request.method !== 'DELETE')
       return reply({ error: 'METHOD_NOT_ALLOWED' }, 405);
     const jar = cookies(request),
       sessionToken = jar.get('__Host-session');
     const session = () => service.sessions.get(sessionToken);
     if (request.method === 'GET') {
       if (path === '/me') return reply(await service.sessions.view(await session()));
+      if (path === '/auth/credentials') return reply(await service.credentials(await session()));
       return reply({ error: 'NOT_FOUND' }, 404);
     }
+    const removingCredential = request.method === 'DELETE' && path.startsWith('/auth/credentials/');
+    if (request.method === 'DELETE' && !removingCredential)
+      return reply({ error: 'NOT_FOUND' }, 404);
     if (
       request.headers.get('Origin') !== service.origin ||
       request.headers.get('Content-Type')?.split(';')[0]?.trim().toLowerCase() !==
@@ -121,10 +122,10 @@ export async function identityRoute(
     )
       throw new IdentityError(403, 'FORBIDDEN');
     const reader = request.body?.getReader();
-    if (!reader) throw new IdentityError(400, 'BAD_INPUT');
+    if (!reader && !removingCredential) throw new IdentityError(400, 'BAD_INPUT');
     let total = 0;
     const chunks: Uint8Array[] = [];
-    for (;;) {
+    while (reader) {
       const part = await reader.read();
       if (part.done) break;
       total += part.value.length;
@@ -142,7 +143,10 @@ export async function identityRoute(
     }
     let body: unknown;
     try {
-      body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
+      body =
+        removingCredential && total === 0
+          ? {}
+          : JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     } catch {
       throw new IdentityError(400, 'BAD_INPUT');
     }
@@ -159,6 +163,14 @@ export async function identityRoute(
     const setSession = (token: string) =>
       headers.append('Set-Cookie', cookie('__Host-session', token, 604800));
     const clearChallenge = () => headers.append('Set-Cookie', cookie('__Host-challenge', '', 0));
+    if (removingCredential) {
+      apiSchemas.Empty.parse(body);
+      const id = Base64url.parse(path.slice('/auth/credentials/'.length));
+      const issued = await service.removeCredential(await csrf(true), id);
+      setSession(issued.token);
+      clearChallenge();
+      return reply(null, 204);
+    }
     if (path === '/auth/options') {
       const input = apiSchemas.AuthBegin.parse(body);
       await service.rate('challenge', ip, 10, 600_000);
@@ -172,7 +184,16 @@ export async function identityRoute(
     }
     if (path === '/auth/register') {
       const input = apiSchemas.RegisterFinish.parse(body);
-      const issued = await service.register(input, jar.get('__Host-challenge'), ip);
+      const current = sessionToken
+        ? await service.sessions.get(sessionToken).catch(() => undefined)
+        : undefined;
+      const issued = await service.register(
+        input,
+        jar.get('__Host-challenge'),
+        ip,
+        current,
+        request.headers.get('X-CSRF-Token') ?? undefined,
+      );
       setSession(issued.token);
       clearChallenge();
       return reply(issued.result);
@@ -190,9 +211,7 @@ export async function identityRoute(
     }
     if (path === '/auth/recover') {
       const input = apiSchemas.Recover.parse(body);
-      await service.rate('recovery-ip', ip, 5, 3_600_000);
-      await service.rate('recovery-handle', input.recoveryHandle, 5, 3_600_000);
-      const recovered = await service.recover(input);
+      const recovered = await service.recover(input, ip);
       headers.append('Set-Cookie', cookie('__Host-challenge', recovered.browser, 300));
       headers.append('Set-Cookie', cookie('__Host-session', '', 0));
       return reply(recovered.result);
@@ -209,9 +228,11 @@ export async function identityRoute(
       setSession(issued.token);
       return reply(issued.kit);
     }
-    if (path === '/auth/logout') {
+    if (path === '/auth/logout' || path === '/auth/logout-all') {
       apiSchemas.Empty.parse(body);
-      await service.sessions.logout(await csrf());
+      const current = await csrf();
+      if (path === '/auth/logout-all') await service.logoutAll(current);
+      else await service.sessions.logout(current);
       headers.append('Set-Cookie', cookie('__Host-session', '', 0));
       clearChallenge();
       return reply(null, 204);

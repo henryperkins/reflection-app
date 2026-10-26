@@ -12,6 +12,11 @@ const stages = [
   ['format and lint', 'node_modules/@biomejs/biome/bin/biome', ['check', '.']],
   ['strict TypeScript', 'node_modules/typescript/bin/tsc', ['--noEmit']],
   ['generated schema drift', 'node', ['--import', 'tsx', 'scripts/schemas.ts', '--check']],
+  [
+    'publication guard drift',
+    'node',
+    ['--import', 'tsx', 'scripts/generate-publication-guard.ts', '--check'],
+  ],
   ['contract and reference checks', 'node', ['--import', 'tsx', 'checks/check-contracts.ts']],
   ['private field coverage', 'python3', ['scripts/check-registry.py']],
   ['SQLite constraints', 'python3', ['checks/check-sql.py']],

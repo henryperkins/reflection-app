@@ -5,6 +5,7 @@ import { RecordBase } from './readings/base.ts';
 import { SessionErasure } from './readings/erasure.ts';
 import { LocalGeneration } from './readings/generation.ts';
 import { RetentionMaintenance } from './maintenance/retention.ts';
+import { maintenanceHealth } from './maintenance/health.ts';
 
 export interface Env extends IdentityBindings, ReadingBindings {
   ASSETS?: Fetcher;
@@ -77,12 +78,21 @@ export default {
     )
       return;
     const identity = localIdentity(env);
-    await identity?.maintenance();
-    if (identity && env.READING_MODE === 'synthetic-local' && env.RECOVERY) {
-      const base = new RecordBase(env.DB, identity);
-      await new LocalGeneration(base).maintenance();
-      await new SessionErasure(base, env.RECOVERY).maintenance();
+    try {
+      await identity?.maintenance();
+      if (identity && env.READING_MODE === 'synthetic-local' && env.RECOVERY) {
+        const base = new RecordBase(env.DB, identity);
+        await new LocalGeneration(base).maintenance();
+        await new SessionErasure(base, env.RECOVERY).maintenance();
+      }
+      if (identity) {
+        await new RetentionMaintenance(env.DB).run();
+        console.info(JSON.stringify(await maintenanceHealth(env.DB)));
+      }
+    } catch {
+      // Never log a caught D1/provider exception, which may embed private query data.
+      console.error(JSON.stringify({ event: 'maintenance_failed' }));
+      throw new Error('Scheduled maintenance failed');
     }
-    if (identity) await new RetentionMaintenance(env.DB).run();
   },
 } satisfies ExportedHandler<Env>;

@@ -12,7 +12,7 @@ const ignored = new Set([
   '__pycache__',
 ]);
 
-export function sourceDigest(root: string): string {
+export function sourceDigest(root: string, additionalIgnored: readonly string[] = []): string {
   const digest = createHash('sha256');
   function visit(relative: string): void {
     for (const entry of readdirSync(join(root, relative), { withFileTypes: true }).sort((a, b) =>
@@ -20,6 +20,7 @@ export function sourceDigest(root: string): string {
     )) {
       if (
         ignored.has(entry.name) ||
+        additionalIgnored.includes(entry.name) ||
         entry.name.startsWith('.env') ||
         entry.name.startsWith('.dev.vars')
       )

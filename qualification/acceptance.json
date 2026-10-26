@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "gates": [
+    {
+      "id": "identity",
+      "status": "pending",
+      "reason": "Stable domain/RP ID and real physical/synced authenticator evidence are not recorded."
+    },
+    {
+      "id": "keys",
+      "status": "pending",
+      "reason": "Local keyring and rotation tests do not prove production secret custody, recovery or backup key retention."
+    },
+    {
+      "id": "content",
+      "status": "pending",
+      "reason": "Review the exact content/launch-canon-draft.json bytes, rights, attribution, geography and final product copy; draft is not approved."
+    },
+    {
+      "id": "provider",
+      "status": "pending",
+      "reason": "No project access/retention evidence, live frozen-corpus evaluation, actual usage or billing reconciliation has been recorded."
+    },
+    {
+      "id": "release",
+      "status": "pending",
+      "reason": "Hosted main failing-test proof, non-main rejection and separate preview resource/token evidence have not been run."
+    },
+    {
+      "id": "database",
+      "status": "pending",
+      "reason": "Hosted D1 transaction/race behavior, Cron overlap/missed wake and backlog recovery remain unverified."
+    },
+    {
+      "id": "restore",
+      "status": "pending",
+      "reason": "Hosted snapshot/restore and independent backup inventory/loss tests including erased records, used codes, removed passkeys and pre-dispatch requests remain unrun."
+    },
+    {
+      "id": "accessibility",
+      "status": "pending",
+      "reason": "Human keyboard/screen-reader/zoom/device checks and supported-browser matrix remain open."
+    },
+    {
+      "id": "operations",
+      "status": "pending",
+      "reason": "Local content-free telemetry and runbooks exist; hosted alert delivery, scheduler heartbeat and operator recovery drills remain unverified."
+    },
+    {
+      "id": "owner",
+      "status": "pending",
+      "reason": "Public domain, countries, minimum age, spend caps and operational ownership await owner decisions."
+    }
+  ]
+}

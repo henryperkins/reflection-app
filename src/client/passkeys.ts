@@ -2,7 +2,7 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import type { z } from 'zod';
 import { apiSchemas, type AuthOptions, AuthResult } from '../contracts/index.ts';
 import { api } from './api.ts';
-export async function enroll(options: z.infer<typeof AuthOptions>) {
+export async function enroll(options: z.infer<typeof AuthOptions>, csrf?: string) {
   if (!options.user) throw new Error('Registration is unavailable.');
   const response = await startRegistration({
     optionsJSON: {
@@ -39,7 +39,7 @@ export async function enroll(options: z.infer<typeof AuthOptions>) {
       ? { authenticatorAttachment: response.authenticatorAttachment }
       : {}),
   };
-  return api('/auth/register', AuthResult, { challengeId: options.challengeId, credential });
+  return api('/auth/register', AuthResult, { challengeId: options.challengeId, credential }, csrf);
 }
 export async function signIn(purpose: 'authenticate' | 'reauthenticate', csrf?: string) {
   const options = await api('/auth/options', apiSchemas.AuthOptions, { purpose }, csrf);

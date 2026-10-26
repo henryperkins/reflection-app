@@ -17,20 +17,19 @@ export class RecordCrypto {
     let key = this.keys.get(cacheKey);
     if (!key) {
       key = (async () => {
-        // Identity slice currently provisions only version 1; unknown versions fail closed.
-        if (version !== 1) throw new Error('Unavailable key version');
+        if (!Number.isSafeInteger(version) || version < 1)
+          throw new Error('Unavailable key version');
         const row = await q(
           this.db,
-          'SELECT wrapped_key_enc,wrapped_index_key_enc FROM account_keys WHERE owner_id=? AND version=?',
+          'SELECT wrap_key_id,wrapped_key_enc,wrapped_index_key_enc FROM account_keys WHERE owner_id=? AND version=?',
           owner,
           version,
-        ).first<{ wrapped_key_enc: string; wrapped_index_key_enc: string }>();
+        ).first<{ wrap_key_id: string; wrapped_key_enc: string; wrapped_index_key_enc: string }>();
         if (!row) throw new Error('Unavailable key');
-        return this.identity.unwrapAccountKey(
-          owner,
-          purpose === 'data' ? row.wrapped_key_enc : row.wrapped_index_key_enc,
-          purpose,
-        );
+        const encrypted = purpose === 'data' ? row.wrapped_key_enc : row.wrapped_index_key_enc;
+        if (this.identity.envelopeKeyId(encrypted) !== row.wrap_key_id)
+          throw new Error('Account wrap identity mismatch');
+        return this.identity.unwrapAccountKey(owner, encrypted, purpose, version);
       })();
       this.keys.set(cacheKey, key);
     }
@@ -135,9 +134,15 @@ export class RecordCrypto {
     return schema.parse(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)));
   }
   async hash(owner: string, purpose: string, value: unknown) {
+    const current = await q(
+      this.db,
+      'SELECT key_version FROM accounts WHERE id=?',
+      owner,
+    ).first<number>('key_version');
+    if (current === null) throw new Error('Unavailable account key');
     const base = await crypto.subtle.importKey(
       'raw',
-      await this.key(owner, 'index', 1),
+      await this.key(owner, 'index', current),
       'HKDF',
       false,
       ['deriveKey'],

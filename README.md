@@ -1,6 +1,8 @@
-# Reflection local foundation
+# Reflection local application
 
 Milestone 1 is complete. Milestone 2 now has local identity/recovery and saved-reading return workflows: save without a reflection, sign back in to dated history, recover in a fresh browser, and reopen identical content. History, reflection editing, export and session deletion work with AI permission off. Generation is simulated locally; production acceptance gates remain open and deployment stays disabled.
+
+The [local delivery guide](docs/LOCAL_DELIVERY.md) explains the runnable ZIP and its verification records. The [completion pass](docs/COMPLETION_PASS_RESULTS.md) adds passkey management, logout-all, durable generation recovery, actual candidate composition, retained-key rotation/receipts, operator telemetry and reproducible packaging. Production launch decisions are deferred for this delivery at the owner's instruction.
 
 Implementation evidence: [Milestone 1 baseline](docs/MILESTONE_1_RESULTS.md) and [local identity/recovery results](docs/IDENTITY_RECOVERY_RESULTS.md), plus [saved-reading return results](docs/SAVED_READING_RESULTS.md). The architecture baseline remains [`278d5fd`](https://github.com/henryperkins/reflection-architecture/commit/278d5fdb1636225887220368fbef52dc0d7ab889).
 
@@ -31,6 +33,8 @@ npm run test:browser
 npm run restore:rehearse
 npm run cleanup:rehearse
 npm run release -- --check
+npm run package -- --local-snapshot /absolute/path/reflection-app-local.zip
+npm run key:rotate -- --help
 ```
 
 Run `npm run dev:identity` and open **http://localhost:8787** for the account and reading screens. The explicit `wrangler.identity.jsonc` configuration binds local D1/R2 and public synthetic test keys; it must never hold real personal data or be deployed. The default Worker configuration does not enable identity routes. A separate `READING_MODE=synthetic-local` switch enables the reading workflow in that local configuration. The writer never makes an external AI call. Use synthetic text only.

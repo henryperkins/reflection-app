@@ -1,6 +1,6 @@
 export class IdentityError extends Error {
   constructor(
-    readonly status: 400 | 401 | 403 | 429 | 503,
+    readonly status: 400 | 401 | 403 | 404 | 409 | 429 | 503,
     readonly code: string,
   ) {
     super(code);
@@ -10,6 +10,7 @@ export interface Session {
   subjectId: string;
   epoch: number;
   authenticatedAt: number;
+  passkeyAuthenticatedAt: number | null;
   tokenHash: string;
   csrfToken: string;
   writeFence: string | null;

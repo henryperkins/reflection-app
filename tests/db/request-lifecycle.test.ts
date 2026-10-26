@@ -233,8 +233,8 @@ test('cancellation checks owner and revision and preserves a published reading',
 
 test.each([
   [{ kind: 'refusal' }, 'blocked', 'PROVIDER_REFUSAL'],
-  [{ kind: 'rejected', status: 503 }, 'failed', 'PROVIDER_UNAVAILABLE'],
-  [{ kind: 'uncertain', reason: 'timeout' }, 'failed', 'PROVIDER_UNCERTAIN'],
+  [{ kind: 'rejected', status: 503 }, 'published', null],
+  [{ kind: 'uncertain', reason: 'timeout' }, 'published', null],
 ] as const)(
   'writer outcome %j is distinct and never retried',
   async (outcome, state, errorCode) => {
@@ -242,7 +242,16 @@ test.each([
     const { generation, session, input } = await service(client, outcome);
     const key = crypto.randomUUID();
     const first = await generation.start(session, input, key);
-    expect(first.status).toMatchObject({ state, errorCode, editionId: null });
+    expect(first.status).toMatchObject({ state, errorCode });
+    if (state === 'published') {
+      const reading = apiSchemas.Reading.parse(
+        await (await client.request(`/readings/${first.status.editionId}`)).json(),
+      );
+      expect(reading).toMatchObject({
+        mode: 'template',
+        provenance: { fallbackReason: outcome.kind === 'uncertain' ? 'TIMEOUT_UNKNOWN' : 'OUTAGE' },
+      });
+    } else expect(first.status.editionId).toBeNull();
     const retry = await generation.start(session, input, key);
     expect(retry).toMatchObject({ joined: true, requestId: first.requestId });
     expect(await env.DB.prepare('SELECT count(*) AS n FROM provider_dispatches').first('n')).toBe(

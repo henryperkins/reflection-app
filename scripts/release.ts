@@ -4,6 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { z } from 'zod';
 import { projectRoot } from './schemas.ts';
 import { sourceDigest } from './verification-state.ts';
+import { checkQualifications } from './qualification.ts';
 
 const Receipt = z.object({
   status: z.literal('passed'),
@@ -17,17 +18,16 @@ export function checkRelease(root = projectRoot) {
   );
   if (receipt.sourceDigest !== sourceDigest(root))
     throw new Error('Verification receipt is stale; rerun npm run verify');
+  const qualification = checkQualifications(root);
   return {
     localVerification: 'passed',
     deploymentAllowed: false,
-    outstanding: [
-      'production identity/recovery/privacy',
-      'reviewed launch content',
-      'provider qualification',
-      'browser/accessibility acceptance',
-      'hosted release isolation and failing-test proof',
-      'hosted erasure/security restore',
-    ],
+    milestone2Complete: qualification.complete,
+    applicationDigest: qualification.applicationDigest,
+    outstanding: qualification.gates
+      .filter((gate) => gate.status === 'pending')
+      .map((gate) => gate.label),
+    qualification: qualification.gates,
   } as const;
 }
 

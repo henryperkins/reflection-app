@@ -265,7 +265,7 @@ export class OfflineCleanup {
       if (!owned.every((c) => eligible.has(c.intent.jobId))) continue;
       const prefixes = await Promise.all(
         [...this.restore.erasure.ledger.keys.values()].map(
-          async (k) => `identity/v1/${await k.hash('identity-subject', owner)}/`,
+          async (k) => `identity/v1/${await k.recoveryHash('identity-subject', owner)}/`,
         ),
       );
       const markers = inventory.identity.filter((o) => prefixes.some((p) => o.key.startsWith(p)));

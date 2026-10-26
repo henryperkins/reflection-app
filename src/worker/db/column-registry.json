@@ -331,6 +331,14 @@
           "nullable": false,
           "default": null,
           "export": "never"
+        },
+        "passkey_authenticated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
         }
       }
     },

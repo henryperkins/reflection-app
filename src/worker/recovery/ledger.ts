@@ -70,7 +70,7 @@ export class ErasureLedger {
     retained: IdentityCrypto[] = [],
   ) {
     const keys = new Map<string, IdentityCrypto>();
-    for (const value of [crypt, ...retained]) {
+    for (const value of [crypt, ...crypt.retainedKeys(), ...retained]) {
       if (value.secrets.environment !== crypt.secrets.environment || keys.has(value.secrets.keyId))
         throw new Error('Invalid recovery key ring');
       keys.set(value.secrets.keyId, value);
@@ -83,13 +83,13 @@ export class ErasureLedger {
     return key;
   }
   subject(owner: string, key = this.crypt) {
-    return key.hash('erasure-subject.v1', owner);
+    return key.recoveryHash('erasure-subject.v1', owner);
   }
   targetHash(target: Target, key = this.crypt) {
-    return key.hash('erasure-target.v1', target);
+    return key.recoveryHash('erasure-target.v1', target);
   }
   token(id: string, token: string, key = this.crypt) {
-    return key.hash('erasure-receipt.v1', [id, token]);
+    return key.recoveryHash('erasure-receipt.v1', [id, token]);
   }
   private aad(
     intent: Pick<
@@ -111,7 +111,10 @@ export class ErasureLedger {
     ];
   }
   private async signed<T extends object>(kind: string, value: T, key = this.crypt) {
-    return { ...value, operationMac: await key.hash(kind, [key.secrets.environment, value]) };
+    return {
+      ...value,
+      operationMac: await key.recoveryHash(kind, [key.secrets.environment, value]),
+    };
   }
   async verify<T extends { hmacKeyId: string; operationMac: string }>(
     kind: string,
@@ -124,7 +127,7 @@ export class ErasureLedger {
     const key = this.key(value.hmacKeyId);
     if (
       canonicalJson(value) !== raw ||
-      operationMac !== (await key.hash(kind, [key.secrets.environment, rest]))
+      operationMac !== (await key.recoveryHash(kind, [key.secrets.environment, rest]))
     )
       throw new Error('Invalid ledger authentication');
     return value;

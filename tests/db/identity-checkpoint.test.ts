@@ -89,7 +89,7 @@ test('commits identity only after immutable independent encrypted checkpoint dur
     ),
   ).toEqual(snapshot);
 });
-test('R2 failure leaves a resumable fence without applying credentials or granting sessions', async () => {
+test('R2 failure leaves reserved credentials unusable behind a resumable fence without granting sessions', async () => {
   const snapshot = await proposed();
   const unavailable = {
     put: async () => {
@@ -101,7 +101,12 @@ test('R2 failure leaves a resumable fence without applying credentials or granti
       initialKeys: await cryptoService.createAccountKeys(snapshot.subjectId),
     }),
   ).rejects.toThrow();
-  expect(await env.DB.prepare('SELECT count(*) AS n FROM credentials').first('n')).toBe(0);
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM credentials').first('n')).toBe(1);
+  expect(
+    await env.DB.prepare(
+      'SELECT count(*) AS n FROM credentials c JOIN accounts a ON a.id=c.owner_id WHERE a.write_fence IS NULL',
+    ).first('n'),
+  ).toBe(0);
   expect(await env.DB.prepare('SELECT count(*) AS n FROM auth_sessions').first('n')).toBe(0);
   expect(await env.DB.prepare('SELECT write_fence FROM accounts').first('write_fence')).toBe(
     `security:${snapshot.operationId}`,
@@ -202,7 +207,12 @@ test('a committed D1 apply whose response is lost is recognized without repeatin
     get(target, property) {
       if (property === 'put')
         return async (...args: Parameters<R2Bucket['put']>) => {
-          expect(await env.DB.prepare('SELECT count(*) AS n FROM credentials').first('n')).toBe(0);
+          expect(await env.DB.prepare('SELECT count(*) AS n FROM credentials').first('n')).toBe(1);
+          expect(
+            await env.DB.prepare(
+              'SELECT count(*) AS n FROM credentials c JOIN accounts a ON a.id=c.owner_id WHERE a.write_fence IS NULL',
+            ).first('n'),
+          ).toBe(0);
           expect(await env.DB.prepare('SELECT count(*) AS n FROM auth_sessions').first('n')).toBe(
             0,
           );

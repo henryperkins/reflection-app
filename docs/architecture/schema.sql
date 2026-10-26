@@ -797,3 +797,6 @@ CREATE INDEX deleted_session_retention ON reading_sessions(status,deleted_at);
 
 -- A verified independent cleanup receipt rejects snapshots below this recovery floor.
 ALTER TABLE system_state ADD COLUMN recovery_epoch INTEGER NOT NULL DEFAULT 0 CHECK(recovery_epoch>=0);
+
+-- A registration is not proof of recent existing-passkey authentication.
+ALTER TABLE auth_sessions ADD COLUMN passkey_authenticated_at INTEGER;

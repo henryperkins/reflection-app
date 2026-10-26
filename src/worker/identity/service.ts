@@ -1,6 +1,6 @@
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server';
 import type { z } from 'zod';
-import { type apiSchemas, AuthOptions, IdentityCheckpoint } from '../../contracts/index.ts';
+import { apiSchemas, AuthOptions, IdentityCheckpoint } from '../../contracts/index.ts';
 import { assertion, onlineGuard, DB_NOW, IdentityCheckpoints, statement } from './checkpoint.ts';
 import { type Checkpoint, encode, type IdentityCrypto, randomToken, uuidBytes } from './crypto.ts';
 import { IdentitySessions } from './sessions.ts';
@@ -83,19 +83,55 @@ export class IdentityService {
     return { options, browser, insert };
   }
   async begin(purpose: z.infer<typeof apiSchemas.AuthBegin>['purpose'], session?: Session) {
-    if (purpose === 'add') throw new IdentityError(503, 'NOT_AVAILABLE');
     if (purpose === 'reauthenticate' && !session) throw new IdentityError(401, 'AUTH_REQUIRED');
+    let excluded: string[] = [];
+    if (purpose === 'add') {
+      const current = this.recentPasskey(session);
+      excluded = (await this.credentials(current)).items.map((credential) => credential.id);
+      if (excluded.length >= 10) throw new IdentityError(409, 'CREDENTIAL_LIMIT');
+    }
     const made = await this.newChallenge(
       purpose,
       session?.subjectId ?? null,
       session?.epoch ?? null,
     );
+    made.options.excludeCredentialIds = excluded;
     await this.db.batch([
       onlineGuard(this.db),
-      ...(session ? [this.sessions.guard(session)] : []),
+      ...(session
+        ? [this.sessions.guard(session, purpose === 'add', true, purpose === 'add')]
+        : []),
       made.insert,
     ]);
     return made;
+  }
+  private recentPasskey(session?: Session): Session {
+    if (
+      !session ||
+      session.authenticatedAt <= Date.now() - 300_000 ||
+      session.passkeyAuthenticatedAt === null ||
+      session.passkeyAuthenticatedAt <= Date.now() - 300_000
+    )
+      throw new IdentityError(401, 'REAUTH_REQUIRED');
+    return session;
+  }
+  async credentials(session: Session) {
+    if (session.writeFence) throw new IdentityError(503, 'DEPENDENCY_UNAVAILABLE');
+    const results = await this.db.batch<{ id: string; created_at: number; backed_up: number }>([
+      this.sessions.guard(session),
+      statement(
+        this.db,
+        'SELECT id,created_at,backed_up FROM credentials WHERE owner_id=? ORDER BY created_at,id',
+        session.subjectId,
+      ),
+    ]);
+    return apiSchemas.Credentials.parse({
+      items: results[1]!.results.map((credential) => ({
+        id: credential.id,
+        createdAt: new Date(credential.created_at).toISOString(),
+        backedUp: Boolean(credential.backed_up),
+      })),
+    });
   }
   private async challenge(
     id: string,
@@ -195,8 +231,20 @@ export class IdentityService {
     input: z.infer<typeof apiSchemas.RegisterFinish>,
     browser: string | undefined,
     ip = 'loopback',
+    session?: Session,
+    csrfToken?: string,
   ) {
-    const challenge = await this.challenge(input.challengeId, browser, ['register', 'recover']);
+    const challenge = await this.challenge(input.challengeId, browser, [
+      'register',
+      'recover',
+      'add',
+    ]);
+    const current = challenge.purpose === 'add' ? this.recentPasskey(session) : undefined;
+    if (current) {
+      if (csrfToken !== current.csrfToken) throw new IdentityError(403, 'FORBIDDEN');
+      if (current.subjectId !== challenge.owner_id || current.epoch !== challenge.auth_epoch)
+        throw new IdentityError(401, 'AUTH_FAILED');
+    }
     const credential = input.credential;
     if (
       credential.id !== credential.rawId ||
@@ -225,6 +273,57 @@ export class IdentityService {
     });
     if (!verified.verified || verified.registrationInfo.fmt !== 'none')
       throw new IdentityError(401, 'AUTH_FAILED');
+    if (current) {
+      const previous = await this.snapshot(current.subjectId);
+      if (previous.credentials.length >= 10) throw new IdentityError(409, 'CREDENTIAL_LIMIT');
+      const info = verified.registrationInfo;
+      if (
+        await statement(this.db, 'SELECT 1 FROM credentials WHERE id=?', info.credential.id).first()
+      )
+        throw new IdentityError(409, 'CREDENTIAL_EXISTS');
+      const now = new Date().toISOString();
+      const snapshot: Checkpoint = {
+        ...previous,
+        operationId: crypto.randomUUID(),
+        epoch: previous.epoch + 1,
+        createdAt: now,
+        credentials: [
+          ...previous.credentials,
+          {
+            id: info.credential.id,
+            publicKey: encode(info.credential.publicKey),
+            signCount: info.credential.counter,
+            backedUp: info.credentialBackedUp,
+            transports: credential.response.transports,
+            createdAt: now,
+          },
+        ],
+      };
+      await this.checkpoints.commit(snapshot, {
+        expected: previous,
+        guards: [
+          this.sessions.guard(current, true, true, true),
+          ...this.consume(challenge),
+          assertion(
+            this.db,
+            'NOT EXISTS(SELECT 1 FROM credentials WHERE id=?)',
+            info.credential.id,
+          ),
+          assertion(
+            this.db,
+            '(SELECT count(*) FROM credentials WHERE owner_id=?)<10',
+            current.subjectId,
+          ),
+        ],
+      });
+      return this.sessions.issue(
+        current.subjectId,
+        snapshot.epoch,
+        current.authenticatedAt,
+        [],
+        current.passkeyAuthenticatedAt,
+      );
+    }
     if (challenge.purpose === 'register') await this.rate('registration', ip, 3, 86_400_000);
     const subjectId = challenge.owner_id ?? challenge.id,
       previous = challenge.purpose === 'recover' ? await this.snapshot(subjectId) : undefined;
@@ -317,29 +416,80 @@ export class IdentityService {
       throw new IdentityError(401, 'AUTH_FAILED');
     });
     if (!verified.verified) throw new IdentityError(401, 'AUTH_FAILED');
-    return this.sessions.issue(row.owner_id, row.auth_epoch, Date.now(), [
-      ...this.consume(challenge),
-      ...(session ? [this.sessions.guard(session)] : []),
-      assertion(
-        this.db,
-        'EXISTS(SELECT 1 FROM credentials WHERE id=? AND owner_id=? AND sign_count=?)',
-        row.id,
-        row.owner_id,
-        row.sign_count,
-      ),
-      statement(
-        this.db,
-        'UPDATE credentials SET sign_count=?,backed_up=? WHERE id=?',
-        verified.authenticationInfo.newCounter,
-        Number(verified.authenticationInfo.credentialBackedUp),
-        row.id,
-      ),
-      ...(session
-        ? [statement(this.db, 'DELETE FROM auth_sessions WHERE token_hash=?', session.tokenHash)]
-        : []),
-    ]);
+    const now = Date.now();
+    return this.sessions.issue(
+      row.owner_id,
+      row.auth_epoch,
+      now,
+      [
+        ...this.consume(challenge),
+        ...(session ? [this.sessions.guard(session)] : []),
+        assertion(
+          this.db,
+          'EXISTS(SELECT 1 FROM credentials WHERE id=? AND owner_id=? AND sign_count=?)',
+          row.id,
+          row.owner_id,
+          row.sign_count,
+        ),
+        statement(
+          this.db,
+          'UPDATE credentials SET sign_count=?,backed_up=? WHERE id=?',
+          verified.authenticationInfo.newCounter,
+          Number(verified.authenticationInfo.credentialBackedUp),
+          row.id,
+        ),
+        ...(session
+          ? [statement(this.db, 'DELETE FROM auth_sessions WHERE token_hash=?', session.tokenHash)]
+          : []),
+      ],
+      now,
+    );
   }
-  async recover(input: z.infer<typeof apiSchemas.Recover>) {
+  async recover(input: z.infer<typeof apiSchemas.Recover>, ip = 'loopback') {
+    const now = Date.now(),
+      day = Math.floor(now / 86_400_000),
+      start = Math.floor(now / 3_600_000) * 3_600_000;
+    const hashes = await Promise.all([
+      this.crypt.hash('rate', ['recovery-ip', day, ip]),
+      this.crypt.hash('rate', ['recovery-handle', day, input.recoveryHandle]),
+    ]);
+    const limited = await statement(
+      this.db,
+      'SELECT 1 FROM rate_buckets WHERE scope_hash IN (?,?) AND window_start=? AND count>=5',
+      hashes[0]!,
+      hashes[1]!,
+      start,
+    ).first();
+    if (limited) throw new IdentityError(429, 'RATE_LIMITED');
+    try {
+      return await this.recoverAccount(input);
+    } catch (error) {
+      if (
+        !(error instanceof IdentityError && error.status === 401) &&
+        !(
+          error instanceof Error &&
+          /CHECK constraint failed|UNIQUE constraint failed/.test(error.message)
+        )
+      )
+        throw error;
+      const results = await this.db.batch<{ count: number }>([
+        onlineGuard(this.db),
+        ...hashes.map((hash) =>
+          statement(
+            this.db,
+            'INSERT INTO rate_buckets(scope_hash,window_start,count,expires_at) VALUES (?,?,1,?) ON CONFLICT(scope_hash,window_start) DO UPDATE SET count=count+1 RETURNING count',
+            hash,
+            start,
+            now + 2 * 86_400_000,
+          ),
+        ),
+      ]);
+      if (results.slice(1).some((result) => result.results[0]!.count > 5))
+        throw new IdentityError(429, 'RATE_LIMITED');
+      throw new IdentityError(401, 'AUTH_FAILED');
+    }
+  }
+  private async recoverAccount(input: z.infer<typeof apiSchemas.Recover>) {
     const handleHash = await this.crypt.hash('recovery-handle', input.recoveryHandle),
       codeHash = await this.crypt.hash('recovery-code', [input.recoveryHandle, input.code]);
     const account = await statement(
@@ -393,7 +543,13 @@ export class IdentityService {
       expected: previous,
       guards: [this.sessions.guard(session)],
     });
-    return this.sessions.issue(session.subjectId, snapshot.epoch, session.authenticatedAt);
+    return this.sessions.issue(
+      session.subjectId,
+      snapshot.epoch,
+      session.authenticatedAt,
+      [],
+      session.passkeyAuthenticatedAt,
+    );
   }
   async rotate(session: Session) {
     const previous = await this.snapshot(session.subjectId),
@@ -412,8 +568,60 @@ export class IdentityService {
       guards: [this.sessions.guard(session, true)],
     });
     return {
-      ...(await this.sessions.issue(session.subjectId, snapshot.epoch, session.authenticatedAt)),
+      ...(await this.sessions.issue(
+        session.subjectId,
+        snapshot.epoch,
+        session.authenticatedAt,
+        [],
+        session.passkeyAuthenticatedAt,
+      )),
       kit: { recoveryHandle: kit.recoveryHandle, codes: kit.codes },
     };
+  }
+  async logoutAll(session: Session) {
+    const previous = await this.snapshot(session.subjectId);
+    // Persist the new epoch independently before acknowledging revocation. The
+    // checkpoint apply transaction clears every session and old challenge.
+    await this.checkpoints.commit(
+      {
+        ...previous,
+        operationId: crypto.randomUUID(),
+        epoch: previous.epoch + 1,
+        createdAt: new Date().toISOString(),
+      },
+      { expected: previous, guards: [this.sessions.guard(session)] },
+    );
+  }
+  async removeCredential(session: Session, id: string) {
+    this.recentPasskey(session);
+    const previous = await this.snapshot(session.subjectId);
+    if (!previous.credentials.some((credential) => credential.id === id))
+      throw new IdentityError(404, 'NOT_FOUND');
+    if (previous.credentials.length <= 1) throw new IdentityError(409, 'LAST_CREDENTIAL');
+    const snapshot: Checkpoint = {
+      ...previous,
+      operationId: crypto.randomUUID(),
+      epoch: previous.epoch + 1,
+      createdAt: new Date().toISOString(),
+      credentials: previous.credentials.filter((credential) => credential.id !== id),
+    };
+    await this.checkpoints.commit(snapshot, {
+      expected: previous,
+      guards: [
+        this.sessions.guard(session, true, true, true),
+        assertion(
+          this.db,
+          '(SELECT count(*) FROM credentials WHERE owner_id=?)>1',
+          session.subjectId,
+        ),
+      ],
+    });
+    return this.sessions.issue(
+      session.subjectId,
+      snapshot.epoch,
+      session.authenticatedAt,
+      [],
+      session.passkeyAuthenticatedAt,
+    );
   }
 }

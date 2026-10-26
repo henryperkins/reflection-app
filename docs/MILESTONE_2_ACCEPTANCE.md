@@ -1,6 +1,6 @@
 # Milestone 2 acceptance and delivery
 
-Milestone 2 remains open. Deployment and live provider traffic remain disabled. Local test results do not close hosted, provider, content approval or manual acceptance gates.
+Production acceptance for Milestone 2 remains open. Deployment and live provider traffic remain disabled. The current delivery is the verified local application and ZIP; the owner deferred production-launch decisions for this delivery. See [completion-pass results](COMPLETION_PASS_RESULTS.md). Local test results do not close hosted, provider, content approval or manual acceptance gates.
 
 ## Carried baseline
 
@@ -31,28 +31,26 @@ Thus “generation is internal/disabled” is accurate for the prototype and rea
 | Export and deletion controls | The [saved-reading browser journey](../tests/browser/readings.spec.ts) downloads and checks actual exported reading/reflection records and deletes the reading with AI off. [Privacy browser tests](../tests/browser/privacy.spec.ts) cover exact-revision deletion, account deletion and a lost account-deletion response with a usable receipt. | Hosted erasure/backup/retention assurances and manual accessibility. These are implemented UI flows, not backend-only claims. |
 | Interruptions and conflicts | Browser tests cover stale reflection reconciliation, dirty-draft stay/discard, delayed responses after sign-out, lost deletion responses and deletion revision conflicts. [D1 interleaving tests](../tests/db/reading-interleavings.test.ts) cover consent/authentication/retention/export races. | Request progress, cancellation protocol, reload/sign-in resume, lost Start/Save reconciliation, explicit same-intent retry and cursor consistency now have local evidence. Real D1 barriers verify cancellation/revocation races; content-free browser status fixtures verify non-success UI handling. Hosted interruption recovery and complete manual/browser acceptance remain open. |
 
-The client now has a separate request progress screen. Start returns after durable admission; the local Worker continues asynchronously. Read-only intent lookup recovers a lost acknowledgement, and cancellation fences late publication and releases held quota atomically. There is still no qualified hosted durable driver or production transport. A lost Worker continuation expires through local scheduled maintenance rather than redispatching. These local proofs do not close hosted/provider gates. See [the client flow](../src/client/readings.tsx), [application routes](../src/worker/readings/routes.ts), [local generator](../src/worker/readings/generation.ts), and [saved-reading evidence](SAVED_READING_RESULTS.md).
+The client now has a separate request progress screen. Start returns after durable admission; the local Worker continues asynchronously. Read-only intent lookup recovers a lost acknowledgement, and cancellation fences late publication and releases held quota atomically. The completion pass adds a database-backed local recovery driver and a disabled provider transport. Prepared work can resume, saved candidates can be validated again, and uncertain dispatches are never deliberately sent again. Hosted durable execution and live transport remain unqualified. These local proofs do not close hosted/provider gates. See [the client flow](../src/client/readings.tsx), [application routes](../src/worker/readings/routes.ts), [local generator](../src/worker/readings/generation.ts), and [saved-reading evidence](SAVED_READING_RESULTS.md).
 
 ## Remaining acceptance
 
 | Gate | Required evidence / next work |
 |---|---|
 | Request status | Local cursor/retention consistency, after-cursor pagination and cancellation are verified. Hosted continuation/crash recovery and manual progress announcements remain open. |
-| Identity completion | Passkey listing/removal and last-factor protection, logout-all, failure-only recovery throttling, and browser acceptance of those controls. Qualify stable production domain/RP ID and physical/synchronized passkeys separately. |
-| Generation and provider | Complete durable generation/recovery behavior and intercepted egress checks; bounded real-provider qualification only under explicit separate authorization, with verified privacy/access/pricing and no hidden retry. Preserve consent-off operation. |
+| Identity completion | Passkey listing/add/removal, recent existing-passkey reauthentication, ten-passkey and last-factor protections, checkpointed logout-all, failure-only recovery throttling, and browser acceptance are implemented locally. Stable production domain/RP ID and physical/synchronized passkeys remain external qualification. |
+| Generation and provider | Database-backed resume, durable candidate processing, no redispatch after uncertain authorization, exact candidate composition, labelled fallback/quota handling and intercepted adapter checks are implemented locally. Hosted crash/scheduler behavior and bounded real-provider evaluation/access/privacy/billing evidence remain open. The application writer remains synthetic and live calls remain disabled. |
 | Content and user experience | Human-reviewed English default/non-reading outcomes, cleared launch canon and rights, manual acceptance of the implemented semantic reading/source separation and interruption/conflict/offline states. Existing source rendering is inventoried above; synthetic approval fixtures do not count as launch approval. |
-| Production privacy and operations | Production keys/rotation, retained-key receipt serving, independent backup inventory and loss assurance, durable crash recovery, monitored security/erasure jobs and spend, incident/deletion-lag/key-recovery runbooks. Local purge alone does not establish hosted retention. |
+| Production privacy and operations | Versioned retained-key receipts, add-only KEK rewrap, local key inventory, content-free maintenance telemetry and operational runbooks are implemented locally. Production key custody/backup retention, account-DEK rewrite, key retirement, independent hosted inventory/loss assurance and real alert delivery remain unqualified. |
 | Hosted acceptance | Main failing-test proof, preview isolation, D1 batch/race and Cron evidence, actual synthetic hosted restore/RPO with erased data, used code, removed credential and pre-dispatch bookmark. Keep deployment disabled until separately authorized and qualified. |
 | Browser/manual acceptance | Keyboard, screen reader, mobile and physical-authenticator checks; browsers beyond the recorded local Chromium virtual-authenticator journeys. |
 | Owner decisions | Geography/age policy, budget acceptance, launch canon approval and operational acceptance. No default inferred approval. |
 
-## Next local integration
+## Current delivery and next boundary
 
-The request lifecycle and inspection integration closes the next local product slice, subject to the independent review and source-bound evidence in [its result record](REQUEST_LIFECYCLE_RESULTS.md). Preserve its request identity, cancellation, quota and exact-content tests alongside the existing recovery/privacy baseline.
+The completion pass integrates account controls, recoverable local generation, candidate validation/composition, a disabled provider adapter, retained-key handling and local rewrap, operational telemetry, release evidence checking and reproducible packaging. Preserve all five agreed MVP journeys and the privacy/retention baseline. The local ZIP is delivered without waiting for production domain, audience or budget decisions, following the owner's clarification.
 
-The next local implementation target is identity account controls: passkey listing/removal and last-factor protection, logout-all, and failure-only recovery throttling, followed by integrated browser acceptance. Production domain/RP-ID, physical/synchronized authenticators, provider/content qualification, hosted operations and manual assistive-technology acceptance remain distinct gates requiring their own evidence. Keep deployment and live-provider traffic disabled.
-
-Full Milestone 2 cannot be marked complete from the synthetic gate alone.
+Further production work consists of the explicit external/manual gates in [production acceptance](PRODUCTION_ACCEPTANCE.md). Full real-user qualification cannot be inferred from the synthetic gate. Milestone 3 remains separate.
 
 ## Later scope
 
@@ -62,7 +60,7 @@ Astrology, coaching/check-ins, narration, recognition, Time Travel as a product 
 
 ## Requested deliverable
 
-The user requested a ZIP of `reflection-app` **after Milestone 2 is complete** (2026-10-26). Keep this request pending until the applicable acceptance gates have recorded evidence and the milestone is actually closed. Then produce a reproducible ZIP of the verified application source, lockfile, migrations, tests, documentation and verification records, with a checksum and download link. Exclude Git internals, dependencies, caches, temporary/local databases, credentials and local secrets. Do not label an interim local snapshot as the completed Milestone 2 package.
+The user originally requested a ZIP after Milestone 2. During the completion pass on 2026-10-26, the user clarified that production domain, geography, age and budget decisions are not important for this delivery. Deliver the verified local application ZIP now, with deployment disabled and production acceptance explicitly deferred. Include source, lockfile, migrations, tests, documentation and verification records, a checksum and download link. Exclude Git internals, dependencies, caches, local databases, credentials and secrets. Label it as the verified local application; do not claim hosted/provider/human acceptance that has not occurred. See [local delivery](LOCAL_DELIVERY.md) and [deferred production acceptance](PRODUCTION_ACCEPTANCE.md).
 
 ## Workspace roles
 
