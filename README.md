@@ -35,7 +35,7 @@ Run `npm run dev:identity` and open **http://localhost:8787** for the account an
 
 The browser test starts its own loopback Worker, applies migrations to a temporary local database, uses Chromium virtual authenticators, then disposes the temporary storage. The development command keeps its local data under `.wrangler/identity-development` and invokes local scheduled maintenance at startup and once per minute. `npm run dev` alone starts the frontend without an identity backend.
 
-Wrangler configuration contains no remote database ID or deployment route. `release --check` reports outstanding qualifications and always returns `deploymentAllowed: false`. The publication prototype remains an internal synthetic test harness; the new saved-reading service remains explicitly local and does not qualify a production generation service.
+Wrangler configuration contains no remote database ID or deployment route. `release --check` reports outstanding qualifications and always returns `deploymentAllowed: false`. The publication prototype remains an internal synthetic test harness. Separately, the application UI already routes Start reading through `LocalGeneration` with an intercepted synthetic writer. The local create/save/return/reflect journey is covered by browser tests; this does not qualify a live-provider generation service. The [current application inventory](docs/MILESTONE_2_ACCEPTANCE.md#current-application-inventory) separates verified local flows from the remaining product and launch gates.
 
 ## Source ownership
 
