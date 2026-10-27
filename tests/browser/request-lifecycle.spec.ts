@@ -85,7 +85,7 @@ test('a lost Save response is reconciled by reloading the same accepted reading'
   });
   await page.getByRole('button', { name: 'Save reading', exact: true }).click();
   await expect(
-    page.getByRole('status').filter({ hasText: /fetch|connection|completed/i }),
+    page.getByRole('alert').filter({ hasText: /fetch|connection|completed/i }),
   ).toBeVisible();
   await page.reload();
   await expect(page.getByTestId('accepted-reading')).toBeVisible();
@@ -213,7 +213,7 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
   await expect(
     accepted.getByRole('heading', { name: 'Synthetic source inspection' }),
   ).toBeFocused();
-  await expect(accepted.getByRole('heading', { name: 'Drawn card', exact: true })).toHaveCount(3);
+  await expect(accepted.getByRole('heading', { name: /^Drawn card: / })).toHaveCount(3);
   await expect(accepted.getByRole('heading', { name: 'Interpretation', exact: true })).toHaveCount(
     3,
   );
@@ -230,12 +230,14 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
   const artifact = AcceptedReading.parse(
     await (await page.request.get(`/api/v1/readings/${status.editionId}`)).json(),
   );
+  const positions = ['Situation', 'Tension', 'Possibility'];
   for (let i = 0; i < 3; i++) {
     const card = artifact.basis.cards[i]!,
       source = artifact.sources[i]!;
     await expect(
       accepted.getByRole('heading', {
-        name: `${card.position}: ${card.cardId} · ${card.orientation}`,
+        name: `${positions[i]}: Synthetic ${card.cardId} (${card.cardId}) · ${card.orientation}`,
+        exact: true,
       }),
     ).toBeVisible();
     await expect(

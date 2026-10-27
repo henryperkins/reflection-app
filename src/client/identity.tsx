@@ -6,6 +6,8 @@ import { enroll, signIn } from './passkeys.ts';
 import { ReadingWorkspace } from './readings.tsx';
 import { requestFromPath } from './request-progress.tsx';
 import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
+import { date } from './date.ts';
+import { Notice, type NoticeMessage } from './notice.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type Kit = z.infer<typeof apiSchemas.RecoveryCodes>;
@@ -33,7 +35,7 @@ export function IdentityApp() {
   const [route, setRoute] = useState(window.location.pathname);
   const [busy, setBusy] = useState(false),
     [checking, setChecking] = useState(true);
-  const [message, setMessage] = useState('');
+  const [message, setMessage] = useState<NoticeMessage | null>(null);
   const [accountDeleteChecked, setAccountDeleteChecked] = useState(false);
   const [deletionReceipt, setDeletionReceipt] = useState<{
     proof: DeletionProof;
@@ -90,7 +92,11 @@ export function IdentityApp() {
       .catch((error) => {
         if (!current) return;
         if (error instanceof ApiFailure && error.status === 401) clear();
-        else setMessage('Your passkeys could not be loaded. Refresh this page to try again.');
+        else
+          setMessage({
+            tone: 'error',
+            text: 'Your passkeys could not be loaded. Refresh this page to try again.',
+          });
       });
     return () => {
       current = false;
@@ -108,9 +114,10 @@ export function IdentityApp() {
         if (error instanceof ApiFailure && error.status === 401) {
           if (authenticated.current) clear();
         } else {
-          setMessage(
-            'Your session could not be refreshed. Keep this page open and try again when the connection returns.',
-          );
+          setMessage({
+            tone: 'error',
+            text: 'Your session could not be refreshed. Keep this page open and try again when the connection returns.',
+          });
         }
       }
     } finally {
@@ -123,14 +130,17 @@ export function IdentityApp() {
     channel.current = updates;
     updates.onmessage = () => {
       clear();
-      setMessage('Your account session changed in another tab. Please sign in again.');
+      setMessage({
+        tone: 'notice',
+        text: 'Your account session changed in another tab. Please sign in again.',
+      });
     };
     const focus = () => {
         if (authenticated.current) void refresh();
       },
       navigation = () => {
         setRoute(window.location.pathname);
-        setMessage('');
+        setMessage(null);
       };
     const pageshow = (event: PageTransitionEvent) => {
       if (event.persisted) {
@@ -158,7 +168,7 @@ export function IdentityApp() {
     const operationVersion = ++version.current;
     const isCurrent = () => operationVersion === version.current;
     setBusy(true);
-    setMessage('');
+    setMessage(null);
     try {
       await operation(isCurrent);
       requestAnimationFrame(() => {
@@ -166,11 +176,13 @@ export function IdentityApp() {
       });
     } catch (error) {
       if (isCurrent())
-        setMessage(
-          error instanceof ApiFailure
-            ? error.message
-            : 'The passkey action was not completed. Please try again.',
-        );
+        setMessage({
+          tone: 'error',
+          text:
+            error instanceof ApiFailure
+              ? error.message
+              : 'The passkey action was not completed. Please try again.',
+        });
     } finally {
       if (isCurrent()) {
         inFlight.current = false;
@@ -249,11 +261,7 @@ export function IdentityApp() {
         Use synthetic text and test accounts only. This local build simulates readings and never
         contacts an AI provider.
       </p>
-      {message && (
-        <p role="alert" className="notice error">
-          {message}
-        </p>
-      )}
+      <Notice message={message} />
       <div aria-busy={busy || checking}>
         {checking && !session && !kit && !grant ? (
           <p role="status">Checking your session…</p>
@@ -295,7 +303,10 @@ export function IdentityApp() {
                     await navigator.clipboard.writeText(kitText(kit));
                     if (!isCurrent()) return;
                     setDownloaded(true);
-                    setMessage('Complete recovery kit copied. Store it somewhere private.');
+                    setMessage({
+                      tone: 'success',
+                      text: 'Complete recovery kit copied. Store it somewhere private.',
+                    });
                   })
                 }
               >
@@ -359,9 +370,10 @@ export function IdentityApp() {
               disabled={busy}
               onClick={() => {
                 setGrant(null);
-                setMessage(
-                  'Recovery enrollment cancelled. That code has been used; use a remaining code or an existing passkey.',
-                );
+                setMessage({
+                  tone: 'notice',
+                  text: 'Recovery enrollment cancelled. That code has been used; use a remaining code or an existing passkey.',
+                });
               }}
             >
               Cancel enrollment
@@ -370,6 +382,17 @@ export function IdentityApp() {
         ) : session ? (
           <section>
             <p>You’re signed in. Your passkey and recovery kit protect access to this account.</p>
+            <div inert={checking || busy}>
+              <ReadingWorkspace
+                key={session.subjectId}
+                user={session}
+                onSession={setSession}
+                onExpired={() => {
+                  clear();
+                  setMessage({ tone: 'notice', text: 'Your session ended. Please sign in again.' });
+                }}
+              />
+            </div>
             <section aria-label="Manage passkeys">
               <h2>Your passkeys</h2>
               <p>
@@ -382,7 +405,7 @@ export function IdentityApp() {
                     <li key={credential.id}>
                       <p>
                         <strong>Passkey {credential.id.slice(0, 8)}</strong>
-                        {' · '}Added {new Date(credential.createdAt).toLocaleDateString()}
+                        {' · '}Added {date(credential.createdAt, true)}
                         {' · '}
                         {credential.backedUp
                           ? 'Backed up by your passkey provider'
@@ -409,9 +432,10 @@ export function IdentityApp() {
                             if (!isCurrent()) return;
                             setSession(current);
                             channel.current?.postMessage('changed');
-                            setMessage(
-                              'Passkey removed. Your other sessions have been signed out.',
-                            );
+                            setMessage({
+                              tone: 'success',
+                              text: 'Passkey removed. Your other sessions have been signed out.',
+                            });
                           })
                         }
                       >
@@ -442,7 +466,10 @@ export function IdentityApp() {
                     await complete(await enroll(options, csrf), isCurrent);
                     if (!isCurrent()) return;
                     channel.current?.postMessage('changed');
-                    setMessage('Passkey added. Your other sessions have been signed out.');
+                    setMessage({
+                      tone: 'success',
+                      text: 'Passkey added. Your other sessions have been signed out.',
+                    });
                   })
                 }
               >
@@ -452,17 +479,6 @@ export function IdentityApp() {
                 <p>You have ten passkeys. Remove one before adding another.</p>
               )}
             </section>
-            <div hidden={checking || busy}>
-              <ReadingWorkspace
-                key={session.subjectId}
-                user={session}
-                onSession={setSession}
-                onExpired={() => {
-                  clear();
-                  setMessage('Your session ended. Please sign in again.');
-                }}
-              />
-            </div>
             <details className="deletion-actions">
               <summary>Delete account</summary>
               <p>
@@ -480,6 +496,7 @@ export function IdentityApp() {
               </label>
               <button
                 type="button"
+                className="danger"
                 disabled={busy || !accountDeleteChecked}
                 onClick={() =>
                   void run(async (isCurrent) => {
@@ -576,7 +593,7 @@ export function IdentityApp() {
                   })
                 }
               >
-                Log out all devices
+                Sign out of all devices
               </button>
             </div>
           </section>

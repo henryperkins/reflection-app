@@ -99,6 +99,14 @@ button:hover:enabled {
   background: #1b3f33;
   color: white;
 }
+button.danger {
+  background: #8b2f2f;
+  border-color: #8b2f2f;
+}
+button.danger:hover:enabled {
+  background: #702323;
+  border-color: #702323;
+}
 :focus-visible {
   outline: 3px solid #956119;
   outline-offset: 4px;

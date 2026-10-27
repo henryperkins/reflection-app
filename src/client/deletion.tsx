@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas } from '../contracts/index.ts';
+import { date } from './date.ts';
 
 export type DeletionProof = z.infer<typeof apiSchemas.DeleteRequest>;
 type Status = z.infer<typeof apiSchemas.DeletionStatus>;
@@ -84,8 +85,8 @@ export function DeletionReceiptPanel({
       </p>
       {status?.backupExpiresBy && (
         <p>
-          Backup retention deadline: {new Date(status.backupExpiresBy).toLocaleString()}. Downloaded
-          copies are unchanged.
+          Backup retention deadline: {date(status.backupExpiresBy)}. Downloaded copies are
+          unchanged.
         </p>
       )}
       <p>

@@ -45,14 +45,21 @@ test('a signed-in person adds a passkey, removes the old one, and signs out ever
   });
   await page.getByRole('button', { name: 'Add a passkey', exact: true }).click();
   await expect(page.getByRole('list', { name: 'Passkeys' }).getByRole('listitem')).toHaveCount(2);
+  await expect(page.getByRole('status').filter({ hasText: 'Passkey added.' })).toBeVisible();
   expect(addChallengeSeen).toBe(true);
   expect((await elsewhere.request.get('http://localhost:8787/api/v1/me')).status()).toBe(401);
   await expect(anotherTab.getByRole('heading', { name: 'A place to return to.' })).toBeVisible();
+  await expect(
+    anotherTab
+      .getByRole('status')
+      .filter({ hasText: 'Your account session changed in another tab.' }),
+  ).toBeVisible();
   expect(await anotherTab.evaluate(() => ({ ...sessionStorage }))).toEqual({});
   await page
     .getByRole('button', { name: `Remove passkey ${first.id.slice(0, 8)}`, exact: true })
     .click();
   await expect(page.getByRole('list', { name: 'Passkeys' }).getByRole('listitem')).toHaveCount(1);
+  await expect(page.getByRole('status').filter({ hasText: 'Passkey removed.' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Remove passkey / })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Download recovery kit' })).toHaveCount(0);
   await page.evaluate(async () => {
@@ -60,7 +67,7 @@ test('a signed-in person adds a passkey, removes the old one, and signs out ever
     const cache = await caches.open('unexpected-private-cache');
     await cache.put('/api/v1/me', new Response('private-cache-marker'));
   });
-  await page.getByRole('button', { name: 'Log out all devices', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign out of all devices', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'A place to return to.' })).toBeVisible();
   expect((await page.request.get('/api/v1/me')).status()).toBe(401);
   expect(await page.evaluate(() => ({ ...sessionStorage }))).toEqual({});
@@ -72,6 +79,68 @@ test('a signed-in person adds a passkey, removes the old one, and signs out ever
   await expect(page.getByRole('list', { name: 'Passkeys' }).getByRole('listitem')).toHaveCount(1);
   expect(faults).toEqual([]);
   await elsewhere.close();
+});
+
+test('an ended session clears the workspace and announces signing in again as a notice', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.178');
+  await page.route(/\/api\/v1\/sessions\?status=saved$/, (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: '{}',
+    }),
+  );
+  await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'A place to return to.' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Your readings' })).toHaveCount(0);
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Your session ended. Please sign in again.' }),
+  ).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+});
+
+test('a passkey action keeps the reading workspace visible and its draft intact while blocking interaction', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.174');
+  await page.getByRole('button', { name: 'Enable AI readings', exact: true }).click();
+  await page.getByRole('button', { name: 'New reading', exact: true }).click();
+  const workspace = page.locator('.reading-workspace');
+  const question = page.locator('#reading-question');
+  await question.fill('Synthetic question kept during a passkey action');
+  const before = await workspace.boundingBox();
+  const passkeys = await page.getByRole('region', { name: 'Manage passkeys' }).boundingBox();
+  expect(before!.y + before!.height).toBeLessThanOrEqual(passkeys!.y);
+  const position = () =>
+    workspace.evaluate((element) => ({
+      top: element.getBoundingClientRect().top + window.scrollY,
+      height: element.getBoundingClientRect().height,
+      width: element.getBoundingClientRect().width,
+    }));
+  const originalPosition = await position();
+  let resume!: () => void;
+  const paused = new Promise<void>((resolve) => {
+    resume = resolve;
+  });
+  await page.route('**/api/v1/auth/options', async (route) => {
+    await paused;
+    await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+  });
+  try {
+    await page.getByRole('button', { name: 'Add a passkey', exact: true }).click();
+    await expect(workspace.locator('..')).toHaveAttribute('inert', '');
+    await expect(workspace).toBeVisible();
+    expect(await position()).toEqual(originalPosition);
+    await question.evaluate((element) => element.focus());
+    await expect(question).not.toBeFocused();
+  } finally {
+    resume();
+  }
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(question).toHaveValue('Synthetic question kept during a passkey action');
+  await expect(workspace.locator('..')).not.toHaveAttribute('inert');
 });
 
 test('cancelling the passkey prompt leaves credentials unchanged and account controls usable', async ({

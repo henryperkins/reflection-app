@@ -10,14 +10,21 @@ import {
   type ReadingRequest,
 } from './request-progress.tsx';
 import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
+import { date } from './date.ts';
+import { Notice, type NoticeMessage } from './notice.tsx';
+import { cardName } from './card-names.ts';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type RecordView = z.infer<typeof apiSchemas.SessionRecord>;
 type History = z.infer<typeof apiSchemas.HistoryPage>;
 type Thought = z.infer<typeof Reflection>;
 type Current = () => boolean;
-const date = (value: string) =>
-  new Date(value).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+const stanceLabels: Record<Thought['stance'], string> = {
+  unspecified: 'No stance selected',
+  resonates: 'Resonates',
+  unsure: 'Unsure',
+  disagree: 'Disagree',
+};
 function download(name: string, chunks: BlobPart[], type: string) {
   const url = URL.createObjectURL(new Blob(chunks, { type })),
     anchor = document.createElement('a');
@@ -72,7 +79,7 @@ export function ReadingWorkspace({
     [english, setEnglish] = useState(false),
     [reversals, setReversals] = useState(false);
   const [busy, setBusy] = useState(false),
-    [message, setMessage] = useState(''),
+    [message, setMessage] = useState<NoticeMessage | null>(null),
     [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false),
     [deleteChecked, setDeleteChecked] = useState(false);
@@ -173,9 +180,10 @@ export function ReadingWorkspace({
       if (note?.id !== reflection?.id || note?.revision !== reflection?.revision || requireReview) {
         setLatestReflection(note);
         setConflict(true);
-        setMessage(
-          'The saved reflection changed. Your draft has been kept. Review the current saved text and choose which version to use.',
-        );
+        setMessage({
+          tone: 'notice',
+          text: 'The saved reflection changed. Your draft has been kept. Review the current saved text and choose which version to use.',
+        });
       }
     } else {
       setReflection(note);
@@ -193,7 +201,7 @@ export function ReadingWorkspace({
     const version = ++epoch.current;
     const current = () => alive.current && epoch.current === version;
     setBusy(true);
-    setMessage('');
+    setMessage(null);
     try {
       await action(current);
     } catch (error) {
@@ -202,11 +210,13 @@ export function ReadingWorkspace({
         onExpired();
         return;
       }
-      setMessage(
-        error instanceof Error
-          ? error.message
-          : 'This action could not be completed. Your draft is still here.',
-      );
+      setMessage({
+        tone: 'error',
+        text:
+          error instanceof Error
+            ? error.message
+            : 'This action could not be completed. Your draft is still here.',
+      });
       if (error instanceof ApiFailure && error.status === 410) {
         clearReading();
         setMode('history');
@@ -239,7 +249,7 @@ export function ReadingWorkspace({
     epoch.current++;
     inFlight.current = false;
     setBusy(false);
-    setMessage('');
+    setMessage(null);
     clearReading();
     const restored = requestFromPath();
     const destination = restored
@@ -311,7 +321,10 @@ export function ReadingWorkspace({
         if (current()) {
           setRecord(next);
           intents.current.delete('save');
-          setMessage('Reading saved. Your reflection draft has not been submitted.');
+          setMessage({
+            tone: 'success',
+            text: 'Reading saved. Your reflection draft has not been submitted.',
+          });
         }
       });
   };
@@ -341,7 +354,7 @@ export function ReadingWorkspace({
             setStance(result.stance);
             setConflict(false);
             intents.current.delete('reflection');
-            setMessage('Reflection saved.');
+            setMessage({ tone: 'success', text: 'Reflection saved.' });
           }
         } catch (error) {
           if (current() && error instanceof ApiFailure && error.status === 409) {
@@ -363,7 +376,7 @@ export function ReadingWorkspace({
           if (current()) setRevisionNote(value);
         } catch (error) {
           if (current() && error instanceof ApiFailure && error.status === 410)
-            setMessage('The selected revision has been erased.');
+            setMessage({ tone: 'notice', text: 'The selected revision has been erased.' });
           else throw error;
         }
       });
@@ -397,7 +410,7 @@ export function ReadingWorkspace({
             setRevisionNote(null);
             setEraseRevisionChecked(false);
             revisionIntent.current = null;
-            setMessage('Reflection revision erased.');
+            setMessage({ tone: 'success', text: 'Reflection revision erased.' });
           }
         }
       } catch (error) {
@@ -407,7 +420,10 @@ export function ReadingWorkspace({
           setEraseRevisionChecked(false);
           await open(record.id, current, true);
           if (current())
-            setMessage('The reflection changed. View the revision and confirm erasure again.');
+            setMessage({
+              tone: 'notice',
+              text: 'The reflection changed. View the revision and confirm erasure again.',
+            });
         } else {
           if (current()) setRevisionReceipt({ proof, initial: null });
           throw error;
@@ -448,9 +464,10 @@ export function ReadingWorkspace({
       } while (cursor);
       if (current()) {
         download('reflection-export.ndjson', chunks, 'application/x-ndjson');
-        setMessage(
-          'Export downloaded. Keep it somewhere private; deleting records here cannot delete downloaded copies.',
-        );
+        setMessage({
+          tone: 'success',
+          text: 'Export downloaded. Keep it somewhere private; deleting records here cannot delete downloaded copies.',
+        });
       }
     });
   const remove = () => {
@@ -487,16 +504,20 @@ export function ReadingWorkspace({
             deletion.current = null;
             await open(record.id, current, true);
             if (current())
-              setMessage(
-                'This reading changed. Review the updated reading and confirm deletion again.',
-              );
+              setMessage({
+                tone: 'notice',
+                text: 'This reading changed. Review the updated reading and confirm deletion again.',
+              });
             return;
           }
           throw error;
         }
         if (!current()) return;
         if (receipt.state !== 'complete') {
-          setMessage('Deletion is still in progress. Keep this page open and retry to check it.');
+          setMessage({
+            tone: 'notice',
+            text: 'Deletion is still in progress. Keep this page open and retry to check it.',
+          });
           return;
         }
         clearReading();
@@ -505,7 +526,10 @@ export function ReadingWorkspace({
         deletion.current = null;
         await loadHistory(current);
         if (current())
-          setMessage('Reading and reflections deleted. Downloaded copies are unchanged.');
+          setMessage({
+            tone: 'success',
+            text: 'Reading and reflections deleted. Downloaded copies are unchanged.',
+          });
       });
   };
   return (
@@ -553,7 +577,7 @@ export function ReadingWorkspace({
             setMode('new');
             setRequest(null);
             window.history.replaceState(null, '', '/new');
-            setMessage('');
+            setMessage(null);
           }}
         >
           New reading
@@ -562,11 +586,7 @@ export function ReadingWorkspace({
           Export my records
         </button>
       </nav>
-      {message && (
-        <p role="status" className="notice">
-          {message}
-        </p>
-      )}
+      <Notice message={message} />
       {busy && <p role="status">Completing your reading action…</p>}
       {mode === 'history' && (
         <section aria-label="Saved reading history">
@@ -662,7 +682,7 @@ export function ReadingWorkspace({
             });
             setRequestPending(true);
             setMode('request');
-            setMessage('');
+            setMessage(null);
           }}
         >
           <h2>A new reading</h2>
@@ -721,17 +741,21 @@ export function ReadingWorkspace({
             <h2 ref={resultHeading} tabIndex={-1}>
               {reading.question}
             </h2>
-            {reading.units.map((unit) => (
-              <section key={unit.position}>
-                <h3>{unit.position}</h3>
-                <h4>Drawn card</h4>
-                <p className="basis-text">{unit.basisText}</p>
-                <h4>Interpretation</h4>
-                <p>{unit.interpretation}</p>
-                <h4>Reflection prompt</h4>
-                <p>{unit.reflectionQuestion}</p>
-              </section>
-            ))}
+            {reading.units.map((unit) => {
+              const card = reading.basis.cards.find((item) => item.position === unit.position);
+              const name = card && cardName(reading.basis.deckEdition, card.cardId);
+              return (
+                <section key={unit.position}>
+                  <h3>{unit.position}</h3>
+                  <h4>Drawn card{name ? `: ${name}` : ''}</h4>
+                  <p className="basis-text">{unit.basisText}</p>
+                  <h4>Interpretation</h4>
+                  <p>{unit.interpretation}</p>
+                  <h4>Reflection prompt</h4>
+                  <p>{unit.reflectionQuestion}</p>
+                </section>
+              );
+            })}
             <p>{reading.closing}</p>
             <details>
               <summary>Cards and sources</summary>
@@ -740,18 +764,24 @@ export function ReadingWorkspace({
                 These source snapshots are separate from the generated interpretation and your own
                 reflection. This local build uses synthetic source text.
               </p>
-              {reading.basis.cards.map((card, index) => (
-                <div key={card.id} className="source">
-                  <h3>
-                    {card.position}: {card.cardId} · {card.orientation}
-                  </h3>
-                  <p>{reading.sources[index]!.text}</p>
-                  <p>{reading.sources[index]!.rights.attribution}</p>
-                  <p className="muted">
-                    Source {reading.sources[index]!.id} · version {reading.sources[index]!.version}
-                  </p>
-                </div>
-              ))}
+              {reading.basis.cards.map((card, index) => {
+                const name = cardName(reading.basis.deckEdition, card.cardId);
+                const position = card.position[0]!.toUpperCase() + card.position.slice(1);
+                return (
+                  <div key={card.id} className="source">
+                    <h3>
+                      {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
+                      {card.orientation}
+                    </h3>
+                    <p>{reading.sources[index]!.text}</p>
+                    <p>{reading.sources[index]!.rights.attribution}</p>
+                    <p className="muted">
+                      Source {reading.sources[index]!.id} · version{' '}
+                      {reading.sources[index]!.version}
+                    </p>
+                  </div>
+                );
+              })}
               <p className="muted">
                 Generated by the local simulation. Original accepted text and source snapshot are
                 preserved.
@@ -788,7 +818,7 @@ export function ReadingWorkspace({
                   {latestReflection ? ` (revision ${latestReflection.revision})` : ''}:
                 </p>
                 <blockquote>{latestReflection?.text ?? 'No saved reflection.'}</blockquote>
-                <p>Saved stance: {latestReflection?.stance ?? 'unspecified'}</p>
+                <p>Saved stance: {stanceLabels[latestReflection?.stance ?? 'unspecified']}</p>
                 <div className="actions">
                   <button
                     type="button"
@@ -797,7 +827,10 @@ export function ReadingWorkspace({
                       setReflection(latestReflection);
                       setLatestReflection(null);
                       setConflict(false);
-                      setMessage('Your draft is ready for the next save.');
+                      setMessage({
+                        tone: 'notice',
+                        text: 'Your draft is ready for the next save.',
+                      });
                     }}
                   >
                     Keep my draft for the next save
@@ -812,7 +845,10 @@ export function ReadingWorkspace({
                       setStance(latestReflection?.stance ?? 'unspecified');
                       setLatestReflection(null);
                       setConflict(false);
-                      setMessage('The saved reflection is now in the editor.');
+                      setMessage({
+                        tone: 'notice',
+                        text: 'The saved reflection is now in the editor.',
+                      });
                     }}
                   >
                     Use the saved reflection
@@ -836,10 +872,11 @@ export function ReadingWorkspace({
               onChange={(event) => setStance(event.target.value as Thought['stance'])}
               disabled={busy}
             >
-              <option value="unspecified">No stance selected</option>
-              <option value="resonates">Resonates</option>
-              <option value="unsure">Unsure</option>
-              <option value="disagree">Disagree</option>
+              {Object.entries(stanceLabels).map(([value, label]) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
             </select>
             <p className="muted">
               Unsaved drafts stay only in memory and are lost when you leave this reading or reload.
@@ -901,6 +938,7 @@ export function ReadingWorkspace({
                   </label>
                   <button
                     type="button"
+                    className="danger"
                     disabled={busy || !eraseRevisionChecked}
                     onClick={eraseRevision}
                   >
@@ -943,7 +981,12 @@ export function ReadingWorkspace({
                   Delete this reading and its reflections permanently
                 </label>
                 <div className="actions">
-                  <button type="button" onClick={remove} disabled={busy || !deleteChecked}>
+                  <button
+                    type="button"
+                    className="danger"
+                    onClick={remove}
+                    disabled={busy || !deleteChecked}
+                  >
                     Confirm deletion
                   </button>
                   <button

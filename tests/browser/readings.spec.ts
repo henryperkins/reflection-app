@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { apiSchemas } from '../../src/contracts/index.ts';
+import { apiSchemas, ContentBundle } from '../../src/contracts/index.ts';
+import { renderFacts } from '../../src/domain/tarot/facts.ts';
 
 import {
   authenticator,
@@ -9,6 +10,127 @@ import {
   reading,
   savedSnapshot,
 } from '../fixtures/browser-reading.ts';
+
+test('source headings preserve launch-deck names, card codes and orientations while capitalizing only the position', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.179');
+  const launch = ContentBundle.parse(
+    JSON.parse(
+      await readFile(new URL('../../content/launch-canon-draft.json', import.meta.url), 'utf8'),
+    ),
+  );
+  const draw = [
+    { cardId: 'major-10', orientation: 'upright' },
+    { cardId: 'cups-05', orientation: 'reversed' },
+    { cardId: 'major-04', orientation: 'upright' },
+  ] as const;
+  // Exercise launch metadata through the real client without enabling it for generation.
+  await page.route('**/api/v1/readings/*', async (route) => {
+    const response = await route.fetch();
+    const value = apiSchemas.Reading.parse(await response.json());
+    if (value.kind !== 'tarot.accepted.v1') throw new Error('Expected accepted tarot');
+    value.basis.deckEdition = launch.deckEdition;
+    value.basis.reversals = true;
+    value.basis.cards.forEach((card, index) => {
+      Object.assign(card, draw[index]);
+    });
+    for (const count of value.basis.counts) {
+      count.count = value.basis.cards.filter((card) =>
+        card.cardId.startsWith(`${count.suit}-`),
+      ).length;
+    }
+    value.sources = value.basis.cards.map(
+      (card) =>
+        launch.sources.find(
+          (source) => source.cardId === card.cardId && source.orientation === card.orientation,
+        )!,
+    );
+    const facts = renderFacts(value.basis);
+    value.units.forEach((unit, index) => {
+      unit.basisText = facts[index]!.text;
+      unit.factIds = [value.basis.cards[index]!.id];
+      unit.sourceIds = [value.sources[index]!.id];
+    });
+    await route.fulfill({ response, json: value });
+  });
+  await reading(page, 'Synthetic source casing inspection');
+  const accepted = page.getByTestId('accepted-reading');
+  await accepted.getByText('Cards and sources', { exact: true }).click();
+  const headings = accepted.locator('.source h3');
+  const expected = [
+    'Situation: Wheel of Fortune (major-10) · upright',
+    'Tension: Five of Cups (cups-05) · reversed',
+    'Possibility: The Emperor (major-04) · upright',
+  ];
+  await expect(headings).toHaveText(expected, { useInnerText: true });
+  await accepted
+    .locator('details')
+    .screenshot({ path: '/tmp/reflection-source-casing-desktop.png' });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(headings).toHaveText(expected, { useInnerText: true });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await accepted
+    .locator('details')
+    .screenshot({ path: '/tmp/reflection-source-casing-mobile.png' });
+});
+
+test('card names match the deck edition beside unchanged facts and unknown decks fall back to codes', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.175');
+  const question = 'Synthetic edition-bound card names';
+  await reading(page, question);
+  await page.getByRole('button', { name: 'Save reading', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Reading saved.' })).toBeVisible();
+  const saved = await savedSnapshot(page);
+  if (saved.reading.kind !== 'tarot.accepted.v1') throw new Error('Expected accepted tarot');
+  const accepted = page.getByTestId('accepted-reading');
+  for (const card of saved.reading.basis.cards) {
+    await expect(
+      accepted.getByRole('heading', { name: `Drawn card: Synthetic ${card.cardId}`, exact: true }),
+    ).toBeVisible();
+  }
+  for (const unit of saved.reading.units) {
+    await expect(accepted.getByText(unit.basisText, { exact: true })).toBeVisible();
+  }
+  await page.route('**/api/v1/readings/*', async (route) => {
+    const response = await route.fetch();
+    const value = await response.json();
+    value.basis.deckEdition = 'f'.repeat(64);
+    await route.fulfill({ response, json: value });
+  });
+  await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+  await page.getByRole('button', { name: question, exact: true }).click();
+  await expect(accepted.getByRole('heading', { name: 'Drawn card', exact: true })).toHaveCount(3);
+  await expect(accepted.getByRole('heading', { name: /^Drawn card: / })).toHaveCount(0);
+  for (const unit of saved.reading.units) {
+    await expect(accepted.getByText(unit.basisText, { exact: true })).toBeVisible();
+  }
+});
+
+test('a failed workspace action announces an error and keeps the reading draft', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.176');
+  await reading(page, 'Synthetic failed save');
+  await page
+    .getByLabel('Your reflection', { exact: true })
+    .fill('Synthetic draft kept after failure');
+  await page.route('**/api/v1/sessions/*/reflections', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: '{}',
+    }),
+  );
+  await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByLabel('Your reflection', { exact: true })).toHaveValue(
+    'Synthetic draft kept after failure',
+  );
+  await expect(page.getByRole('button', { name: 'Save reflection', exact: true })).toBeEnabled();
+});
 
 test('save, sign in, recover from the downloaded kit, and manage the same reading with AI consent off', async ({
   browser,
@@ -283,6 +405,7 @@ test('focus refresh keeps a dirty reflection at its original revision until expl
   await focused;
   await expect(page.getByText(/Your draft has been kept/)).toBeVisible();
   await expect(page.getByText('Other tab latest text', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved stance: Disagree', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your reflection', { exact: true })).toHaveValue(
     'Local draft to reconcile',
   );
