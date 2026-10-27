@@ -34,22 +34,42 @@ export class IdentityCheckpoints {
   ) {}
   async commit(
     input: Checkpoint,
-    options: { initialKeys?: WrappedKeys; expected?: Checkpoint; guards?: D1PreparedStatement[] },
+    options: {
+      initialKeys?: WrappedKeys;
+      expected?: Checkpoint;
+      guards?: D1PreparedStatement[];
+      lease?: RecoveryLease;
+    },
   ): Promise<void> {
-    return recoveryWrite(this.crypt.secrets.environment, () =>
-      this.commitOperation(input, options),
+    return recoveryWrite(
+      this.crypt.secrets.environment,
+      () => this.commitOperation(input, options),
+      options.lease,
     );
   }
   private async commitOperation(
     input: Checkpoint,
-    options: { initialKeys?: WrappedKeys; expected?: Checkpoint; guards?: D1PreparedStatement[] },
+    options: {
+      initialKeys?: WrappedKeys;
+      expected?: Checkpoint;
+      guards?: D1PreparedStatement[];
+      lease?: RecoveryLease;
+    },
   ): Promise<void> {
     const snapshot = IdentityCheckpoint.parse(input);
     const encrypted = await this.crypt.sealCheckpoint(snapshot);
     const key = await this.crypt.checkpointKey(snapshot);
     const now = Date.now(),
       fence = `security:${snapshot.operationId}`;
-    const writes = [onlineGuard(this.db), ...(options.guards ?? [])];
+    const writes = [
+      options.lease
+        ? assertion(
+            this.db,
+            "EXISTS(SELECT 1 FROM system_state WHERE id=1 AND restore_in_progress=1 AND generation_enabled=0 AND dispatch_mode='off')",
+          )
+        : onlineGuard(this.db),
+      ...(options.guards ?? []),
+    ];
     if (options.initialKeys) {
       if (snapshot.epoch !== 1) throw new Error('Invalid initial epoch');
       writes.push(
@@ -165,7 +185,7 @@ export class IdentityCheckpoints {
       ),
     );
     await this.db.batch(writes);
-    await this.apply(snapshot.operationId);
+    await this.apply(snapshot.operationId, options.lease);
   }
   async apply(id: string, lease?: RecoveryLease): Promise<void> {
     return recoveryWrite(

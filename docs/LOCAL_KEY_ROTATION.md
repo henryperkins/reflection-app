@@ -64,3 +64,43 @@ KEK rotation rewraps existing account keys; recovery encryption/HMAC rotation se
 The cryptographic layer authenticates explicit account data-key versions and preserves the legacy version-one wrapping format on read. This operator does **not** perform an account DEK rewrite across every personal field, migrate the stable account index/HMAC identity, retire an identity verifier secret, or remove a recovery key. Those operations require their own complete migrations and backup evidence.
 
 Targeted verification covers retained wraps, explicit key-version binding, rotated receipts, shared-HMAC checkpoint prefixes, resumable rewrap, corruption/online-write refusal, add-only key retention, and the standalone CLI against persistent synthetic D1/R2. Hosted secrets, offline backup recovery and production concurrency remain external qualifications.
+
+## Account data-key replacement
+
+The explicit `AccountRekey` operator complements add-only environment-key rewrap.
+It inventories every reviewed account-data encrypted field in batches of at most
+20, replaces the DEK, and retains exactly the same stable account index key.
+Recovery-key ciphertext stays in its own family. The journal stores field
+identities, ciphertext hashes and keyed value hashes, with no raw key or record.
+Each rewrite and its progress commit in one compare-and-swap D1 batch.
+
+Stop local processes or use the persistent hosted offline coordinator. Prepare
+security and erasure work first. Supply a trusted binding adapter and a private
+request with exact environment, account, expected version, source/configuration
+digests and `action:begin` (or `action:resume` plus operation ID):
+
+    npm run key:rotate-account -- --request /private/request.json --adapter /private/bindings.mjs --receipt /private/new-receipt.json
+
+The adapter exports `withAccountRekey(request, execute)` and supplies the fenced
+service to `execute`; it belongs to the controlled operator executor, outside
+the product HTTP routes. The release/hosted drill workflow must validate its
+source, target bindings and access. The CLI does not infer production bindings
+or activate an environment. Malformed inputs are rejected before adapter code
+loads; new receipts use mode 0600.
+
+Stages are inventorying, rewriting, validating, checkpoint and complete. After
+a crash, retain both wrapped versions and resume the recorded operation with a
+fresh service instance. A lost/superseded lease requires a newly acquired rekey
+context and explicit `adopt`; a D1-restored epoch never grants authority.
+Missing keys, registry/source changes, unexpected pending security/erasure, or
+extra/missing fields leave the target offline. Account deletion cascades the
+journal and wraps and cannot be reversed by resume. Completion invalidates old
+sessions through a serialized immutable identity checkpoint and keeps ingress
+and generation off. A separate restore-validation and financial-reconciliation
+receipt is required before resume. Production secret installation and hosted
+qualification remain separate from these synthetic regression results.
+
+Journal rows participate in the existing owned-row storage accounting. Retain
+unfinished journals and both wrapped versions; completed audit retention and
+capacity must be considered when planning large rotations. No journal is silently
+purged to make a key appear unreferenced.

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { canonicalJson } from '../../domain/json.ts';
 import { decode } from '../identity/crypto.ts';
-import { bytesDigest } from './hosted-coordinator.ts';
+import { bytesDigest } from './digest.ts';
 
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const id = z.string().regex(/^[\w-]{1,100}$/);

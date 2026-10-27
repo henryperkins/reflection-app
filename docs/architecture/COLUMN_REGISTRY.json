@@ -2940,6 +2940,250 @@
           "export": "never"
         }
       }
+    },
+    "account_rekey_jobs": {
+      "retention": "account lifetime; unfinished operations retain both data-key versions",
+      "erasure": "cascade with account; contains operational identity and protected digests only",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "expected_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "target_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "phase": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "never"
+        },
+        "registry_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "inventory_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "expected_count": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "field_count": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "never"
+        },
+        "cursor_json": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "context_json": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "checkpoint_operation_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "checkpoint_epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "updated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "account_rekey_entries": {
+      "retention": "account lifetime; unfinished operations retain both data-key versions",
+      "erasure": "cascade with account; contains operational identity and protected digests only",
+      "columns": {
+        "operation_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "ordinal": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "table_name": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "column_name": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "key_json": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "aad_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "source_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "source_cipher_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "value_hmac": {
+          "aadRule": null,
+          "class": "S",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "target_cipher_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "completed": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "never"
+        },
+        "validated": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "0",
+          "export": "never"
+        }
+      }
     }
   }
 }

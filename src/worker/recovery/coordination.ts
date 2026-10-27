@@ -20,6 +20,8 @@ export async function recoveryWrite<T>(
     return lease.coordinator.withOffline(lease.context, work);
   }
   const current = state(environment);
+  if (typeof lease === 'symbol' && current.exclusive !== lease)
+    throw new Error('Local recovery lease is not current');
   if (current.exclusive !== null && current.exclusive !== lease)
     throw new Error('Offline recovery operation is running');
   current.writers++;

@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { bytesDigest } from './digest.ts';
 import { timingSafeEqual } from 'node:crypto';
 import { DurableObject } from 'cloudflare:workers';
 import { z } from 'zod';
@@ -46,11 +48,7 @@ export const RecoveryValidation = z.strictObject({
   validatedAt: z.iso.datetime(),
   generation: z.literal('off'),
 });
-export async function bytesDigest(bytes: ArrayBuffer | Uint8Array<ArrayBuffer>) {
-  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (b) =>
-    b.toString(16).padStart(2, '0'),
-  ).join('');
-}
+export { bytesDigest } from './digest.ts';
 
 /** Persistent authority outside D1 rollback. Only server binding RPC can reach this class. */
 export class OfflineControl extends DurableObject<ControlBindings> {
@@ -126,7 +124,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
       const row = this.#row();
       // An expired lease can be replaced only when no invocation can still be writing.
       if (
-        (row.mode !== 'online' && row.expires_at > Date.now()) ||
+        (row.mode !== 'online' && row.expires_at > Date.now() && row.evidence_hash === null) ||
         (row.mode !== 'online' && this.#count() > 0)
       )
         throw new Error('Offline operation already active');
@@ -158,6 +156,8 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     await this.assertCurrent(secret, context);
     this.ctx.storage.transactionSync(() => {
       this.#current(context);
+      if (this.#row().evidence_hash !== null) throw new Error('Offline operation is complete');
+      if (this.#count()) throw new Error('Offline mutation already running');
       this.ctx.storage.sql.exec('INSERT INTO writers VALUES(?,?)', id, context.operationId);
     });
   }
@@ -238,6 +238,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
   }
 }
 
+const offlineInvocation = new AsyncLocalStorage<OfflineContext>();
 export class HostedCoordinator implements OfflineCoordinator {
   constructor(
     readonly namespace: DurableObjectNamespace<OfflineControl>,
@@ -253,7 +254,13 @@ export class HostedCoordinator implements OfflineCoordinator {
   async acquire(purpose: OfflinePurpose, environmentId = this.environmentId) {
     if (environmentId !== this.environmentId)
       return Promise.reject(new Error('Wrong recovery environment'));
-    return await this.stub().acquire(this.secret, this.environmentId, purpose);
+    const value = await this.stub().acquire(this.secret, this.environmentId, purpose);
+    return {
+      environmentId: value.environmentId,
+      operationId: value.operationId,
+      epoch: value.epoch,
+      purpose: value.purpose,
+    };
   }
   async assertCurrent(context: OfflineContext) {
     this.check(context);
@@ -278,10 +285,20 @@ export class HostedCoordinator implements OfflineCoordinator {
   }
   async withOffline<T>(context: OfflineContext, work: () => Promise<T>): Promise<T> {
     this.check(context);
+    const active = offlineInvocation.getStore();
+    if (
+      active &&
+      active.environmentId === context.environmentId &&
+      active.operationId === context.operationId &&
+      active.epoch === context.epoch
+    ) {
+      await this.assertCurrent(context);
+      return work();
+    }
     const id = crypto.randomUUID();
     await this.stub().beginOffline(this.secret, context, id);
     try {
-      const value = await work();
+      const value = await offlineInvocation.run(context, work);
       await this.assertCurrent(context);
       return value;
     } finally {

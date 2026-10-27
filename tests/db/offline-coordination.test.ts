@@ -152,3 +152,31 @@ test('resume requires byte-verified recovery evidence and a matching validated d
   await expect(a.withWriter(async () => 42)).resolves.toBe(42);
   await expect(a.assertCurrent(lease)).rejects.toThrow();
 });
+
+test('separate invocations cannot mutate concurrently under the same offline context', async () => {
+  const { a, b } = clients(),
+    context = await a.acquire('rekey');
+  let release!: () => void, entered!: () => void;
+  const ready = new Promise<void>((r) => (entered = r));
+  const first = a.withOffline(context, async () => {
+    entered();
+    await new Promise<void>((r) => (release = r));
+  });
+  await ready;
+  try {
+    await expect(b.withOffline(context, async () => 42)).rejects.toThrow();
+  } finally {
+    release();
+    await first;
+  }
+});
+
+test('completion freezes further mutations, allows another offline operation, and never opens ingress', async () => {
+  const { a, b } = clients(),
+    context = await a.acquire('rekey');
+  await a.complete(context, 'a'.repeat(64));
+  await expect(a.withOffline(context, async () => 42)).rejects.toThrow();
+  const next = await b.acquire('restore');
+  expect(next.epoch).toBeGreaterThan(context.epoch);
+  await expect(a.withWriter(async () => 42)).rejects.toThrow();
+});
