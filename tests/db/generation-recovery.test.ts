@@ -15,7 +15,11 @@ import { clearDatabase } from '../fixtures/database.ts';
 import { readingAccount } from '../fixtures/reading-client.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
 import { OpenAIResponsesTransport } from '../../src/worker/provider/transport.ts';
-import { READING_V2_EVALUATION_POLICY as READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
+import {
+  READING_V2_EVALUATION_POLICY as READING_PROVIDER_POLICY,
+  INITIAL_READING_V2_EVALUATION_POLICY,
+  READING_V2_1_EVALUATION_POLICY,
+} from '../../src/contracts/provider-policy.ts';
 import { reconcileProviderCost } from '../../src/worker/provider/costs.ts';
 
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
@@ -1020,16 +1024,27 @@ test('configured outage mode admits a labelled template without authorization or
   expect(await env.DB.prepare('SELECT count(*) AS n FROM cost_reservations').first('n')).toBe(0);
 });
 
-test.each(['simulation.v1', 'simulation.v2'])(
+test.each(['simulation.v1', 'simulation.v2', 'reading-context.v2', 'reading-context.v2.1'])(
   'the known previous local policy %s is upgraded while prior work is fenced and its quota released',
   async (previousWriter) => {
     const f = await setup(failingDatabase('before-dispatch'));
     await f.generation.start(f.session, f.input, crypto.randomUUID());
     const { sha256Json } = await import('../../src/domain/json.ts');
+    const { providerPolicyHash } = await import('../../src/domain/provider-policy.ts');
     const previous = await sha256Json(
       previousWriter === 'simulation.v1'
         ? { localOnly: true, writer: previousWriter }
-        : { localOnly: true, writer: previousWriter, validator: 'bounded-english-reflection.v1' },
+        : previousWriter === 'simulation.v2'
+          ? { localOnly: true, writer: previousWriter, validator: 'bounded-english-reflection.v1' }
+          : {
+              localOnly: true,
+              writer: 'simulation.v5',
+              providerPolicyHash: await providerPolicyHash(
+                previousWriter === 'reading-context.v2'
+                  ? INITIAL_READING_V2_EVALUATION_POLICY
+                  : READING_V2_1_EVALUATION_POLICY,
+              ),
+            },
     );
     const old = (await latest(f.client)).status;
     await env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(previous).run();

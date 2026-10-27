@@ -85,6 +85,7 @@ export type WriterProviderPolicy =
   | typeof UNCERTAINTY_EVALUATION_POLICY
   | typeof CONCISE_UNCERTAINTY_EVALUATION_POLICY
   | typeof INITIAL_READING_V2_EVALUATION_POLICY
+  | typeof READING_V2_1_EVALUATION_POLICY
   | typeof READING_V2_EVALUATION_POLICY;
 
 /** Candidate for new-context probes; retains v1 as the tested development reference. */
@@ -124,8 +125,15 @@ export const INITIAL_READING_V2_EVALUATION_POLICY = {
 } as const;
 
 /** Same wire prompt/schema; separately bound correction to supported-statement screening. */
-export const READING_V2_EVALUATION_POLICY = {
+export const READING_V2_1_EVALUATION_POLICY = {
   ...INITIAL_READING_V2_EVALUATION_POLICY,
   version: 'reading-evaluation-context.v2.1',
   validatorVersion: 'bounded-developed-reading.v2.1',
+} as const;
+
+/** Preserve quotation scope before extracting supported reader statements. */
+export const READING_V2_EVALUATION_POLICY = {
+  ...READING_V2_1_EVALUATION_POLICY,
+  version: 'reading-evaluation-context.v2.2',
+  validatorVersion: 'bounded-developed-reading.v2.2',
 } as const;

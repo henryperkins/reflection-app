@@ -116,6 +116,30 @@ test('conditional hypothesis remains conditional in its own clause, not the foll
     'BIOGRAPHY_UNSUPPORTED',
   );
 });
+test.each([
+  ['"', '"'],
+  ['“', '”'],
+  ["'", "'"],
+  ['‘', '’'],
+])('quoted statements retain scope across sentence boundaries: %s … %s', async (open, close) => {
+  const question = `I am comfortable with my workload. My friend said, ${open}I am happy. I am discouraged. I am ready.${close} What could I explore?`;
+  const { plan, receipt, candidate } = await fixture(question);
+  candidate.units[0]!.interpretation = 'You are discouraged.';
+  await expect(validateCandidateV2(plan, candidate, receipt)).rejects.toThrow(
+    'BIOGRAPHY_UNSUPPORTED',
+  );
+  candidate.units[0]!.interpretation = 'You are comfortable with your workload.';
+  await expect(validateCandidateV2(plan, candidate, receipt)).resolves.toEqual(candidate);
+});
+test('an unfinished quotation does not turn its interior sentences into current reader facts', async () => {
+  const { plan, receipt, candidate } = await fixture(
+    'My friend wrote, "I am happy.\nI am discouraged. I am ready.',
+  );
+  candidate.units[0]!.interpretation = 'You are discouraged.';
+  await expect(validateCandidateV2(plan, candidate, receipt)).rejects.toThrow(
+    'BIOGRAPHY_UNSUPPORTED',
+  );
+});
 test('the executable validator refuses a different validator identity even when receipt and plan agree', async () => {
   const { plan, receipt, candidate } = await fixture();
   plan.validatorHash = 'f'.repeat(64);

@@ -10,7 +10,7 @@ import { validatePlanV2 } from './context-v2.ts';
 import { candidateSchemaV2 } from './writer-v2.ts';
 import { boundedCandidateJson, CandidateRejection, screenProse } from './safety.ts';
 
-export const SAFETY_V2_VERSION = 'bounded-developed-reading.v2.1';
+export const SAFETY_V2_VERSION = 'bounded-developed-reading.v2.2';
 const reject = (code: ConstructorParameters<typeof CandidateRejection>[0]): never => {
   throw new CandidateRejection(code);
 };
@@ -29,6 +29,26 @@ const normalize = (s: string) =>
 const personal =
   /\b(?:you (?:are|were|have been|have always|had|suffer|suffered)|your (?:partner|family|parent|child|boss|friend) (?:is|was|has|caused))\b/g;
 const escapePattern = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** Quotation scope precedes sentence boundaries. A placeholder also prevents
+ * removing an inline quotation from manufacturing a new declarative statement. */
+function unquotedEvidence(text: string) {
+  let result = '',
+    closing: string | null = null;
+  const word = (value: string) => /[\p{L}\p{N}]/u.test(value);
+  for (let i = 0; i < text.length; i++) {
+    const char = text[i]!,
+      apostrophe =
+        (char === "'" || char === '’') && word(text[i - 1] ?? '') && word(text[i + 1] ?? '');
+    if (closing) {
+      if (char === '\\') i++;
+      else if (char === closing && !apostrophe) closing = null;
+    } else if (!apostrophe && ['"', '“', "'", '‘', '`'].includes(char)) {
+      closing = char === '“' ? '”' : char === '‘' ? '’' : char;
+      result += '"quoted material"';
+    } else result += char;
+  }
+  return result;
+}
 /** Narrow, deterministic evidence match: entire declarative statements, never extracted keywords. */
 function supportedProse(text: string, question: string) {
   const quotations: Array<{ token: string; text: string }> = [];
@@ -43,7 +63,7 @@ function supportedProse(text: string, question: string) {
     },
   );
   let result = normalize(protectedText);
-  const sentences = [...normalize(question).matchAll(/([^.!?]+)([.!?]|$)/g)]
+  const sentences = [...normalize(unquotedEvidence(question)).matchAll(/([^.!?]+)([.!?]|$)/g)]
     .filter((m) => m[2] !== '?' && !/["“”]/.test(m[1]!))
     .map((m) => m[1]!.trim());
   // Split only explicitly asserted first-person coordination. A conditional or reported

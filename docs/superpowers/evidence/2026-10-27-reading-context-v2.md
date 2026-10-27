@@ -34,7 +34,11 @@ The frozen live validator recorded two accepts and two `BIOGRAPHY_UNSUPPORTED` r
 
 Regression tests first reproduced both failures, alongside hypothetical, reported, negated and scope-changing alternatives. The correction is separately versioned as `bounded-developed-reading.v2.1` and `reading-evaluation-context.v2.1`. The executable validator also checks its own identity against the frozen plan. Prompt, schema, reader input and request bytes did not change.
 
-Offline re-screening accepts all four unchanged outputs with the corrected identity. This made zero provider calls and did not alter the archived live manifest, journal assessments or output text. The current development manifest is `06bca03a345b194e6880411b05491a7c04d82b1b6cf8bedcc33ba16dad552faf`; it is not a second live run. The initial v2 policy remains frozen for interpreting the original receipt and safely fencing interrupted work from that policy.
+Offline re-screening accepts all four unchanged outputs with the corrected identity. This made zero provider calls and did not alter the archived live manifest, journal assessments or output text. That v2.1 development manifest is `06bca03a345b194e6880411b05491a7c04d82b1b6cf8bedcc33ba16dad552faf`; it is not a second live run. The initial v2 policy remains frozen for interpreting the original receipt and safely fencing interrupted work from that policy.
+
+The final independent code review found one additional defect: sentence extraction could treat an interior sentence of someone else's multi-sentence quotation as a reader assertion. Five regressions reproduced the bypass with straight/curly double and single quotes and an unfinished quotation, then passed after quotation scope was retained before sentence extraction. Separate reader assertions and ordinary contractions remain eligible. The corrected validator and policy are versioned v2.2; migration tests also verify that v2/v2.1 unfinished work is fenced and its allowance released before new generation. Historical policy objects and saved readings remain unchanged.
+
+The final development manifest is `5e34ff3260f18e2078aa54233bc6fc3015f77ac97165c0802c15fdfbbc2a3945`. A second, separately archived offline re-screen accepts all four original outputs under v2.2 with identical wire requests, unchanged output text and zero additional API calls. The original evidence and earlier supplement retain their original hashes.
 
 ## Editorial assessment
 
@@ -53,3 +57,14 @@ npm run provider:evaluate -- --dry-run --profile reading-v2-development-fast-xhi
 ```
 
 Tests cover zero-call dry runs, fixed four-call/cost caps, crash liability without resend, exact question preservation, budget omission order, source/relationship bindings, scope-sensitive biography screening, v1/v2 persistence, recovery, fallback, cancellation, withdrawal, export and independent cost/quota accounting. New live execution requires a permit bound to the exact current manifest; the old permit does not authorize changed inputs or validator policy.
+
+## Implementation decisions and review boundaries
+
+- V2 uses explicit version dispatch and separate modules. This preserves historical bytes and identities at the cost of maintaining both contracts.
+- Draft content remains agent-reviewed with unknown rights. Diagnostic admission is explicit; production admission still requires reviewed coverage and signed approval. A development reading therefore is not a launch content approval.
+- The full-request upper bound and reservation increased to accommodate substantive context. The limits remain conservative and require production qualification; larger reservations can reduce available budget concurrency.
+- Original live outcomes remain frozen after screening changes. Offline supplements make the correction inspectable without claiming new live reliability evidence.
+- Human editorial acceptance and rights clearance remain external gates; a code review cannot confer them. General semantic grounding remains a human evaluation responsibility because deterministic screening is incomplete.
+- Production provider qualification remains outside this local/evaluation change. The code reviewer did not inspect protected live archives or billing; the implementer audited archive hashes and exact exports, while external billing reconciliation remains separate.
+
+The independent reviewer reported no critical or minor findings. Its one important quotation-scope finding was reproduced and fixed; no review finding was deferred. The work remains in the requested worktree, with no push, merge or production activation.
