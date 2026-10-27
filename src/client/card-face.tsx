@@ -37,7 +37,13 @@ export function CardFace({
     </div>
   );
 }
-export function CardThumbnail({ cardId }: { cardId: string }) {
+export function CardThumbnail({
+  cardId,
+  orientation,
+}: {
+  cardId: string;
+  orientation: 'upright' | 'reversed';
+}) {
   const { suit, art } = cardArt(cardId);
-  return <Art name={art} className={`source-art suit-${suit}`} />;
+  return <Art name={art} className={`source-art suit-${suit} ${orientation}`} />;
 }

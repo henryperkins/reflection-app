@@ -1176,6 +1176,10 @@ button.history-link:hover:enabled {
   height: 64px;
   border-radius: var(--radius-md);
 }
+.source-art.reversed {
+  transform: rotate(180deg);
+  transform-origin: center;
+}
 .source-copy {
   flex: 1;
   min-width: 0;

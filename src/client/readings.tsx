@@ -824,7 +824,7 @@ export function ReadingWorkspace({
                 const position = card.position[0]!.toUpperCase() + card.position.slice(1);
                 return (
                   <div key={card.id} className="source">
-                    <CardThumbnail cardId={card.cardId} />
+                    <CardThumbnail cardId={card.cardId} orientation={card.orientation} />
                     <div className="source-copy">
                       <h3>
                         {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
