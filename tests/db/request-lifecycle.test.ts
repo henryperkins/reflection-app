@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { apiSchemas, type WriterOutcome } from '../../src/contracts/index.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
 import { RecordBase } from '../../src/worker/readings/base.ts';
-import { LocalGeneration } from '../../src/worker/readings/generation.ts';
+import { LocalGeneration } from '../../src/worker/readings/local-generation.ts';
 import { InterceptedWritingProvider } from '../../src/worker/provider/intercepted.ts';
 import { RetentionMaintenance } from '../../src/worker/maintenance/retention.ts';
 import { clearDatabase } from '../fixtures/database.ts';

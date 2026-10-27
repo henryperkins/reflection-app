@@ -1,3 +1,4 @@
+import { failingDatabase } from '../fixtures/failing-generation-db.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
@@ -10,7 +11,7 @@ import {
 } from '../../src/contracts/index.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
 import { RecordBase } from '../../src/worker/readings/base.ts';
-import { LocalGeneration } from '../../src/worker/readings/generation.ts';
+import { LocalGeneration } from '../../src/worker/readings/local-generation.ts';
 import { clearDatabase } from '../fixtures/database.ts';
 import { readingAccount } from '../fixtures/reading-client.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
@@ -333,53 +334,6 @@ test('a refusal receipt is encrypted before terminalization and usage survives s
 });
 
 // Faults stop a Worker at durable boundaries, without replacing transaction behavior.
-function failingDatabase(
-  stage: 'before-dispatch' | 'after-dispatch' | 'after-receipt' | 'after-outcome',
-) {
-  const sql = new WeakMap<object, string>();
-  let armed = true;
-  return new Proxy(env.DB, {
-    get(target, name) {
-      if (name === 'prepare')
-        return (source: string) => {
-          const statement = target.prepare(source);
-          return new Proxy(statement, {
-            get(statement, property) {
-              if (property === 'bind')
-                return (...values: unknown[]) => {
-                  const bound = statement.bind(...values);
-                  sql.set(bound, source);
-                  return bound;
-                };
-              const value = Reflect.get(statement, property, statement);
-              return typeof value === 'function' ? value.bind(statement) : value;
-            },
-          });
-        };
-      if (name === 'batch')
-        return async (statements: D1PreparedStatement[]) => {
-          const sources = statements.map((s) => sql.get(s) ?? '');
-          const dispatch = sources.some((s) => s.startsWith('INSERT INTO provider_dispatches'));
-          const publication = sources.some((s) => s.startsWith('INSERT INTO reading_editions'));
-          if (
-            armed &&
-            (((stage === 'before-dispatch' || stage === 'after-dispatch') && dispatch) ||
-              (stage === 'after-receipt' && publication) ||
-              (stage === 'after-outcome' &&
-                sources.some((s) => s.startsWith('UPDATE provider_dispatches SET state=?'))))
-          ) {
-            armed = false;
-            if (stage === 'after-dispatch' || stage === 'after-outcome')
-              await target.batch(statements);
-            throw new Error('Synthetic Worker loss');
-          }
-          return target.batch(statements);
-        };
-      const value = Reflect.get(target, name, target);
-      return typeof value === 'function' ? value.bind(target) : value;
-    },
-  });
-}
 function writer(
   counter: { calls: number },
   patch?: (candidate: typeof ModelCandidateV2._output) => void,

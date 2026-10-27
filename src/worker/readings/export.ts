@@ -332,7 +332,7 @@ export class ReadingExports {
     const transmission = row.value_enc
       ? await this.base.opened<{
           v: 1;
-          syntheticOnly: true;
+          syntheticOnly: boolean;
           payload: string;
           contextReceipt?: z.infer<typeof WriterReceiptV2> | null;
         }>(
@@ -343,7 +343,7 @@ export class ReadingExports {
           row.value_enc,
           z.strictObject({
             v: z.literal(1),
-            syntheticOnly: z.literal(true),
+            syntheticOnly: z.boolean(),
             payload: z.string().max(200000),
             contextReceipt: WriterReceiptV2.nullable().optional(),
           }),

@@ -8,6 +8,8 @@ import {
 import {
   READING_PROVIDER_POLICY,
   READING_V2_EVALUATION_POLICY,
+  type ReadingProviderPolicy,
+  type ReadingV2WriterPolicy,
 } from '../../contracts/provider-policy.ts';
 import { buildPlan, type BuildPlanInput, validatePlanIntegrity } from '../../domain/tarot/plan.ts';
 import { buildPlanV2, validatePlanV2 } from '../../domain/tarot/context-v2.ts';
@@ -24,11 +26,14 @@ export type VersionedPlan = z.infer<typeof AnyPreparedPlan>;
 export function planPolicy(plan: VersionedPlan) {
   return plan.version === 'tarot-plan.v2' ? READING_V2_EVALUATION_POLICY : READING_PROVIDER_POLICY;
 }
-export async function buildLocalPlan(
+export async function buildWriterPlan(
   input: Omit<BuildPlanInput, 'content'> & { content: z.infer<typeof AnyContentBundle> },
+  policy: ReadingV2WriterPolicy | ReadingProviderPolicy = READING_V2_EVALUATION_POLICY,
+  diagnosticOnly = true,
 ) {
   if (input.content.schemaVersion === 1) return buildPlan({ ...input, content: input.content });
-  const identities = await writerIdentitiesV2();
+  if (policy.schemaVersion !== 'tarot.interpretation.v2') throw new Error('POLICY_MISMATCH');
+  const identities = await writerIdentitiesV2(policy);
   return buildPlanV2(
     {
       ...input,
@@ -36,20 +41,29 @@ export async function buildLocalPlan(
       promptHash: identities.promptHash,
       validatorHash: identities.validatorHash,
     },
-    true,
+    diagnosticOnly,
   );
 }
-export function validateLocalPlan(plan: VersionedPlan) {
+export function validateWriterPlan(plan: VersionedPlan) {
   return plan.version === 'tarot-plan.v2' ? validatePlanV2(plan) : validatePlanIntegrity(plan);
 }
-export async function prepareLocalWriter(
+export async function prepareWriter(
   plan: VersionedPlan,
+  policy: ReadingV2WriterPolicy | ReadingProviderPolicy = planPolicy(plan),
 ): Promise<{ payload: Uint8Array; receipt: WriterReceiptV2 | null }> {
-  return plan.version === 'tarot-plan.v2'
-    ? prepareWriterV2(plan)
-    : { payload: await projectWriterPayload(plan, READING_PROVIDER_POLICY), receipt: null };
+  if (plan.version === 'tarot-plan.v2' && policy.schemaVersion !== 'tarot.interpretation.v2')
+    throw new Error('POLICY_MISMATCH');
+  return plan.version === 'tarot-plan.v2' && policy.schemaVersion === 'tarot.interpretation.v2'
+    ? prepareWriterV2(plan, policy)
+    : {
+        payload: await projectWriterPayload(
+          plan as Extract<VersionedPlan, { version: 'tarot-plan.v1' }>,
+          policy,
+        ),
+        receipt: null,
+      };
 }
-export async function localTemplate(plan: VersionedPlan) {
+export async function preparedTemplate(plan: VersionedPlan) {
   if (plan.version === 'tarot-plan.v2') return composeTemplateV2(plan);
   const body = await composeTemplate(plan);
   return ModelCandidate.parse({
@@ -59,7 +73,7 @@ export async function localTemplate(plan: VersionedPlan) {
     closing: body.closing,
   });
 }
-export async function checkLocalCandidate(
+export async function checkWriterCandidate(
   plan: VersionedPlan,
   candidate: unknown,
   receipt: WriterReceiptV2 | null,

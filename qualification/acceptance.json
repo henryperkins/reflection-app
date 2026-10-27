@@ -14,12 +14,12 @@
     {
       "id": "content",
       "status": "pending",
-      "reason": "Review the exact content/launch-canon-draft.json bytes, rights, attribution, geography and final product copy; draft is not approved."
+      "reason": "The current v2 catalog, product copy and rights require named human review and signed approval. See docs/content-review/2026-10-27-reading-canon-v2.md; all 156 draft sources remain agent-reviewed with unknown rights."
     },
     {
       "id": "provider",
       "status": "pending",
-      "reason": "No project access/retention evidence, live frozen-corpus evaluation, actual usage or billing reconciliation has been recorded."
+      "reason": "L6 qualified dependency integration is implemented; no L7 qualification exists for reading-provider-policy.v2. The staged proposal awaits signed content, reviewed corpus, project privacy/access evidence, human output scoring and billing reconciliation. Earlier live diagnostics do not complete this gate."
     },
     {
       "id": "release",

@@ -40,7 +40,9 @@ export const READING_PROVIDER_POLICY = {
   },
 } as const;
 
-export type ReadingProviderPolicy = typeof READING_PROVIDER_POLICY;
+export type ReadingProviderPolicy =
+  | typeof READING_PROVIDER_POLICY
+  | typeof READING_V2_APPLICATION_POLICY;
 
 /** Separate research policy: existing application qualification never authorizes this profile. */
 export const FAST_XHIGH_EVALUATION_POLICY = {
@@ -87,7 +89,8 @@ export type WriterProviderPolicy =
   | typeof INITIAL_READING_V2_EVALUATION_POLICY
   | typeof READING_V2_1_EVALUATION_POLICY
   | typeof READING_V2_EVALUATION_POLICY
-  | typeof READING_V2_EDITORIAL_EVALUATION_POLICY;
+  | typeof READING_V2_EDITORIAL_EVALUATION_POLICY
+  | typeof READING_V2_APPLICATION_POLICY;
 
 /** Candidate for new-context probes; retains v1 as the tested development reference. */
 export const CONCISE_UNCERTAINTY_EVALUATION_POLICY = {
@@ -169,4 +172,12 @@ export const READING_V2_EDITORIAL_EVALUATION_POLICY = {
 
 export type ReadingV2WriterPolicy =
   | typeof READING_V2_EVALUATION_POLICY
-  | typeof READING_V2_EDITORIAL_EVALUATION_POLICY;
+  | typeof READING_V2_EDITORIAL_EVALUATION_POLICY
+  | typeof READING_V2_APPLICATION_POLICY;
+
+/** Application candidate only. Installation and authenticated qualification are still required. */
+export const READING_V2_APPLICATION_POLICY = {
+  ...READING_V2_EDITORIAL_EVALUATION_POLICY,
+  version: 'reading-provider-policy.v2',
+  evaluationOnly: false,
+} as const;

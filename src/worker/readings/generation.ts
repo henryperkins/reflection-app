@@ -2,11 +2,16 @@ import { costReservationStatement, reconcileProviderCost } from '../provider/cos
 import { providerReceiptStatements } from '../provider/receipts.ts';
 import {
   READING_PROVIDER_POLICY,
-  READING_V2_EVALUATION_POLICY,
-  INITIAL_READING_V2_EVALUATION_POLICY,
-  READING_V2_1_EVALUATION_POLICY,
+  READING_V2_APPLICATION_POLICY,
+  type READING_V2_EVALUATION_POLICY,
+  type ReadingProviderPolicy,
   type WriterProviderPolicy,
 } from '../../contracts/provider-policy.ts';
+import type { ContentRepository, ContentSnapshot } from '../content/repository.ts';
+import {
+  verifyProviderQualification,
+  type ProviderQualification,
+} from '../provider/qualification.ts';
 import { providerPolicyHash } from '../../domain/provider-policy.ts';
 import type { z } from 'zod';
 import {
@@ -15,192 +20,109 @@ import {
   AnyModelCandidate,
   StartRequest,
   AnyPreparedPlan,
-  AnyContentBundle,
   TarotBasis,
   ProviderReceipt,
   type WriterOutcome,
   type WritingProvider,
   type ErrorCode,
 } from '../../contracts/index.ts';
-import { inputAdmission, boundedCandidateJson, SAFETY_VERSION } from '../../domain/tarot/safety.ts';
+import { inputAdmission, boundedCandidateJson } from '../../domain/tarot/safety.ts';
 import { drawTarot } from '../../domain/tarot/draw.ts';
-import { sha256Json } from '../../domain/json.ts';
-import { InterceptedWritingProvider } from '../provider/intercepted.ts';
 import { currentGuard } from '../db/statements.ts';
 import { renderFacts } from '../../domain/tarot/facts.ts';
 import { assertion, onlineGuard } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
 import { statement as q, DB_NOW, DAY, MONTH } from '../db/core.ts';
 import { iso, type RecordBase, RecordError, terminalStates } from './base.ts';
-import { syntheticBundle, localDevelopmentBundle } from './local-content.ts';
 import {
-  buildLocalPlan,
-  validateLocalPlan,
-  prepareLocalWriter,
-  localTemplate,
-  checkLocalCandidate,
-  planPolicy,
+  buildWriterPlan,
+  validateWriterPlan,
+  prepareWriter,
+  preparedTemplate,
+  checkWriterCandidate,
   type VersionedPlan,
 } from './writer-versions.ts';
 import { RequestState, requestEvent } from './request-state.ts';
 
-/** Only instantiated behind the explicit localhost simulation switch. No fetch transport. */
-export class LocalGeneration extends RequestState {
+type DependencyBase = { content: ContentRepository; ensureReady: () => Promise<void> };
+/** Trusted runtime dependencies, never request fields. No implicit writer or content bootstrap. */
+export type GenerationDependencies = DependencyBase &
+  (
+    | {
+        policy: ReadingProviderPolicy;
+        writer: WritingProvider;
+        authorization: { kind: 'application'; qualification: ProviderQualification };
+      }
+    | {
+        policy: typeof READING_V2_EVALUATION_POLICY;
+        writer: (plan: VersionedPlan) => Promise<WritingProvider>;
+        authorization: { kind: 'synthetic-local'; policyHash: () => Promise<string> };
+      }
+  );
+
+export class ReadingGeneration extends RequestState {
   constructor(
     base: RecordBase,
-    private readonly writer?: WritingProvider,
+    private readonly dependencies: GenerationDependencies,
   ) {
     super(base);
   }
-  private guard(session: Session, permission: number, content: string) {
+  private get synthetic() {
+    return this.dependencies.authorization.kind === 'synthetic-local';
+  }
+  private async policyHash() {
+    const auth = this.dependencies.authorization;
+    return auth.kind === 'synthetic-local'
+      ? auth.policyHash()
+      : providerPolicyHash(this.dependencies.policy);
+  }
+  private async ready(hash?: string) {
+    try {
+      await this.dependencies.ensureReady();
+    } catch {
+      throw new GenerationFailure('DEPENDENCY_UNAVAILABLE');
+    }
+    const policyHash = await this.policyHash();
+    let snapshot: ContentSnapshot;
+    try {
+      snapshot = await this.dependencies.content.forGeneration(hash);
+    } catch {
+      throw new GenerationFailure('CONTENT_UNAVAILABLE');
+    }
+    const auth = this.dependencies.authorization;
+    let expires = Number.MAX_SAFE_INTEGER;
+    if (auth.kind === 'application') {
+      try {
+        const allowed = await Promise.all(
+          [READING_PROVIDER_POLICY, READING_V2_APPLICATION_POLICY].map(providerPolicyHash),
+        );
+        if (!allowed.includes(policyHash)) throw new Error();
+        expires = Date.parse(
+          verifyProviderQualification(auth.qualification, {
+            policyHash,
+            contentHash: snapshot.bundle.editionHash,
+            now: Date.now(),
+          }).expiresAt,
+        );
+      } catch {
+        throw new GenerationFailure('DEPENDENCY_UNAVAILABLE');
+      }
+    }
+    return {
+      ...snapshot,
+      policyHash,
+      guards: [snapshot.guard, assertion(this.base.db, `?>${DB_NOW}`, expires)],
+    };
+  }
+  private guard(session: Session, permission: number, content: string, policy: string) {
     return assertion(
       this.base.db,
-      `EXISTS(SELECT 1 FROM accounts a JOIN permission_revisions p ON p.owner_id=a.id AND p.revision=a.permission_revision JOIN system_state sys ON sys.id=1 JOIN content_editions c ON c.hash=sys.active_content_hash WHERE a.id=? AND a.permission_revision=? AND p.model_allowed=1 AND a.recovery_ack_at IS NOT NULL AND a.key_version=1 AND sys.generation_enabled=1 AND sys.dispatch_mode IN('model','outage_template') AND c.hash=? AND c.state='approved')`,
+      `EXISTS(SELECT 1 FROM accounts a JOIN permission_revisions p ON p.owner_id=a.id AND p.revision=a.permission_revision JOIN system_state sys ON sys.id=1 JOIN content_editions c ON c.hash=sys.active_content_hash WHERE a.id=? AND a.permission_revision=? AND p.model_allowed=1 AND a.recovery_ack_at IS NOT NULL AND a.key_version=1 AND sys.generation_enabled=1 AND sys.dispatch_mode IN('model','outage_template') AND c.hash=? AND c.state='approved' AND sys.provider_policy_hash=?)`,
       session.subjectId,
       permission,
       content,
+      policy,
     );
-  }
-  private async localPolicyHash() {
-    return sha256Json({
-      localOnly: true,
-      writer: 'simulation.v5',
-      providerPolicyHash: await providerPolicyHash(READING_V2_EVALUATION_POLICY),
-    });
-  }
-  private async refreshLocalPolicy() {
-    await this.upgradeLocalPolicy(localDevelopmentBundle(), await this.localPolicyHash());
-  }
-  /** Upgrade only known localhost predecessors. Operator and financial switches are untouched. */
-  private async upgradeLocalPolicy(bundle: z.infer<typeof AnyContentBundle>, next: string) {
-    const installed = await q(
-      this.base.db,
-      'SELECT provider_policy_hash,active_content_hash FROM system_state WHERE id=1',
-    ).first<{ provider_policy_hash: string; active_content_hash: string }>();
-    const predecessors = await Promise.all([
-      sha256Json({
-        localOnly: true,
-        writer: 'simulation.v5',
-        providerPolicyHash: await providerPolicyHash(READING_V2_1_EVALUATION_POLICY),
-      }),
-      sha256Json({
-        localOnly: true,
-        writer: 'simulation.v5',
-        providerPolicyHash: await providerPolicyHash(INITIAL_READING_V2_EVALUATION_POLICY),
-      }),
-      sha256Json({
-        localOnly: true,
-        writer: 'simulation.v4',
-        providerPolicyHash: await providerPolicyHash(READING_PROVIDER_POLICY),
-      }),
-      sha256Json({ localOnly: true, writer: 'simulation.v1' }),
-      sha256Json({ localOnly: true, writer: 'simulation.v2', validator: SAFETY_VERSION }),
-      Promise.resolve('f2d365842b853e8998b3d466c768d4bf4c026c4563f2daa4763d9dfddcfa8df7'),
-    ]);
-    const content = bundle.editionHash;
-    if (
-      !installed ||
-      !predecessors.includes(installed.provider_policy_hash) ||
-      ![
-        content,
-        (await syntheticBundle()).editionHash,
-        '5c8573a9c66dd25a781067244bc124cb8b558b8cf33ea3d7981c9088c0771d5d',
-      ].includes(installed.active_content_hash)
-    )
-      return;
-    const previous = installed.provider_policy_hash;
-    const ids = `SELECT id FROM generation_requests WHERE policy_hash=? AND state NOT IN (${terminalStates})`;
-    const identity = [previous];
-    try {
-      await this.base.db.batch([
-        onlineGuard(this.base.db),
-        assertion(
-          this.base.db,
-          'EXISTS(SELECT 1 FROM system_state WHERE id=1 AND provider_policy_hash=? AND active_content_hash=?)',
-          previous,
-          installed.active_content_hash,
-        ),
-        q(
-          this.base.db,
-          `INSERT OR IGNORE INTO content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at) VALUES (?,'approved',?,?,'human_approved','SYNTHETIC LOCAL FIXTURE; NOT EDITORIAL APPROVAL','cleared',${DB_NOW},${DB_NOW})`,
-          content,
-          JSON.stringify(bundle),
-          content,
-        ),
-        q(
-          this.base.db,
-          `INSERT INTO request_events(request_id,owner_id,sequence,state,code,error_code,created_at) SELECT id,owner_id,max(next_event,coalesce((SELECT max(sequence)+1 FROM request_events WHERE request_id=r.id),1)),'blocked','STOPPED','DEPENDENCY_UNAVAILABLE',${DB_NOW} FROM generation_requests r WHERE id IN (${ids})`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE generation_requests SET next_event=(SELECT max(sequence)+1 FROM request_events WHERE request_id=generation_requests.id) WHERE id IN (${ids})`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE quota_buckets SET held=held-(SELECT count(*) FROM quota_reservations qr WHERE qr.owner_id=quota_buckets.owner_id AND qr.state='held' AND (qr.day_period=quota_buckets.period OR qr.month_period=quota_buckets.period) AND qr.request_id IN (${ids})) WHERE held>0`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `INSERT OR IGNORE INTO quota_events SELECT request_id,owner_id,'release',${DB_NOW} FROM quota_reservations WHERE state='held' AND request_id IN (${ids})`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE quota_reservations SET state='released' WHERE state='held' AND request_id IN (${ids})`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE cost_reservations SET state='unknown',settled_at=${DB_NOW} WHERE state='reserved' AND dispatch_id IN (SELECT id FROM provider_dispatches WHERE request_id IN (${ids}))`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE provider_dispatches SET state=CASE WHEN state='authorized' THEN 'unknown' ELSE state END,transmission_enc=NULL,candidate_enc=NULL,provider_response_id_enc=NULL WHERE request_id IN (${ids})`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE generation_attempts SET outcome='blocked',finished_at=${DB_NOW} WHERE finished_at IS NULL AND request_id IN (${ids})`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE accounts SET data_revision=data_revision+1 WHERE id IN (SELECT owner_id FROM generation_requests WHERE id IN (${ids}))`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          `UPDATE generation_requests SET state='blocked',error_code='DEPENDENCY_UNAVAILABLE',revision=revision+1,run_epoch=run_epoch+1,lease_token=NULL,lease_expires_at=NULL,finished_at=${DB_NOW} WHERE id IN (${ids})`,
-          ...identity,
-        ),
-        q(
-          this.base.db,
-          "UPDATE content_editions SET state='superseded',policy_revision=policy_revision+1 WHERE hash=? AND hash!=? AND state='approved'",
-          installed.active_content_hash,
-          content,
-        ),
-        q(
-          this.base.db,
-          `UPDATE system_state SET provider_policy_hash=?,active_content_hash=?,revision=revision+1,updated_at=${DB_NOW} WHERE id=1 AND provider_policy_hash=?`,
-          next,
-          content,
-          previous,
-        ),
-        assertion(this.base.db, 'changes()=1'),
-      ]);
-    } catch (error) {
-      if (
-        (await q(
-          this.base.db,
-          'SELECT provider_policy_hash FROM system_state WHERE id=1',
-        ).first<string>('provider_policy_hash')) !== next
-      )
-        throw error;
-    }
   }
   private async reply(session: Session, requestId: string, joined: boolean) {
     const status = await this.status(session, requestId);
@@ -251,28 +173,17 @@ export class LocalGeneration extends RequestState {
     if (!account.recovery_ack_at) throw new RecordError(403, 'FORBIDDEN');
     if (account.permission_revision !== input.permissionRevision)
       throw new RecordError(409, 'CONFLICT', account.permission_revision);
-    const content = localDevelopmentBundle(),
-      policyHash = await this.localPolicyHash();
-    // The legacy localhost D1 barrier uses explicitly marked fixture rows. The bundle
-    // itself retains agent_reviewed/unknown rights; approval_json remains null, so
-    // the signed production repository cannot admit this development content.
-    await this.base.db.batch([
-      onlineGuard(this.base.db),
-      q(
-        this.base.db,
-        `INSERT OR IGNORE INTO content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at) VALUES (?,'approved',?,?,'human_approved','SYNTHETIC LOCAL FIXTURE; NOT EDITORIAL APPROVAL','cleared',${DB_NOW},${DB_NOW})`,
-        content.editionHash,
-        JSON.stringify(content),
-        content.editionHash,
-      ),
-      q(
-        this.base.db,
-        `INSERT OR IGNORE INTO system_state(id,active_content_hash,generation_enabled,dispatch_mode,provider_policy_hash,updated_at) VALUES (1,?,1,'model',?,${DB_NOW})`,
-        content.editionHash,
-        policyHash,
-      ),
-    ]);
-    await this.upgradeLocalPolicy(content, policyHash);
+    let ready: Awaited<ReturnType<ReadingGeneration['ready']>>;
+    try {
+      ready = await this.ready();
+    } catch (error) {
+      throw new RecordError(
+        503,
+        error instanceof GenerationFailure ? error.code : 'DEPENDENCY_UNAVAILABLE',
+      );
+    }
+    const content = ready.bundle,
+      policyHash = ready.policyHash;
     const requestId = crypto.randomUUID(),
       sessionId = crypto.randomUUID(),
       basisId = crypto.randomUUID();
@@ -283,23 +194,27 @@ export class LocalGeneration extends RequestState {
       drawnAt: iso(Date.now()),
       reversals: input.reversals,
     });
-    const plan = await buildLocalPlan({
-      requestId,
-      basis,
-      content,
-      question: input.question,
-      language: 'en',
-      operation: 'initial',
-      parentEditionId: null,
-      selected: [],
-      permissionRevision: input.permissionRevision,
-      keyVersion: 1,
-      promptHash: policyHash,
-      validatorHash: policyHash,
-      generationPolicyHash: policyHash,
-    });
+    const plan = await buildWriterPlan(
+      {
+        requestId,
+        basis,
+        content,
+        question: input.question,
+        language: 'en',
+        operation: 'initial',
+        parentEditionId: null,
+        selected: [],
+        permissionRevision: input.permissionRevision,
+        keyVersion: 1,
+        promptHash: policyHash,
+        validatorHash: policyHash,
+        generationPolicyHash: policyHash,
+      },
+      this.dependencies.policy,
+      this.synthetic,
+    );
     try {
-      await prepareLocalWriter(plan);
+      await prepareWriter(plan, this.dependencies.policy);
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('INPUT_TOO_LARGE'))
         throw new RecordError(422, 'INPUT_TOO_LARGE');
@@ -317,7 +232,8 @@ export class LocalGeneration extends RequestState {
     const planHash = await this.base.crypt.hash(session.subjectId, 'plan', plan);
     try {
       await this.base.atomic(session, [
-        this.guard(session, input.permissionRevision, content.editionHash),
+        ...ready.guards,
+        this.guard(session, input.permissionRevision, content.editionHash, policyHash),
         assertion(
           this.base.db,
           `(SELECT count(*) FROM generation_requests WHERE owner_id=? AND state NOT IN (${terminalStates}))<2`,
@@ -352,7 +268,7 @@ export class LocalGeneration extends RequestState {
         ),
         q(
           this.base.db,
-          `INSERT INTO generation_requests(id,owner_id,session_id,client_intent_id,basis_id,operation,payload_hmac,state,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,created_at,expires_at) VALUES (?,?,?,?,?,'initial',?,'prepared',${DB_NOW},?,1,?,1,?,?,?,?,${DB_NOW},${DB_NOW}+180000)`,
+          `INSERT INTO generation_requests(id,owner_id,session_id,client_intent_id,basis_id,operation,payload_hmac,state,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,created_at,expires_at) VALUES (?,?,?,?,?,'initial',?,'prepared',${DB_NOW},?,1,?,?,?,?,?,?,${DB_NOW},${DB_NOW}+180000)`,
           requestId,
           session.subjectId,
           sessionId,
@@ -361,6 +277,7 @@ export class LocalGeneration extends RequestState {
           mutation.payloadHash,
           input.permissionRevision,
           content.editionHash,
+          ready.policyRevision,
           policyHash,
           inputEnc,
           planEnc,
@@ -407,8 +324,8 @@ export class LocalGeneration extends RequestState {
 
   /** Durable D1 work is authoritative; waitUntil only reduces latency. */
   async maintenance() {
+    if (this.synthetic) await this.dependencies.ensureReady();
     await this.base.db.batch([onlineGuard(this.base.db)]);
-    await this.refreshLocalPolicy();
     await this.reconcileStopped();
     const due = await q(
       this.base.db,
@@ -655,26 +572,26 @@ export class LocalGeneration extends RequestState {
           1,
           h.key_version,
         );
-        const content = await q(
-          this.base.db,
-          'SELECT bundle_json FROM content_editions WHERE hash=?',
-          h.content_hash,
-        ).first<string>('bundle_json');
-        plan = await buildLocalPlan({
-          requestId: h.id,
-          basis,
-          content: AnyContentBundle.parse(JSON.parse(content!)),
-          question: input.question,
-          language: 'en',
-          operation: 'initial',
-          parentEditionId: null,
-          selected: [],
-          permissionRevision: h.permission_revision,
-          keyVersion: h.key_version,
-          promptHash: h.policy_hash,
-          validatorHash: h.policy_hash,
-          generationPolicyHash: h.policy_hash,
-        });
+        const content = await this.dependencies.content.byHash(h.content_hash);
+        plan = await buildWriterPlan(
+          {
+            requestId: h.id,
+            basis,
+            content,
+            question: input.question,
+            language: 'en',
+            operation: 'initial',
+            parentEditionId: null,
+            selected: [],
+            permissionRevision: h.permission_revision,
+            keyVersion: h.key_version,
+            promptHash: h.policy_hash,
+            validatorHash: h.policy_hash,
+            generationPolicyHash: h.policy_hash,
+          },
+          this.dependencies.policy,
+          this.synthetic,
+        );
         const enc = await this.base.crypt.seal(
           h.owner_id,
           'generation_requests',
@@ -699,7 +616,7 @@ export class LocalGeneration extends RequestState {
         ]);
         h.plan_enc = enc;
       }
-      await validateLocalPlan(plan);
+      await validateWriterPlan(plan);
       const denied = inputAdmission(plan.question, plan.language);
       if (denied) throw new GenerationFailure(denied);
       if (
@@ -762,8 +679,11 @@ export class LocalGeneration extends RequestState {
   }
 
   private async dispatch(h: Lease, plan: VersionedPlan): Promise<DispatchRow> {
-    const { payload, receipt: contextReceipt } = await prepareLocalWriter(plan),
-      policy = planPolicy(plan),
+    const { payload, receipt: contextReceipt } = await prepareWriter(
+        plan,
+        this.dependencies.policy,
+      ),
+      policy = this.dependencies.policy,
       text = new TextDecoder().decode(payload),
       id = crypto.randomUUID();
     const transmission = await this.base.crypt.seal(
@@ -771,11 +691,12 @@ export class LocalGeneration extends RequestState {
       'provider_dispatches',
       'transmission_enc',
       id,
-      { v: 1, syntheticOnly: true, payload: text, contextReceipt },
+      { v: 1, syntheticOnly: this.synthetic, payload: text, contextReceipt },
       1,
       h.key_version,
     );
     const hash = await this.base.crypt.hash(h.owner_id, 'transmission', text);
+    const ready = await this.ready(h.content_hash);
     await this.base.db.batch([
       onlineGuard(this.base.db),
       q(
@@ -806,8 +727,8 @@ export class LocalGeneration extends RequestState {
         plan.validatorHash,
         plan.contentHash,
         JSON.stringify({
-          syntheticOnly: true,
-          externalCall: false,
+          syntheticOnly: this.synthetic,
+          externalCall: !this.synthetic,
           ...policy.request,
         }),
       ),
@@ -818,6 +739,7 @@ export class LocalGeneration extends RequestState {
         applicationPolicyHash: plan.generationPolicyHash,
         policy,
       }),
+      ...ready.guards,
       this.guardCurrent(h, 'prepared', 'dispatch'),
       q(
         this.base.db,
@@ -834,28 +756,8 @@ export class LocalGeneration extends RequestState {
     const dispatch = (await this.dispatchRow(h.id))!;
     let outcome: WriterOutcome;
     try {
-      const candidate = await localTemplate(plan);
-      const supplied =
-        this.writer ??
-        new InterceptedWritingProvider({
-          outcome: {
-            kind: 'candidate',
-            candidate,
-            receipt: {
-              responseId: null,
-              returnedModel: policy.model,
-              serviceTier: policy.request.service_tier,
-              durationMs: 0,
-              usage: {
-                inputTokens: 0,
-                cachedInputTokens: 0,
-                cacheWriteTokens: 0,
-                outputTokens: 0,
-                reasoningTokens: 0,
-              },
-            },
-          },
-        });
+      const writer = this.dependencies.writer;
+      const supplied = typeof writer === 'function' ? await writer(plan) : writer;
       outcome = await supplied.write({
         dispatchId: id,
         model: policy.model,
@@ -984,7 +886,7 @@ export class LocalGeneration extends RequestState {
   private async publish(h: Lease, plan: VersionedPlan, dispatch: DispatchRow | null) {
     let candidate: z.infer<typeof AnyModelCandidate>;
     let template = h.state === 'fallback_pending';
-    const prepared = await prepareLocalWriter(plan);
+    const prepared = await prepareWriter(plan, this.dependencies.policy);
     if (
       dispatch &&
       (await this.base.crypt.hash(
@@ -1008,14 +910,14 @@ export class LocalGeneration extends RequestState {
           1,
           h.key_version,
         );
-        candidate = await checkLocalCandidate(plan, stored, receipt);
+        candidate = await checkWriterCandidate(plan, stored, receipt);
       } catch {
         await this.transition(h, 'fallback_pending', 'USING_TEMPLATE', 'VALIDATION');
         template = true;
       }
     }
     if (template)
-      candidate = await checkLocalCandidate(plan, await localTemplate(plan), receipt, true);
+      candidate = await checkWriterCandidate(plan, await preparedTemplate(plan), receipt, true);
     else if (h.state !== 'validating') await this.transition(h, 'validating');
     const facts = renderFacts(plan.basis),
       editionId = crypto.randomUUID(),
@@ -1056,7 +958,7 @@ export class LocalGeneration extends RequestState {
           : {}),
         requestId: h.id,
         dispatchId: dispatch?.id ?? null,
-        provider: null,
+        provider: dispatch && !this.synthetic ? 'openai' : null,
         requestedModel: dispatch?.requested_model ?? null,
         returnedModel: dispatch?.returned_model ?? null,
         promptHash: plan.promptHash,
@@ -1077,8 +979,10 @@ export class LocalGeneration extends RequestState {
       1,
       h.key_version,
     );
+    const ready = await this.ready(h.content_hash);
     await this.base.db.batch([
       onlineGuard(this.base.db),
+      ...ready.guards,
       q(
         this.base.db,
         `INSERT INTO reading_editions(id,owner_id,session_id,edition_number,request_id,basis_id,status,mode,body_enc,key_version,content_hash,accepted_at) VALUES (?,?,?,1,?,?,'accepted',?,?,?,?,?)`,
@@ -1142,7 +1046,7 @@ export class LocalGeneration extends RequestState {
     ]);
   }
   async drive(id: string): Promise<void> {
-    await this.refreshLocalPolicy();
+    if (this.synthetic) await this.dependencies.ensureReady();
     const row = await this.row(id);
     if (!row || ['published', 'blocked', 'failed', 'expired', 'cancelled'].includes(row.state))
       return;
@@ -1150,7 +1054,7 @@ export class LocalGeneration extends RequestState {
       await this.stop(row, 'EXPIRED');
       return;
     }
-    if (row.policy_hash !== (await this.localPolicyHash())) {
+    if (row.policy_hash !== (await this.policyHash())) {
       await this.stop(row, 'DEPENDENCY_UNAVAILABLE');
       return;
     }
@@ -1170,6 +1074,7 @@ export class LocalGeneration extends RequestState {
       if (invalid) throw new GenerationFailure(invalid);
       if (h.error_code === 'PROVIDER_REFUSAL' || h.error_code === 'PROVIDER_UNAVAILABLE')
         throw new GenerationFailure(h.error_code);
+      await this.ready(h.content_hash);
       const plan = await this.plan(h);
       let dispatch = await this.dispatchRow(id);
       if (!dispatch) {
@@ -1181,7 +1086,7 @@ export class LocalGeneration extends RequestState {
           await this.transition(h, 'fallback_pending', 'USING_TEMPLATE', 'OUTAGE');
         else dispatch = await this.dispatch(h, plan);
       } else if (!dispatch.candidate_enc && h.state !== 'fallback_pending') {
-        await this.settle(dispatch, planPolicy(plan));
+        await this.settle(dispatch, this.dependencies.policy);
         await this.base.db.batch([
           onlineGuard(this.base.db),
           this.fence(h),
@@ -1206,7 +1111,14 @@ export class LocalGeneration extends RequestState {
         ['published', 'cancelled', 'blocked', 'failed', 'expired'].includes(latest.state)
       )
         return;
-      const failure = await this.eligibility(id);
+      let failure = await this.eligibility(id);
+      if (!failure) {
+        try {
+          await this.ready(h.content_hash);
+        } catch (e) {
+          if (e instanceof GenerationFailure) failure = e.code;
+        }
+      }
       if (failure || error instanceof GenerationFailure)
         await this.stop(latest, failure ?? (error as GenerationFailure).code, h);
       // DB acknowledgement loss or Worker interruption leaves the lease for bounded Cron recovery.

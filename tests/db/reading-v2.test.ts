@@ -12,7 +12,7 @@ import { clearDatabase } from '../fixtures/database.ts';
 import { readingAccount } from '../fixtures/reading-client.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
 import { RecordBase } from '../../src/worker/readings/base.ts';
-import { LocalGeneration } from '../../src/worker/readings/generation.ts';
+import { LocalGeneration } from '../../src/worker/readings/local-generation.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
 import { sha256Bytes, sha256Json } from '../../src/domain/json.ts';
 import { READING_V2_EVALUATION_POLICY } from '../../src/contracts/provider-policy.ts';

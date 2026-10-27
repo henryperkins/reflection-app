@@ -18,7 +18,10 @@ export class ReadingClient {
   cookies = new Map<string, string>();
   csrf = '';
   ip = crypto.randomUUID();
-  constructor(readonly bindings = readingBindings) {}
+  constructor(
+    readonly bindings = readingBindings,
+    readonly handler = worker,
+  ) {}
   async request(
     path: string,
     body?: unknown,
@@ -29,7 +32,7 @@ export class ReadingClient {
       headers?: Record<string, string>;
     } = {},
   ) {
-    const response = await worker.fetch(
+    const response = await this.handler.fetch(
       new Request(`${IDENTITY_ORIGIN}/api/v1${path}`, {
         method: options.method ?? (body === undefined ? 'GET' : 'POST'),
         headers: {

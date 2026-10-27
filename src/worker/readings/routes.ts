@@ -3,7 +3,8 @@ import { z } from 'zod';
 import { apiSchemas, Id } from '../../contracts/index.ts';
 import { IdentityError } from '../identity/types.ts';
 import { localIdentity, type IdentityBindings } from '../identity/routes.ts';
-import { LocalGeneration } from './generation.ts';
+import { RequestState } from './request-state.ts';
+import { generationService, type GenerationFactory } from './runtime.ts';
 import { RecordBase, RecordError } from './base.ts';
 import { ReadingRecords } from './records.ts';
 import { Reflections } from './reflections.ts';
@@ -71,8 +72,9 @@ export async function readingRoute(
   request: Request,
   env: ReadingBindings,
   defer?: (work: Promise<void>) => void,
+  factory?: GenerationFactory,
 ): Promise<Response | null> {
-  if (env.READING_MODE !== 'synthetic-local') return null;
+  if (!['synthetic-local', 'qualified'].includes(env.READING_MODE ?? '')) return null;
   const url = new URL(request.url),
     path = url.pathname.replace('/api/v1', ''),
     method = request.method;
@@ -99,7 +101,7 @@ export async function readingRoute(
       ?.slice('__Host-session='.length);
     const session = await identity.sessions.get(token);
     const records = new ReadingRecords(base),
-      generation = new LocalGeneration(base);
+      generation = new RequestState(base);
     const reflections = new Reflections(base),
       exports = new ReadingExports(base);
     const mutate = method !== 'GET';
@@ -138,10 +140,12 @@ export async function readingRoute(
       return recordResponse(value, 200, value.revision);
     }
     if (method === 'POST' && path === '/requests') {
+      const service = generationService(base, env.READING_MODE, factory);
+      if (!service) throw new RecordError(503, 'DEPENDENCY_UNAVAILABLE');
       await identity.rate('reading-start-minute', session.subjectId, 5, 60_000);
       await identity.rate('reading-start-day', session.subjectId, 20, 86_400_000);
       return recordResponse(
-        await generation.start(session, apiSchemas.StartRequest.parse(body), key(), defer),
+        await service.start(session, apiSchemas.StartRequest.parse(body), key(), defer),
         202,
       );
     }

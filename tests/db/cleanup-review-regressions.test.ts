@@ -10,7 +10,7 @@ import { ReadingClient, readingAccount, readingBindings } from '../fixtures/read
 import { cleanupBindings, localBackup, historicalDeletion } from '../fixtures/cleanup.ts';
 import { sha256Json } from '../../src/domain/json.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
-import { LocalGeneration } from '../../src/worker/readings/generation.ts';
+import { LocalGeneration } from '../../src/worker/readings/local-generation.ts';
 import { RecordBase } from '../../src/worker/readings/base.ts';
 import { gate } from '../fixtures/barrier.ts';
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
