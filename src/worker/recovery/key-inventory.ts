@@ -18,6 +18,7 @@ export interface AccountKeyReference {
   wrapKeyId: string;
   active: boolean;
   liveFields: number;
+  operationalReferences: number;
   unfinishedJob: boolean;
   backupRequired: boolean;
 }
@@ -158,6 +159,7 @@ export async function inventoryKeyReferences(
               wrapKeyId: row.wrap_key_id,
               active: accountVersions.get(row.owner_id) === row.version,
               liveFields: 0,
+              operationalReferences: 0,
               unfinishedJob: false,
               backupRequired: false,
             };
@@ -166,6 +168,22 @@ export async function inventoryKeyReferences(
             counts.wraps++;
           }
           if (rows.length < 100) break;
+        }
+        for (const table of new Set(
+          ACCOUNT_FIELD_HANDLERS.filter((f) => f.table !== 'reading_sessions').map((f) => f.table),
+        )) {
+          const rows = (
+            await runtime.base.db
+              .prepare(
+                `SELECT owner_id,key_version,count(*) n FROM ${table} GROUP BY owner_id,key_version`,
+              )
+              .all<{ owner_id: string; key_version: number; n: number }>()
+          ).results;
+          for (const row of rows) {
+            const key = keyByIdentity.get(row.owner_id + ':' + row.key_version);
+            if (!key) throw new Error('Unregistered operational key reference');
+            key.operationalReferences += row.n;
+          }
         }
         const recordCrypto = new RecordCrypto(runtime.base.db, runtime.identity.crypt),
           fieldDescriptors: unknown[] = [];

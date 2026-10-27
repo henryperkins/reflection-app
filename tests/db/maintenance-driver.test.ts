@@ -40,6 +40,9 @@ test('hosted HTTP and scheduled writers honor the independent fence even after d
   const coordinator = new HostedCoordinator(env.OFFLINE_COORDINATOR, secret, m.environmentId);
   const context = await coordinator.acquire('restore');
   await coordinator.assertCurrent(context);
+  expect(await (await worker.fetch(new Request(m.origin + '/health'), b)).json()).toMatchObject({
+    generationReady: false,
+  });
   await env.DB.prepare('UPDATE system_state SET restore_in_progress=0').run();
   expect((await client.request('/me')).status).toBe(503);
   await expect(

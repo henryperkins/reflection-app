@@ -35,7 +35,8 @@
     "check:publication-guard": "tsx scripts/generate-publication-guard.ts --check",
     "content:activate": "tsx scripts/content-activate.ts",
     "provider:reconcile": "tsx scripts/provider-reconcile.ts",
-    "key:rotate-account": "tsx scripts/key-rotate-account.ts"
+    "key:rotate-account": "tsx scripts/key-rotate-account.ts",
+    "key:retire": "tsx scripts/key-retire.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",

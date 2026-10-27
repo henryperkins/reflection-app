@@ -21,6 +21,7 @@ test('public inventory summaries contain counts and digests while private identi
         wrapKeyId: 'PRIVATE_WRAP_ID',
         active: true,
         liveFields: 1,
+        operationalReferences: 1,
         unfinishedJob: false,
         backupRequired: false,
       },

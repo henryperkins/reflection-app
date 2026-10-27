@@ -3184,6 +3184,84 @@
           "export": "never"
         }
       }
+    },
+    "key_retirement_operations": {
+      "retention": "operational audit; account-scoped rows cascade with account",
+      "erasure": "content-free receipt; never contains candidate secrets",
+      "columns": {
+        "id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "environment_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "kind": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "plan_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "receipt_json": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
     }
   }
 }

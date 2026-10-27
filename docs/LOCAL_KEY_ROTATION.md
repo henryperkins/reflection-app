@@ -135,3 +135,42 @@ checkpoints retain their keys for their entire lifetime; superseded checkpoints
 have the existing 45-day minimum, with supported backup references retaining
 needed keys for as long as those actual copies remain registered. No local
 30-day assumption proves that hosted or offline backups have expired.
+
+## Guarded retirement
+
+`key:retire` is separate from the existing add-only rewrap command. Generate a
+protected plan from a fresh complete inventory, then apply it inside the trusted
+offline executor. Environment-bundle application rechecks the installed keyring,
+coordinator epoch, registry, current object/backup evidence and every reference.
+It writes an idempotent content-free audit and prepares a candidate; it does not
+install a secret or destroy any retained copy.
+
+    npm run key:retire -- --plan --current /private/keys.json --inventory /private/inventory.json --remove old-key --output /private/plan.json
+    npm run key:retire -- --apply --plan /private/plan.json --adapter /private/bindings.mjs --candidate /private/new-keys.json --receipt /private/new-receipt.json
+    npm run key:retire -- --check-candidate --current /private/keys.json --candidate /private/new-keys.json --receipt /private/new-receipt.json
+
+The adapter exports `withKeyRetirement(plan, execute)` and supplies the exact
+`{runtime, context, backups}` to `execute`. It cannot report success without
+running the guarded operation. Keep adapters, full inventories, source keyrings
+and candidate files outside public evidence. Outputs are new files with mode
+0600. The candidate check is a file/material preflight; installation additionally
+requires current authenticated references under the controlled executor. An
+expired plan, changed evidence, referenced/active key, changed retained material
+or changed stable verifier is rejected.
+
+For obsolete account-DEK rows, `--plan-data --inventory /private/inventory.json
+--owner account-uuid --version 1 --output /private/data-plan.json` prepares a plan.
+Apply it with `--apply --plan … --adapter … --receipt …` and no candidate path.
+The guard also checks operational key-version references, unfinished rekeys and
+backup requirements, and compares the retired/current stable index bytes.
+Deletion of the wrapped row and its receipt commit in one D1 transaction. A
+retry verifies the same operation rather than deleting another version.
+
+A prepared environment candidate must pass the same-kit, exact saved-content,
+export, deletion/receipt and supported-backup restore rehearsal before any real
+secret-store change. Synthetic tests cover D1, recovery-object and secret-copy
+formats in isolated storage; they do not certify physical offline custody or
+production recovery. Retain the installed material until controlled installation
+and independent-copy destruction have their own actual evidence. Stable identity
+and account index verifiers remain outside ordinary retirement. Every operator
+path leaves admission/generation closed until explicit validated resume.

@@ -134,7 +134,12 @@ export async function runAccountRekey(argv: string[]) {
   } catch {
     writeFileSync(
       receiptPath,
-      JSON.stringify({ ...audit, status: 'failed', stillOffline: true }) + '\n',
+      JSON.stringify({
+        ...audit,
+        status: 'failed',
+        requiresOffline: true,
+        offlineVerified: false,
+      }) + '\n',
       { mode: 0o600 },
     );
     throw new Error('Account replacement failed; retain keys and inspect protected progress');

@@ -268,7 +268,14 @@ export async function createRuntime(
     generationReady = false;
   if (manifest.generation === 'intercepted' && manifest.ingress === 'on') {
     generation = new LocalGeneration(base);
-    generationReady = true;
+    const state = await env.DB.prepare(
+      'SELECT generation_enabled,dispatch_mode,restore_in_progress FROM system_state WHERE id=1',
+    ).first<{ generation_enabled: number; dispatch_mode: string; restore_in_progress: number }>();
+    generationReady =
+      !state ||
+      (state.generation_enabled === 1 &&
+        state.restore_in_progress === 0 &&
+        ['model', 'outage_template'].includes(state.dispatch_mode));
   } else {
     const disabled: GenerationDependencies = {
       policy: READING_V2_APPLICATION_POLICY,
@@ -321,6 +328,13 @@ export function createRuntimeWorker(fetcher: typeof fetch = fetch) {
           return new Response('Origin required', { status: 403 });
         if (new URL(request.url).pathname.startsWith('/api/') && runtime.manifest.ingress === 'off')
           return Response.json({ error: 'Application admission is disabled' }, { status: 503 });
+        if (new URL(request.url).pathname === '/health' && runtime.coordinator) {
+          try {
+            await runtime.coordinator.withWriter(async () => {});
+          } catch {
+            runtime.health.generationReady = false;
+          }
+        }
         const handle = async () => createWorker(undefined, runtime).fetch(request, env, ctx);
         return await (new URL(request.url).pathname.startsWith('/api/') && runtime.coordinator
           ? runtime.coordinator.withWriter(handle)
