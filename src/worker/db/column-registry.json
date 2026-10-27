@@ -824,7 +824,7 @@
           "sqlType": "TEXT",
           "nullable": true,
           "default": null,
-          "export": "never"
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
         },
         "input_tokens": {
           "aadRule": null,
@@ -832,7 +832,7 @@
           "sqlType": "INTEGER",
           "nullable": true,
           "default": null,
-          "export": "never"
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
         },
         "cached_input_tokens": {
           "aadRule": null,
@@ -840,7 +840,7 @@
           "sqlType": "INTEGER",
           "nullable": true,
           "default": null,
-          "export": "never"
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
         },
         "cache_write_tokens": {
           "aadRule": null,
@@ -848,7 +848,7 @@
           "sqlType": "INTEGER",
           "nullable": true,
           "default": null,
-          "export": "never"
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
         },
         "output_tokens": {
           "aadRule": null,
@@ -856,7 +856,7 @@
           "sqlType": "INTEGER",
           "nullable": true,
           "default": null,
-          "export": "never"
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
         },
         "reasoning_tokens": {
           "aadRule": null,
@@ -864,7 +864,7 @@
           "sqlType": "INTEGER",
           "nullable": true,
           "default": null,
-          "export": "never"
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
         }
       }
     },

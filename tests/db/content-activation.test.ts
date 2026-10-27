@@ -171,3 +171,66 @@ test('a signed historical edition retains its reviewed copy after the compiled a
   expect(await new D1ContentRepository(env.DB, a.trust).byHash(b.editionHash)).toEqual(b);
   await expect(authenticateContentApproval(signed, { ...a.options, bundle: b })).rejects.toThrow();
 });
+test('A to B to A rollback preserves signed bytes and fences old A work with new policy and pointer revisions', async () => {
+  const seeded = await seedDatabase(env.DB),
+    a = await editorialBundle(),
+    signedA = await signedApproval(a),
+    approvalA = await signedA.authenticate();
+  await activateContent(env.DB, a, approvalA, 1);
+  const original = await env.DB.prepare(
+    'SELECT bundle_json,approval_json,approval_hash FROM content_editions WHERE hash=?',
+  )
+    .bind(a.editionHash)
+    .first();
+  await env.DB.prepare("UPDATE system_state SET generation_enabled=1,dispatch_mode='model'").run();
+  let calls = 0;
+  const service = new SyntheticGenerationPrototype(env.DB, {
+    write: async () => {
+      calls++;
+      return { kind: 'uncertain', reason: 'timeout', receipt: null };
+    },
+  });
+  const plan = {
+    ...seeded,
+    contentHash: a.editionHash,
+    contentPolicyRevision: 1,
+    clientIntentId: crypto.randomUUID(),
+    idempotencyKey: crypto.randomUUID(),
+  };
+  const request = await service.start(plan),
+    lease = (await service.claim(OWNER, request))!;
+  const b = structuredClone(a);
+  b.sources[0]!.version++;
+  b.sources[0]!.hash = await sourceHash(b.sources[0]!);
+  b.sources[0]!.review.reviewedHash = b.sources[0]!.hash;
+  b.editionHash = await bundleHash(b);
+  const signedB = await signedApproval(b);
+  await activateContent(env.DB, b, await signedB.authenticate(), 2);
+  expect(await activateContent(env.DB, a, approvalA, 3)).toEqual({
+    contentHash: a.editionHash,
+    revision: 4,
+  });
+  expect(
+    await env.DB.prepare(
+      'SELECT bundle_json,approval_json,approval_hash FROM content_editions WHERE hash=?',
+    )
+      .bind(a.editionHash)
+      .first(),
+  ).toEqual(original);
+  expect(
+    await env.DB.prepare('SELECT policy_revision FROM content_editions WHERE hash=?')
+      .bind(a.editionHash)
+      .first('policy_revision'),
+  ).toBe(3);
+  expect(
+    await env.DB.prepare(
+      'SELECT revision,generation_enabled,dispatch_mode FROM system_state',
+    ).first(),
+  ).toEqual({ revision: 4, generation_enabled: 0, dispatch_mode: 'off' });
+  expect(await new D1ContentRepository(env.DB, signedA.trust).active()).toEqual(a);
+  await env.DB.prepare("UPDATE system_state SET generation_enabled=1,dispatch_mode='model'").run();
+  await expect(service.dispatch(lease, new Uint8Array([1]))).rejects.toThrow();
+  expect(calls).toBe(0);
+  await withdrawContent(env.DB, a.editionHash, 4);
+  await expect(activateContent(env.DB, a, approvalA, 5)).rejects.toThrow();
+});

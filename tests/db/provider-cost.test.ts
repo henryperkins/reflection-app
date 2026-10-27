@@ -175,3 +175,29 @@ test('racing conflicting receipts stop generation rather than silently accepting
   ).toBe(0);
   expect(await env.DB.prepare('SELECT count(*) n FROM cost_adjustments').first('n')).toBe(1);
 });
+test.each(['model', 'tier'])(
+  'a contradictory settled %s requires review even when the new receipt cannot be priced',
+  async (kind) => {
+    const input = await reserved();
+    await reconcileProviderCost(env.DB, input);
+    const receipt = {
+      ...input.receipt,
+      ...(kind === 'model' ? { returnedModel: 'unqualified-model' } : { serviceTier: 'priority' }),
+    };
+    await expect(
+      reconcileProviderCost(env.DB, { ...input, receiptId: 'contradictory-bill', receipt }),
+    ).rejects.toThrow('conflicts');
+    expect(
+      await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
+    ).toEqual({ state: 'actual', actual_microusd: 1385 });
+    expect(
+      await env.DB.prepare('SELECT sum(committed_microusd) n FROM spend_buckets').first('n'),
+    ).toBe(2770);
+    expect(await env.DB.prepare('SELECT count(*) n FROM cost_adjustments').first('n')).toBe(1);
+    expect(
+      await env.DB.prepare('SELECT generation_enabled FROM system_state').first(
+        'generation_enabled',
+      ),
+    ).toBe(0);
+  },
+);

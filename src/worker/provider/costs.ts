@@ -59,7 +59,7 @@ async function conflict(db: D1Database): Promise<never> {
   ]);
   throw new Error('Provider cost receipt conflicts with settled usage');
 }
-async function unknown(db: D1Database, row: Cost): Promise<Result> {
+async function unknown(db: D1Database, row: Cost, receiptHash: string | null): Promise<Result> {
   if (row.state === 'actual') return result(row);
   await db.batch([
     onlineGuard(db),
@@ -75,6 +75,13 @@ async function unknown(db: D1Database, row: Cost): Promise<Result> {
     ),
   ]);
   const current = await q(db, 'SELECT * FROM cost_reservations WHERE id=?', row.id).first<Cost>();
+  if (
+    current?.state === 'actual' &&
+    current.receipt_hash &&
+    receiptHash &&
+    current.receipt_hash !== receiptHash
+  )
+    return conflict(db);
   return current ? result(current) : { state: 'unknown', actualMicrousd: null };
 }
 
@@ -104,6 +111,17 @@ export async function reconcileProviderCost(
   const parsed = ProviderReceipt.safeParse(input.receipt),
     policyHash = await providerPolicyHash(input.policy),
     priceHash = await sha256Json(input.policy.priceBasis);
+  // Receipt identity conflicts matter even when the new model/tier cannot be priced.
+  const receiptHash = parsed.success
+    ? await sha256Json({
+        responseId: parsed.data.responseId,
+        returnedModel: parsed.data.returnedModel,
+        serviceTier: parsed.data.serviceTier,
+        usage: parsed.data.usage,
+      })
+    : null;
+  if (row.state === 'actual' && row.receipt_hash && receiptHash && row.receipt_hash !== receiptHash)
+    return conflict(db);
   const priced = parsed.success ? priceReceipt(parsed.data, input.policy) : null;
   if (
     !priced ||
@@ -112,14 +130,8 @@ export async function reconcileProviderCost(
     row.requested_model !== input.policy.model ||
     row.price_basis_json !== canonicalJson(input.policy.priceBasis)
   )
-    return unknown(db, row);
+    return unknown(db, row, receiptHash);
   const receipt = parsed.data!;
-  const receiptHash = await sha256Json({
-    responseId: receipt.responseId,
-    returnedModel: receipt.returnedModel,
-    serviceTier: receipt.serviceTier,
-    usage: receipt.usage,
-  });
   if (row.state === 'actual') {
     if (row.receipt_hash === receiptHash && row.actual_microusd === priced.actualMicrousd)
       return result(row);

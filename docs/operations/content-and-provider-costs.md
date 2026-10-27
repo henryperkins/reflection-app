@@ -27,6 +27,8 @@ npm run content:activate -- --activate \
 
 Activation verifies the evidence bytes and signature, then installs immutable canonical bytes in one D1 compare-and-swap batch. It increments the system revision, supersedes/fences previous content, and sets generation and dispatch off. An exact acknowledgment retry returns the same revision. An unrelated revision, changed bytes, synthetic reviewer, forged signature or withdrawn edition fails. `D1ContentRepository` authenticates stored approval and exact bytes; active reads require the compiled copy, while historical reads preserve their originally signed copy. A production factory must provide its protected trust configuration in P1/L6.
 
+To roll back, use `--activate` with the original signed files for a still-cleared superseded edition and the current expected revision. Its bytes and approval stay immutable, while its content policy revision and the system pointer revision advance. The earlier edition must match the current compiled disclosures. Generation stays off, and old in-flight work stays fenced even when its content hash becomes active again.
+
 ```sh
 npm run content:activate -- --withdraw --hash <edition-hash> \
   --expected-revision 5 --persist-to /local/state/v3

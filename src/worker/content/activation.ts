@@ -45,9 +45,12 @@ export async function activateContent(
       ),
       assertion(
         db,
-        "NOT EXISTS(SELECT 1 FROM content_editions WHERE hash=? AND (state!='staged' OR bundle_json!=?))",
+        "NOT EXISTS(SELECT 1 FROM content_editions WHERE hash=? AND (state NOT IN ('staged','superseded') OR bundle_json!=? OR (state='superseded' AND (rights_status!='cleared' OR reviewer_kind!='human_approved' OR reviewer_id IS NULL OR reviewer_id!=? OR reviewed_hash IS NULL OR reviewed_hash!=hash OR approval_hash IS NULL OR approval_hash!=? OR approval_json IS NULL OR approval_json!=?))))",
         hash,
         bytes,
+        approval.document.reviewerId,
+        approvalHash,
+        signed,
       ),
       q(
         db,
