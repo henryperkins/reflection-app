@@ -15,6 +15,7 @@ import { Notice, type NoticeMessage } from './notice.tsx';
 import { cardName } from './card-names.ts';
 import { Art, historyArt } from './art.tsx';
 import { Icon } from './icon.tsx';
+import { CardFace, CardThumbnail } from './card-face.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type RecordView = z.infer<typeof apiSchemas.SessionRecord>;
@@ -764,33 +765,57 @@ export function ReadingWorkspace({
         </form>
       )}
       {mode === 'reading' && record && reading && (
-        <section aria-label="Reading detail">
-          <p className="eyebrow">Local simulated reading</p>
-          <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
+        <section className="reading-detail" aria-label="Reading detail">
           <article data-testid="accepted-reading" className="accepted-reading">
-            <h2 ref={resultHeading} tabIndex={-1}>
-              {reading.question}
-            </h2>
-            {reading.units.map((unit) => {
+            <div className="reading-header">
+              <div className="reading-title">
+                <p className="test-notice">Local simulated reading</p>
+                <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
+                <h2 ref={resultHeading} tabIndex={-1}>
+                  {reading.question}
+                </h2>
+              </div>
+              <Art name="study-inquiry" className="question-art" />
+            </div>
+            {reading.units.map((unit, index) => {
               const card = reading.basis.cards.find((item) => item.position === unit.position);
               const name = card && cardName(reading.basis.deckEdition, card.cardId);
               return (
-                <section key={unit.position}>
-                  <h3>{unit.position}</h3>
-                  <h4>Drawn card{name ? `: ${name}` : ''}</h4>
-                  <p className="basis-text">{unit.basisText}</p>
-                  <h4>Interpretation</h4>
-                  <p>{unit.interpretation}</p>
-                  <h4>Reflection prompt</h4>
-                  <p>{unit.reflectionQuestion}</p>
+                <section key={unit.position} className="card position-card">
+                  <Art name={`position-${unit.position}`} className="position-art" />
+                  <div className="position-title">
+                    <span className="position-number" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <h3>{unit.position}</h3>
+                  </div>
+                  <div className="position-body">
+                    {card && (
+                      <CardFace cardId={card.cardId} orientation={card.orientation} name={name} />
+                    )}
+                    <div className="position-copy">
+                      <div>
+                        <h4>Drawn card{name ? `: ${name}` : ''}</h4>
+                        <p className="basis-text">{unit.basisText}</p>
+                      </div>
+                      <div>
+                        <h4>Interpretation</h4>
+                        <p>{unit.interpretation}</p>
+                      </div>
+                      <div className="reflection-prompt">
+                        <h4>Reflection prompt</h4>
+                        <p>{unit.reflectionQuestion}</p>
+                      </div>
+                    </div>
+                  </div>
                 </section>
               );
             })}
-            <p>{reading.closing}</p>
-            <details>
+            <p className="reading-closing">{reading.closing}</p>
+            <details className="reading-sources">
               <summary>Cards and sources</summary>
               <h3>Traditional source material</h3>
-              <p>
+              <p className="muted">
                 These source snapshots are separate from the generated interpretation and your own
                 reflection. This local build uses synthetic source text.
               </p>
@@ -799,16 +824,21 @@ export function ReadingWorkspace({
                 const position = card.position[0]!.toUpperCase() + card.position.slice(1);
                 return (
                   <div key={card.id} className="source">
-                    <h3>
-                      {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
-                      {card.orientation}
-                    </h3>
-                    <p>{reading.sources[index]!.text}</p>
-                    <p>{reading.sources[index]!.rights.attribution}</p>
-                    <p className="muted">
-                      Source {reading.sources[index]!.id} · version{' '}
-                      {reading.sources[index]!.version}
-                    </p>
+                    <CardThumbnail cardId={card.cardId} />
+                    <div className="source-copy">
+                      <h3>
+                        {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
+                        {card.orientation}
+                      </h3>
+                      <p>{reading.sources[index]!.text}</p>
+                      <p className="source-attribution">
+                        {reading.sources[index]!.rights.attribution}
+                      </p>
+                      <p className="muted source-id">
+                        Source {reading.sources[index]!.id} · version{' '}
+                        {reading.sources[index]!.version}
+                      </p>
+                    </div>
                   </div>
                 );
               })}
@@ -818,31 +848,38 @@ export function ReadingWorkspace({
               </p>
             </details>
           </article>
-          <div className="save-reading">
+          <div className={`save-reading ${record.status === 'saved' ? 'is-saved' : ''}`}>
             {record.status === 'saved' ? (
-              <p className="saved-label">Saved until you delete it.</p>
+              <p className="saved-label">
+                <Icon name="check" />
+                Saved until you delete it.
+              </p>
             ) : (
               <>
-                <p>
-                  <strong>Not saved</strong> · Temporary storage lasts 24 hours from creation.
-                </p>
+                <Icon name="clock" />
+                <div className="save-copy">
+                  <p>
+                    <strong>Not saved</strong> · Temporary storage lasts 24 hours from creation.
+                  </p>
+                  <p className="muted">
+                    Save keeps this reading, its cards and sources until deletion. No reflection is
+                    required.
+                  </p>
+                </div>
                 <button type="button" onClick={save} disabled={busy}>
+                  <Icon name="bookmark" />
                   Save reading
                 </button>
-                <p className="muted">
-                  Save keeps this reading, its cards and sources until deletion. No reflection is
-                  required.
-                </p>
               </>
             )}
           </div>
-          <section className="reflection-editor" aria-label="Personal reflection">
+          <section className="card reflection-editor" aria-label="Personal reflection">
             <h2>{reflection ? 'Edit reflection' : 'Add reflection'}</h2>
             <p>
               This is your own writing. It does not change the reading or request AI generation.
             </p>
             {conflict && (
-              <div className="notice">
+              <div className="notice reflection-conflict">
                 <p>
                   Current saved reflection
                   {latestReflection ? ` (revision ${latestReflection.revision})` : ''}:
@@ -923,31 +960,36 @@ export function ReadingWorkspace({
             </button>
           </section>
           {reflection && (
-            <details className="deletion-actions">
+            <details className="deletion-actions reflection-revisions">
               <summary>Reflection revisions</summary>
-              <label htmlFor="reflection-revision">Saved reflection revision</label>
-              <select
-                id="reflection-revision"
-                value={revisionChoice}
-                onChange={(event) => {
-                  setRevisionChoice(Number(event.target.value));
-                  setRevisionNote(null);
-                  setEraseRevisionChecked(false);
-                }}
-                disabled={busy}
-              >
-                {Array.from({ length: reflection.revision }, (_, i) => i + 1).map((value) => (
-                  <option key={value} value={value}>
-                    Revision {value}
-                    {value === reflection.revision ? ' (current)' : ''}
-                  </option>
-                ))}
-              </select>
-              <button type="button" className="secondary" onClick={viewRevision} disabled={busy}>
-                View revision
-              </button>
+              <div className="revision-controls">
+                <div className="revision-select">
+                  <label htmlFor="reflection-revision">Saved reflection revision</label>
+                  <select
+                    id="reflection-revision"
+                    value={revisionChoice}
+                    onChange={(event) => {
+                      setRevisionChoice(Number(event.target.value));
+                      setRevisionNote(null);
+                      setEraseRevisionChecked(false);
+                    }}
+                    disabled={busy}
+                  >
+                    {Array.from({ length: reflection.revision }, (_, i) => i + 1).map((value) => (
+                      <option key={value} value={value}>
+                        Revision {value}
+                        {value === reflection.revision ? ' (current)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button type="button" className="secondary" onClick={viewRevision} disabled={busy}>
+                  <Icon name="eye" />
+                  View revision
+                </button>
+              </div>
               {revisionNote && (
-                <div className="notice">
+                <div className="notice revision-note">
                   <p>
                     Saved revision {revisionNote.revision} · {date(revisionNote.updatedAt)}
                   </p>
@@ -985,7 +1027,7 @@ export function ReadingWorkspace({
               onDismiss={() => setRevisionReceipt(null)}
             />
           )}
-          <div className="deletion-actions">
+          <div className="deletion-actions reading-deletion">
             {!confirmDelete ? (
               <button
                 type="button"
@@ -993,10 +1035,11 @@ export function ReadingWorkspace({
                 onClick={() => setConfirmDelete(true)}
                 disabled={busy}
               >
+                <Icon name="delete" />
                 Delete reading
               </button>
             ) : (
-              <div className="notice">
+              <div className="notice delete-confirmation">
                 <p>
                   This deletes the reading and its reflections. Downloaded files cannot be removed.
                   Retained backups follow the separate erasure window.
