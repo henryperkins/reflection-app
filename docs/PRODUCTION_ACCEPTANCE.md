@@ -1,6 +1,6 @@
 # Deferred production acceptance
 
-The local delivery proceeds without production deployment. The owner explicitly deferred public-domain, country, age and budget decisions for this delivery. `qualification/acceptance.json` records open production gates rather than blocking a local ZIP or pretending that production is approved.
+Production acceptance remains open. The current development application supports live GPT-6.1 Terra readings locally and on an isolated hosted preview. The merged application at `6b9b1fc` passed 14 local verification stages and 724 tests; its [hosted preview smoke record](superpowers/evidence/2026-10-27-hosted-preview-smoke.json) covers one live reading, save/reopen, passkey sign-in, fresh-browser recovery, consent-off export and test-account deletion. These are development results; all ten entries in `qualification/acceptance.json` remain pending. Production domain, audience, budgets and operational ownership still require owner decisions.
 
 | Gate | Concrete evidence needed before a real-data rollout |
 | --- | --- |
@@ -15,9 +15,9 @@ The local delivery proceeds without production deployment. The owner explicitly 
 | Operations | Confirmed heartbeat/alert delivery, deletion/security/spend monitoring, named incident responsibility and successful restore/key-recovery practice. |
 | Owner decisions | Domain, launch countries, minimum age, production/evaluation budgets, editorial rights and operational responsibility. Deferred at the owner's instruction for local delivery. |
 
-Current official provider documentation was checked on 2026-10-26. The selected [GPT-5.6 Terra model](https://developers.openai.com/api/docs/models/gpt-5.6-terra) documents Responses, structured output and reasoning `none`, with $2 input and $12 output per million text tokens. This confirms the documented model contract, not the user's project access or evaluation results. The [structured-output guide](https://developers.openai.com/api/docs/guides/structured-outputs) requires handling refusals outside the output schema. The [data-controls guide](https://developers.openai.com/api/docs/guides/your-data) distinguishes response storage from abuse-monitoring retention; `store:false` alone must not be described as zero retention.
+The active development provider policy is defined in [`src/contracts/provider-policy.ts`](../src/contracts/provider-policy.ts): GPT-6.1 Terra with separately versioned parameters, accounting and provenance. The completed four-case development check and one-reading hosted smoke do not establish production project privacy settings, approved launch content, a reviewed final corpus or reconciled production billing. `store:false` does not establish zero provider retention.
 
-No external messages, hosted resources, production secret provisioning or live inference are performed by this delivery. Deployment stays disabled even if every evidence record later passes: enabling deployment is a separate explicit action.
+The hosted development preview uses its own D1 database, recovery bucket and server secrets. Production admission/dispatch and deployment authorization remain separate; completed evidence does not itself activate production.
 
 ## Recording evidence
 

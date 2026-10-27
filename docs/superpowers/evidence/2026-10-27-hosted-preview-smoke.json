@@ -1,0 +1,61 @@
+{
+  "scope": "development-preview",
+  "commit": "6b9b1fc2ffb2432f783bf8e286bd54c5f01edc1c",
+  "workerVersion": "d2293078-d99c-4f35-875b-4dff1b038cff",
+  "origin": "https://reflection-preview.lfd.workers.dev",
+  "startedAt": "2026-10-27T22:40:45.211Z",
+  "providerRequestsSent": 1,
+  "maximumProviderRequests": 1,
+  "maximumReservedCostUsd": 0.16,
+  "checks": [
+    {
+      "name": "healthy preview and illustrated landing",
+      "status": "passed",
+      "durationMs": 2034
+    },
+    {
+      "name": "register test passkey and download complete recovery kit",
+      "status": "passed",
+      "durationMs": 3260
+    },
+    {
+      "name": "one live v2 reading with exact provider attribution",
+      "status": "passed",
+      "durationMs": 36541
+    },
+    {
+      "name": "save without reflection and reopen with AI permission off",
+      "status": "passed",
+      "durationMs": 5908
+    },
+    {
+      "name": "sign out and return with the same passkey",
+      "status": "passed",
+      "durationMs": 2140
+    },
+    {
+      "name": "fresh-browser mobile recovery preserves account and exact reading",
+      "status": "passed",
+      "durationMs": 6764
+    },
+    {
+      "name": "consent-off export contains the preserved reading",
+      "status": "passed",
+      "durationMs": 2062
+    },
+    {
+      "name": "delete disposable test account and verify active-store erasure",
+      "status": "passed",
+      "durationMs": 4177
+    }
+  ],
+  "status": "passed",
+  "acceptedContentDigest": "e04b45cb350ec9f9d121eeed6ef3920f21216ce25e024d690b4cb7a5c69a3909",
+  "testAccountDeleted": true,
+  "finishedAt": "2026-10-27T22:41:48.180Z",
+  "limitations": [
+    "Chromium virtual authenticators only; no physical/synced authenticator or human screen-reader acceptance",
+    "Development preview only; no production gate is closed",
+    "One live model response is smoke evidence, not broader provider qualification"
+  ]
+}
