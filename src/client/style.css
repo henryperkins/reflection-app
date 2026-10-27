@@ -268,7 +268,7 @@ details[open] {
   padding-bottom: 16px;
 }
 .notice {
-  display: flex;
+  display: block;
   align-items: flex-start;
   gap: 12px;
   margin-block: 20px;
@@ -279,6 +279,9 @@ details[open] {
   background: var(--card);
   font-size: 14px;
   line-height: 20px;
+}
+p.notice {
+  display: flex;
 }
 .notice > span {
   max-width: 48ch;
