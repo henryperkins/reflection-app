@@ -57,7 +57,8 @@ export type EvaluationManifest = {
     | 'source-diagnostic-fast-xhigh'
     | 'prompt-comparison-fast-xhigh'
     | 'independent-context-fast-xhigh'
-    | 'reading-v2-development-fast-xhigh';
+    | 'reading-v2-development-fast-xhigh'
+    | 'reading-v2-editorial-fast-xhigh';
   independentContexts?: {
     parentManifestHash: string;
     contextsHash: string;
@@ -117,9 +118,15 @@ export async function prepareEvaluation(
   profile: EvaluationManifest['profile'] = 'baseline',
   sourceBundle?: unknown,
 ): Promise<PreparedEvaluation> {
-  if (profile === 'reading-v2-development-fast-xhigh') {
+  if (
+    profile === 'reading-v2-development-fast-xhigh' ||
+    profile === 'reading-v2-editorial-fast-xhigh'
+  ) {
     if (sourceBundle !== undefined) throw new Error('V2 uses the pinned local draft only');
-    return prepareReadingV2(INDEPENDENT_READING_CONTEXTS);
+    return prepareReadingV2(
+      INDEPENDENT_READING_CONTEXTS,
+      profile === 'reading-v2-editorial-fast-xhigh' ? 'editorial' : 'development',
+    );
   }
   if (profile === 'source-diagnostic-fast-xhigh') return prepareSourceDiagnostic(sourceBundle);
   if (profile === 'prompt-comparison-fast-xhigh') return preparePromptComparison(sourceBundle);

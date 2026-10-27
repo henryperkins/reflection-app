@@ -86,7 +86,8 @@ export type WriterProviderPolicy =
   | typeof CONCISE_UNCERTAINTY_EVALUATION_POLICY
   | typeof INITIAL_READING_V2_EVALUATION_POLICY
   | typeof READING_V2_1_EVALUATION_POLICY
-  | typeof READING_V2_EVALUATION_POLICY;
+  | typeof READING_V2_EVALUATION_POLICY
+  | typeof READING_V2_EDITORIAL_EVALUATION_POLICY;
 
 /** Candidate for new-context probes; retains v1 as the tested development reference. */
 export const CONCISE_UNCERTAINTY_EVALUATION_POLICY = {
@@ -137,3 +138,35 @@ export const READING_V2_EVALUATION_POLICY = {
   version: 'reading-evaluation-context.v2.2',
   validatorVersion: 'bounded-developed-reading.v2.2',
 } as const;
+
+/** Separate editorial candidate; the application and archived v2 profile stay frozen. */
+export const READING_V2_EDITORIAL_EVALUATION_POLICY = {
+  ...READING_V2_EVALUATION_POLICY,
+  version: 'reading-evaluation-context-editorial.v1',
+  writerPreferences: {
+    language: 'en',
+    style: 'concise-developed',
+    targetWords: { maximum: 320 },
+  },
+  prompt: {
+    ...READING_V2_EVALUATION_POLICY.prompt,
+    version: 'tarot-developed-reading-editorial.v1',
+    developer: READING_V2_EVALUATION_POLICY.prompt.developer
+      .replace(
+        'State supplied facts within their stated scope, preserving negation, attribution, hypothetical conditions and timing.',
+        'State supplied facts within their stated scope, preserving negation, attribution, hypothetical conditions and timing. Preserve the scope and strength of the reader’s constraints wherever they recur, including synthesis and action. Do not turn a comparative limit such as “extra commitments” into an absolute prohibition on any new commitment unless the reader states that prohibition. When the boundary is unspecified, help the reader identify which demands would count as extra; do not decide that boundary for them. Do not infer spare capacity from ending an activity. Preserve the reader’s degree of evaluation: a mismatch does not establish inferior work or failure.',
+      )
+      .replace(
+        'A source-associated difficulty does not override a reader’s statement that something is working.',
+        'A source-associated difficulty does not override a reader’s statement that something is working. Use meaning limits to constrain the interpretation you choose. Describe existing supports directly and explain their practical significance. Omit commentary about avoiding, inventing or uncovering problems unless the reader’s question makes that distinction necessary. Develop the application instead of repeatedly denying unraised difficulties.',
+      )
+      .replace(
+        'Aim for 220–320 words across the reading when the supplied material supports that much useful explanation; do not pad fields.',
+        'Use only the space needed to develop the positional interpretations, connect them in synthesis and offer a usable optional action. A shorter reading is welcome when it fulfills those responsibilities; do not add reassurance or repeat a qualification to reach a preferred length.',
+      ),
+  },
+} as const;
+
+export type ReadingV2WriterPolicy =
+  | typeof READING_V2_EVALUATION_POLICY
+  | typeof READING_V2_EDITORIAL_EVALUATION_POLICY;

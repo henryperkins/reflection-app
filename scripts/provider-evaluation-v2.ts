@@ -6,7 +6,10 @@ import { buildPlanV2 } from '../src/domain/tarot/context-v2.ts';
 import { prepareWriterV2, writerIdentitiesV2 } from '../src/domain/tarot/writer-v2.ts';
 import { inputAdmission } from '../src/domain/tarot/safety.ts';
 import { localDevelopmentBundle } from '../src/worker/readings/local-content.ts';
-import { READING_V2_EVALUATION_POLICY } from '../src/contracts/provider-policy.ts';
+import {
+  READING_V2_EVALUATION_POLICY,
+  READING_V2_EDITORIAL_EVALUATION_POLICY,
+} from '../src/contracts/provider-policy.ts';
 import type {
   PreparedEvaluation,
   EvaluationManifest,
@@ -17,15 +20,17 @@ const hash = (v: string | Uint8Array) => createHash('sha256').update(v).digest('
 /** New combined product experiment. No production content, history, or retry authorization. */
 export async function prepareReadingV2(
   contexts: readonly { id: string; sourceCaseId: string; question: string }[],
+  variant: 'development' | 'editorial' = 'development',
 ): Promise<PreparedEvaluation> {
-  const policy = READING_V2_EVALUATION_POLICY,
+  const editorial = variant === 'editorial';
+  const policy = editorial ? READING_V2_EDITORIAL_EVALUATION_POLICY : READING_V2_EVALUATION_POLICY,
     content = localDevelopmentBundle();
   const policyHash = await providerPolicyHash(policy),
     identities = await writerIdentitiesV2(policy);
   const corpusHash = hash(canonicalJson(contexts));
   const manifest: EvaluationManifest = {
     version: 'reflection-evaluation-manifest.v1',
-    profile: 'reading-v2-development-fast-xhigh',
+    profile: editorial ? 'reading-v2-editorial-fast-xhigh' : 'reading-v2-development-fast-xhigh',
     model: policy.model,
     policyHash,
     contentHash: content.editionHash,
@@ -37,7 +42,9 @@ export async function prepareReadingV2(
     qualificationEligible: false,
     blockers: [
       'Agent-reviewed draft meanings have unknown rights and no human approval; not production content',
-      'Combined context, prompt and output change on four previously used development contexts; no isolated causal or general reliability claim',
+      editorial
+        ? 'Editorial prompt and length-preference candidate on four reviewed development contexts; no new live quality evidence or general reliability claim'
+        : 'Combined context, prompt and output change on four previously used development contexts; no isolated causal or general reliability claim',
       'Larger estimator and reservation policy remain unqualified for production',
     ],
     reservationMicrousd: policy.reservationMicrousd,
@@ -80,7 +87,7 @@ export async function prepareReadingV2(
       true,
     );
     const { payload, receipt } = await prepareWriterV2(plan, policy);
-    const id = `${context.id}.reading-v2.1`,
+    const id = editorial ? `${context.id}.reading-v2-editorial.1` : `${context.id}.reading-v2.1`,
       payloadHash = hash(payload);
     requests.push({
       id,
@@ -105,7 +112,7 @@ export async function prepareReadingV2(
       caseId: context.id,
       group,
       split: 'development',
-      variant: 'reading-context-v2',
+      variant: editorial ? 'reading-context-v2-editorial' : 'reading-context-v2',
       repeat: 1,
       payloadHash,
       admission: null,

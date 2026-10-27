@@ -40,6 +40,7 @@ export const EvaluationPermit = z.strictObject({
     'prompt-comparison-fast-xhigh',
     'independent-context-fast-xhigh',
     'reading-v2-development-fast-xhigh',
+    'reading-v2-editorial-fast-xhigh',
   ]),
   runId: z.uuid(),
   authorizedBy: z.string().trim().min(1).max(200),
@@ -165,7 +166,8 @@ export function validatePermit(
     m.reservationMicrousd !== prepared.policy.reservationMicrousd ||
     p.contentHash !== m.contentHash ||
     p.corpusHash !== m.corpusHash ||
-    (p.purpose === 'reading-v2-development-fast-xhigh' &&
+    ((p.purpose === 'reading-v2-development-fast-xhigh' ||
+      p.purpose === 'reading-v2-editorial-fast-xhigh') &&
       (p.maxCalls > 4 ||
         p.maxCostMicrousd > 640000 ||
         prepared.requests.length !== 4 ||

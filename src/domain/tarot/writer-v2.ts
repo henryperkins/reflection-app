@@ -6,13 +6,18 @@ import {
   WriterReceiptV2,
   type PreparedPlanV2,
 } from '../../contracts/index.ts';
-import { READING_V2_EVALUATION_POLICY } from '../../contracts/provider-policy.ts';
+import {
+  READING_V2_EVALUATION_POLICY,
+  type ReadingV2WriterPolicy,
+} from '../../contracts/provider-policy.ts';
 import { sha256Bytes, sha256Json } from '../json.ts';
 import { providerPolicyHash } from '../provider-policy.ts';
 import { validatePlanV2 } from './context-v2.ts';
 import { renderFacts } from './facts.ts';
 
-export async function writerIdentitiesV2(policy = READING_V2_EVALUATION_POLICY) {
+export async function writerIdentitiesV2(
+  policy: ReadingV2WriterPolicy = READING_V2_EVALUATION_POLICY,
+) {
   return {
     promptHash: await sha256Json(policy.prompt),
     validatorHash: await sha256Json({
@@ -46,7 +51,7 @@ export function candidateSchemaV2(plan: PreparedPlanV2, relationshipIds: string[
 /** Allowlisted projection; the full editorial record and receipt never enter model input. */
 export async function prepareWriterV2(
   value: PreparedPlanV2,
-  policy = READING_V2_EVALUATION_POLICY,
+  policy: ReadingV2WriterPolicy = READING_V2_EVALUATION_POLICY,
 ): Promise<{ payload: Uint8Array; receipt: WriterReceiptV2 }> {
   const plan = await validatePlanV2(value),
     identities = await writerIdentitiesV2(policy);
@@ -94,11 +99,14 @@ export async function prepareWriterV2(
       attribution: r.rights.attribution,
     })),
     selected: [],
-    preferences: {
-      language: 'en',
-      style: 'concise-developed',
-      targetWords: { minimum: 220, maximum: 320 },
-    },
+    preferences:
+      'writerPreferences' in policy
+        ? policy.writerPreferences
+        : {
+            language: 'en',
+            style: 'concise-developed',
+            targetWords: { minimum: 220, maximum: 320 },
+          },
   };
   const omissions: WriterReceiptV2['omissions'] = [];
   for (;;) {

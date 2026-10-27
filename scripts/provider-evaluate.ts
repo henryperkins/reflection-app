@@ -216,6 +216,7 @@ export async function runEvaluationCli(
         'provider:evaluate -- --dry-run --profile prompt-comparison-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --dry-run --profile independent-context-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --dry-run --profile reading-v2-development-fast-xhigh',
+        'provider:evaluate -- --dry-run --profile reading-v2-editorial-fast-xhigh',
         'provider:evaluate -- --execute --permit /protected/permit.json [--resume]',
         'provider:evaluate -- --purge-expired',
       ],
@@ -242,7 +243,8 @@ export async function runEvaluationCli(
       profile !== 'source-diagnostic-fast-xhigh' &&
       profile !== 'prompt-comparison-fast-xhigh' &&
       profile !== 'independent-context-fast-xhigh' &&
-      profile !== 'reading-v2-development-fast-xhigh'
+      profile !== 'reading-v2-development-fast-xhigh' &&
+      profile !== 'reading-v2-editorial-fast-xhigh'
     )
       throw new Error('Invalid evaluation profile');
     const diagnostic =
