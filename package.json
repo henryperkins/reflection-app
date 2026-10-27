@@ -8,6 +8,7 @@
     "node": ">=26.0.0 <27"
   },
   "scripts": {
+    "provider:evaluate": "tsx scripts/provider-evaluate.ts",
     "dev": "vite --host 127.0.0.1",
     "dev:worker": "wrangler dev --local",
     "schemas": "tsx scripts/schemas.ts",

@@ -35,6 +35,7 @@ const excluded = new Set([
   'dist',
 ]);
 const reports = ['verify.json', 'domain-tests.json', 'db-tests.json', 'browser-tests.json'];
+export const publicEvaluationFiles = new Set(['corpus.json', 'manifest.json', 'README.md']);
 
 export function packageApplication(
   root: string,
@@ -60,7 +61,8 @@ export function packageApplication(
         /\.(?:db|sqlite3?|pem|key|p12|pfx|log|zip|pyc)$/i.test(name)
       )
         continue;
-      if (!relative && !roots.has(name) && !rootFiles.has(name)) continue;
+      if (!relative && !roots.has(name) && !rootFiles.has(name) && name !== 'evaluation') continue;
+      if (relative === 'evaluation' && !publicEvaluationFiles.has(name)) continue;
       const path = join(relative, name);
       const stat = lstatSync(join(root, path));
       if (stat.isSymbolicLink()) throw new Error(`Delivery rejects symlinks: ${path}`);

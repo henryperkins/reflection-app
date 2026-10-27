@@ -1,0 +1,2473 @@
+{
+  "version": "reflection-evaluation-manifest.v1",
+  "profile": "baseline",
+  "model": "gpt-6.1-terra",
+  "policyHash": "9987f713811b90e311f788cbf3c9a2de50fd59a078a577259392bd6f8f419028",
+  "contentHash": "77cf7b6b9378b09a87798e6631712da84804848861715bda9ee9abdc47b7c79e",
+  "corpusHash": "bd53f4dc14b1d786e3c7a76b2ea167ed38bcbbbb4b1e7dae78596371d15f14aa",
+  "counts": {
+    "mustAccept": 80,
+    "adversarial": 80,
+    "nonReading": 40,
+    "lifecycle": 40
+  },
+  "splits": {
+    "development": 144,
+    "calibration": 48,
+    "holdout": 48
+  },
+  "humanApprovedExamples": 0,
+  "humanReviewRequired": 20,
+  "qualificationEligible": false,
+  "blockers": [
+    "20 genuinely human-approved examples and cleared launch content are absent",
+    "Rendering alternatives require separately frozen policies",
+    "Lifecycle results require the offline D1/contract suites; this manifest is not their execution evidence"
+  ],
+  "reservationMicrousd": 40000,
+  "maximumScheduledMicrousd": 6400000,
+  "schedule": [
+    {
+      "id": "A01-1.controlled.1",
+      "caseId": "A01-1",
+      "group": "quiet-pause",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "11b7f60a1b8b2780b4f238ba9a018e089c2cdd6dee2003a01aa9bc1028d2472a",
+      "admission": null
+    },
+    {
+      "id": "A01-2.controlled.1",
+      "caseId": "A01-2",
+      "group": "quiet-pause",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "efbbc1ae27a8b67a477fae243b021cf4cd890d6b34fe273c77564c302b542004",
+      "admission": null
+    },
+    {
+      "id": "A01-3.controlled.1",
+      "caseId": "A01-3",
+      "group": "quiet-pause",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "cd9e0705f177a20965fd44c6371a879b1c1468a1cda36a5117d39701a54d3c8b",
+      "admission": null
+    },
+    {
+      "id": "A01-4.controlled.1",
+      "caseId": "A01-4",
+      "group": "quiet-pause",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "461e9e5ee7818d2beec62f82e789a7bc20c2f100571aedf4637bd5f0bf42d5c1",
+      "admission": null
+    },
+    {
+      "id": "A02-1.controlled.1",
+      "caseId": "A02-1",
+      "group": "quiet-rest",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "63f9cdc296bce25440fa113ba0f6cae1c265b62aaa3b589a83c6d8d6bcb0028d",
+      "admission": null
+    },
+    {
+      "id": "A02-2.controlled.1",
+      "caseId": "A02-2",
+      "group": "quiet-rest",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "cb61d09b354d28f74a1f643b9adc54a18d3779e16ff422602be01f2b21a2db35",
+      "admission": null
+    },
+    {
+      "id": "A02-3.controlled.1",
+      "caseId": "A02-3",
+      "group": "quiet-rest",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "a546d548f4428be527524b95f0fccc4d0aa970f98909796491372c944ae02a71",
+      "admission": null
+    },
+    {
+      "id": "A02-4.controlled.1",
+      "caseId": "A02-4",
+      "group": "quiet-rest",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "a584875606ab9482defbc615130a6ec1da059c359d302224e945be5ceee71fb4",
+      "admission": null
+    },
+    {
+      "id": "A03-1.controlled.1",
+      "caseId": "A03-1",
+      "group": "quiet-uncertainty",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "fab80b97c583139e4aafcd84660c7fc84d46b5fbefaa5eba3ed98945c54ec583",
+      "admission": null
+    },
+    {
+      "id": "A03-2.controlled.1",
+      "caseId": "A03-2",
+      "group": "quiet-uncertainty",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "797673e06e6b81153ca9a92945e8c8384ff0e7fca4db51968992752b2b3e08b7",
+      "admission": null
+    },
+    {
+      "id": "A03-3.controlled.1",
+      "caseId": "A03-3",
+      "group": "quiet-uncertainty",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "2567320f676d827b67e1c32404023f23b314bea863176a008f3d8f09e3621d57",
+      "admission": null
+    },
+    {
+      "id": "A03-4.controlled.1",
+      "caseId": "A03-4",
+      "group": "quiet-uncertainty",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "af9ebe194eef64206dba6f80030b73fb39e8d954f3536b4889a7bcdffb5c8d03",
+      "admission": null
+    },
+    {
+      "id": "A04-1.controlled.1",
+      "caseId": "A04-1",
+      "group": "quiet-boundary",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "579047a3f4380df311bd8f0aa976f0067acde80bad48bc562c68cb6874ab2c83",
+      "admission": null
+    },
+    {
+      "id": "A04-2.controlled.1",
+      "caseId": "A04-2",
+      "group": "quiet-boundary",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "13855e814a00054496f03f2dc443629dd13f60f07e7c398d0d8a8ec3b90bcb90",
+      "admission": null
+    },
+    {
+      "id": "A04-3.controlled.1",
+      "caseId": "A04-3",
+      "group": "quiet-boundary",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e2c780fd739136e4bb6dcb3e113d908387dd4cb87abd8e6a174ff3abfd836f5c",
+      "admission": null
+    },
+    {
+      "id": "A04-4.controlled.1",
+      "caseId": "A04-4",
+      "group": "quiet-boundary",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "963d463ef88767102f23383aad5dd49f2f9c83347cc288acdd1fd09da070ecf1",
+      "admission": null
+    },
+    {
+      "id": "A05-1.controlled.1",
+      "caseId": "A05-1",
+      "group": "quiet-attention",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "a048f30faab78982c219b48e8e6d8f9fb1c9e74453437f564651e4660f1b6b3d",
+      "admission": null
+    },
+    {
+      "id": "A05-2.controlled.1",
+      "caseId": "A05-2",
+      "group": "quiet-attention",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "3e342b2873a6a4ca96dee180cd423032adfee0c7e3db12b7091b8d2be05802b6",
+      "admission": null
+    },
+    {
+      "id": "A05-3.controlled.1",
+      "caseId": "A05-3",
+      "group": "quiet-attention",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "fdcb30199cf13f0ad11c260c62fd92a2ad5b278ef781150209200bb7ec6fc468",
+      "admission": null
+    },
+    {
+      "id": "A05-4.controlled.1",
+      "caseId": "A05-4",
+      "group": "quiet-attention",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "0c928d603f104bb9b6fe2d468e167e499626f0d4edf9098374b269f776fed488",
+      "admission": null
+    },
+    {
+      "id": "A06-1.controlled.1",
+      "caseId": "A06-1",
+      "group": "review-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "d2b4a7f9340e4488730364b4d92302e317d5cf63ce8f95a162a23c12cabfd19a",
+      "admission": null
+    },
+    {
+      "id": "A06-2.controlled.1",
+      "caseId": "A06-2",
+      "group": "review-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "9eb3920e8c26eda3bb7b6136b2d4bd06e644805efd7b681bc202fba87d577c65",
+      "admission": null
+    },
+    {
+      "id": "A06-3.controlled.1",
+      "caseId": "A06-3",
+      "group": "review-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ee95b3cdcdb901fd0a917804733fa07f4a7375d32317a4200b43be083fa9ffbd",
+      "admission": null
+    },
+    {
+      "id": "A06-4.controlled.1",
+      "caseId": "A06-4",
+      "group": "review-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ef3215417c451caab480fbe7f4509e4323d85fc68236c0ac8c77cdcce76ca7cd",
+      "admission": null
+    },
+    {
+      "id": "A07-1.controlled.1",
+      "caseId": "A07-1",
+      "group": "review-choices",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "61847977796bb31cd384e5a21fe3734162fbac946bbc112a0ad1bbda478233f3",
+      "admission": null
+    },
+    {
+      "id": "A07-2.controlled.1",
+      "caseId": "A07-2",
+      "group": "review-choices",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c6b7564b39478fe40b72108a3e617421b62be16a3959ca962e64108f7905ef58",
+      "admission": null
+    },
+    {
+      "id": "A07-3.controlled.1",
+      "caseId": "A07-3",
+      "group": "review-choices",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "58fe7a5752f774bf7feea92d5daac005553ea50cbdbcc7af8902a03972f86544",
+      "admission": null
+    },
+    {
+      "id": "A07-4.controlled.1",
+      "caseId": "A07-4",
+      "group": "review-choices",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "686e7f26f38278567a9655f34441bf95c65fbd4fb8046bc283ade5038af60463",
+      "admission": null
+    },
+    {
+      "id": "A08-1.controlled.1",
+      "caseId": "A08-1",
+      "group": "review-creativity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "99d68a77fdef7a7a5d334092cc70cd8f46ff66b60b4405c2e81e62c7750eaed6",
+      "admission": null
+    },
+    {
+      "id": "A08-2.controlled.1",
+      "caseId": "A08-2",
+      "group": "review-creativity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "2dbb150ef155e99528fa1dbf4be42295692015d306ca96a6c115908ee4973f5f",
+      "admission": null
+    },
+    {
+      "id": "A08-3.controlled.1",
+      "caseId": "A08-3",
+      "group": "review-creativity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "fda94132f871cda8fdd304b307f4b007b3b62d6382adf2b1f1ba10a4bc715b08",
+      "admission": null
+    },
+    {
+      "id": "A08-4.controlled.1",
+      "caseId": "A08-4",
+      "group": "review-creativity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "55b279326dfe31d8109f57967ef530a71ef03b1e8dd18d41ec736784b2aab9b9",
+      "admission": null
+    },
+    {
+      "id": "A09-1.controlled.1",
+      "caseId": "A09-1",
+      "group": "review-patience",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "d17d9757f57df52da916a54f95f8dc272419b9b4fe257a4b0a9774d0b0b0f563",
+      "admission": null
+    },
+    {
+      "id": "A09-2.controlled.1",
+      "caseId": "A09-2",
+      "group": "review-patience",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "caa269a12699079685bcc7da36284b013bb268e0be61b5efd2dc599334b0b7b4",
+      "admission": null
+    },
+    {
+      "id": "A09-3.controlled.1",
+      "caseId": "A09-3",
+      "group": "review-patience",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "2f21246a48781c8983624effcb3824635dcd7fdf2befdf921c03358ed6348732",
+      "admission": null
+    },
+    {
+      "id": "A09-4.controlled.1",
+      "caseId": "A09-4",
+      "group": "review-patience",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "04b3a9024f23f2fca2d2676ea4e5245a1e036b8f08a3219d2716e07a3d7f82bd",
+      "admission": null
+    },
+    {
+      "id": "A10-1.controlled.1",
+      "caseId": "A10-1",
+      "group": "review-change",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "3831637298d6298406e7e66ec4e5de369c81ea346d1454f408bfde31b5d71ea9",
+      "admission": null
+    },
+    {
+      "id": "A10-2.controlled.1",
+      "caseId": "A10-2",
+      "group": "review-change",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "06c1cefc8a4d1bf48e897863173f72d7586654a911445f732ccefe6d186a57b6",
+      "admission": null
+    },
+    {
+      "id": "A10-3.controlled.1",
+      "caseId": "A10-3",
+      "group": "review-change",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "1f6242ae89c2978abf580d47fbd42e7eec3f0c07520ee5167f53168a655567eb",
+      "admission": null
+    },
+    {
+      "id": "A10-4.controlled.1",
+      "caseId": "A10-4",
+      "group": "review-change",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "f8ccca89930cfd0f0b67ee668bbb17d85d4ec6ca328ac0949852c1a4c02f68b5",
+      "admission": null
+    },
+    {
+      "id": "A11-1.controlled.1",
+      "caseId": "A11-1",
+      "group": "followup-repeat",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "600162f01305c407ccf9aa1090471996c94b3ec3bec125572012852c8add73e4",
+      "admission": null
+    },
+    {
+      "id": "A11-2.controlled.1",
+      "caseId": "A11-2",
+      "group": "followup-repeat",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "141b8ea5cf5dbaa3b5a942d31e94ce22a7f58da8ddf1cebac7c0d7761ce4e1fd",
+      "admission": null
+    },
+    {
+      "id": "A11-3.controlled.1",
+      "caseId": "A11-3",
+      "group": "followup-repeat",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e52b6c9da0633c997c7fbf5d4a2092b124f6f92431456f8fefbbe70bb80713eb",
+      "admission": null
+    },
+    {
+      "id": "A11-4.controlled.1",
+      "caseId": "A11-4",
+      "group": "followup-repeat",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "7b2ceefde3f6ae1763152b0a3571adb27c43431cc63274d5a15ae1be191a347d",
+      "admission": null
+    },
+    {
+      "id": "A12-1.controlled.1",
+      "caseId": "A12-1",
+      "group": "followup-disagree",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "6ad75bf394d3cfcb24a3178778f154748c5a323ce5abcadce974c40133d48555",
+      "admission": null
+    },
+    {
+      "id": "A12-2.controlled.1",
+      "caseId": "A12-2",
+      "group": "followup-disagree",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "11ddfc73fa51d758c5b63bb55a3950dfef7cb62ede5f18a894786f136f2f8425",
+      "admission": null
+    },
+    {
+      "id": "A12-3.controlled.1",
+      "caseId": "A12-3",
+      "group": "followup-disagree",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "4850acdbba20c476f367d997364ef3bc4878d1736e76a42240ec87d87fd2b0de",
+      "admission": null
+    },
+    {
+      "id": "A12-4.controlled.1",
+      "caseId": "A12-4",
+      "group": "followup-disagree",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "2689c2746302e1e9d98a716456d80808ca3a2827794b02442d81c5271d301e34",
+      "admission": null
+    },
+    {
+      "id": "A13-1.controlled.1",
+      "caseId": "A13-1",
+      "group": "followup-context",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "99582a2165c7f6555e26314f8d0edda4ae50d2cbf88be6544202513b7bdae6cf",
+      "admission": null
+    },
+    {
+      "id": "A13-2.controlled.1",
+      "caseId": "A13-2",
+      "group": "followup-context",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "17e8c97f5f7f5b8709d7e96bb4ed6e7617c737e1ae8b380001bf56f0de2be709",
+      "admission": null
+    },
+    {
+      "id": "A13-3.controlled.1",
+      "caseId": "A13-3",
+      "group": "followup-context",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "7d1b7397f33611da03dd99906b1017df68794e00e49cf7a7b6d8c4ce6f008880",
+      "admission": null
+    },
+    {
+      "id": "A13-4.controlled.1",
+      "caseId": "A13-4",
+      "group": "followup-context",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "d04d460c97444cc661a24949487a6e561fe8dfbd611fea29ecc3de153751d907",
+      "admission": null
+    },
+    {
+      "id": "A14-1.controlled.1",
+      "caseId": "A14-1",
+      "group": "followup-private",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "a8237e833a7c789a36f6af69e6c22f035635daa7cc7f449edffac3a73194e078",
+      "admission": null
+    },
+    {
+      "id": "A14-2.controlled.1",
+      "caseId": "A14-2",
+      "group": "followup-private",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c14bee86e97e73a6377cc3c8e72cc39c69409ea1ec0d19b5430b86fe134c5402",
+      "admission": null
+    },
+    {
+      "id": "A14-3.controlled.1",
+      "caseId": "A14-3",
+      "group": "followup-private",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "4ef4be18ebf8dc64e84007d28fb013f8002615da09b060cd9172bde7e66ec3a5",
+      "admission": null
+    },
+    {
+      "id": "A14-4.controlled.1",
+      "caseId": "A14-4",
+      "group": "followup-private",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "7d20c1563b2f116f9bfe75ef1c28a2fc7de1be0882706c2ea1e11e2a94e67ceb",
+      "admission": null
+    },
+    {
+      "id": "A15-1.controlled.1",
+      "caseId": "A15-1",
+      "group": "followup-week",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "fb1b11e5a4cf0fcccefdddb1042967625973f642daa4e6d83ef0b3ba18e15ed9",
+      "admission": null
+    },
+    {
+      "id": "A15-2.controlled.1",
+      "caseId": "A15-2",
+      "group": "followup-week",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "4c3fac6b33285007aeb2dee52034d968c6048ad1e253302a6d11f694fa928a68",
+      "admission": null
+    },
+    {
+      "id": "A15-3.controlled.1",
+      "caseId": "A15-3",
+      "group": "followup-week",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "3ef0135cc94d934caf749864eeb59f3e8133e383662351ec3f4e978325e9ae32",
+      "admission": null
+    },
+    {
+      "id": "A15-4.controlled.1",
+      "caseId": "A15-4",
+      "group": "followup-week",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c5ad1c1094638bb3797c5e240599cb31326750697bf435b50537aa66d84af741",
+      "admission": null
+    },
+    {
+      "id": "A16-1.controlled.1",
+      "caseId": "A16-1",
+      "group": "ordinary-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "01d5e2ea4a121a9fa74f9c32cadc17ddb973671eb04e433592a099bd671e8793",
+      "admission": null
+    },
+    {
+      "id": "A16-2.controlled.1",
+      "caseId": "A16-2",
+      "group": "ordinary-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e2c6fa02997614f2a73d0169bc1c4c41123d6d2e7071cb23f1415a6d349defc8",
+      "admission": null
+    },
+    {
+      "id": "A16-3.controlled.1",
+      "caseId": "A16-3",
+      "group": "ordinary-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "372db540ec46cb86576c20255ddc69eb6ba1a5ec9b2438acb599d825f26e7b45",
+      "admission": null
+    },
+    {
+      "id": "A16-4.controlled.1",
+      "caseId": "A16-4",
+      "group": "ordinary-metaphor",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "3cf4cbc4ac6ddb1dbc6a606de0a522dcd585717dc514fc435b9696b6629b37bf",
+      "admission": null
+    },
+    {
+      "id": "A17-1.controlled.1",
+      "caseId": "A17-1",
+      "group": "ordinary-negation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "f8fb74ba0cdb4b9e1f26ad1cb06efc46cd7a8033f6583a59b5fbac3460d50381",
+      "admission": null
+    },
+    {
+      "id": "A17-2.controlled.1",
+      "caseId": "A17-2",
+      "group": "ordinary-negation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "20f6b90114fe8defb8abb9406742b8392ee249ecc82b902099f561ba139414b1",
+      "admission": null
+    },
+    {
+      "id": "A17-3.controlled.1",
+      "caseId": "A17-3",
+      "group": "ordinary-negation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e242f46dd14219a024e431633f9cf47789f4b02baab1c5bddfddef7583eb1067",
+      "admission": null
+    },
+    {
+      "id": "A17-4.controlled.1",
+      "caseId": "A17-4",
+      "group": "ordinary-negation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "edb0a9a3f0d27777766819ba3e886b4749bacfdc302209feabd00f7b95c5cdc7",
+      "admission": null
+    },
+    {
+      "id": "A18-1.controlled.1",
+      "caseId": "A18-1",
+      "group": "ordinary-comparison",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "eb205a0ca05484ee1ecadd852a8735c75569fb7847c557ead6ce8b38caa6ac65",
+      "admission": null
+    },
+    {
+      "id": "A18-2.controlled.1",
+      "caseId": "A18-2",
+      "group": "ordinary-comparison",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ebb5baf86186729d970b437a506e7970c6f84956052ad34c9b364014be0753ef",
+      "admission": null
+    },
+    {
+      "id": "A18-3.controlled.1",
+      "caseId": "A18-3",
+      "group": "ordinary-comparison",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "fcd5184255c351161adf3887c97abc79e3dfdad70201c5a5447f609d2bf6d78d",
+      "admission": null
+    },
+    {
+      "id": "A18-4.controlled.1",
+      "caseId": "A18-4",
+      "group": "ordinary-comparison",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "f557dde63c1951d4b3fd055bfc0adf4a911b523d6792c10f060293e2deec7673",
+      "admission": null
+    },
+    {
+      "id": "A19-1.controlled.1",
+      "caseId": "A19-1",
+      "group": "ordinary-quotation",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "4640f5f38af21a1dda3376c14ebac7175271d411ba9f9e09b2abe3ccdcc2431b",
+      "admission": null
+    },
+    {
+      "id": "A19-2.controlled.1",
+      "caseId": "A19-2",
+      "group": "ordinary-quotation",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "8ca7cd2807ca66c12fbe8cd238220a58337bcebf50b8bac57e6ec390e426d600",
+      "admission": null
+    },
+    {
+      "id": "A19-3.controlled.1",
+      "caseId": "A19-3",
+      "group": "ordinary-quotation",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c6f774274a9eabc3fd525db0c269859c522c15ca481cef5b44fff54bbee59929",
+      "admission": null
+    },
+    {
+      "id": "A19-4.controlled.1",
+      "caseId": "A19-4",
+      "group": "ordinary-quotation",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ab3015cad35385248cf01e0fae79c340c69f42736c1b9139d4cfd8516e1030d4",
+      "admission": null
+    },
+    {
+      "id": "A20-1.controlled.1",
+      "caseId": "A20-1",
+      "group": "ordinary-number",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "b31dda16dfc7508db44b9dae6c8b8df615576fedd9c585c85bb8c2ec8540f35c",
+      "admission": null
+    },
+    {
+      "id": "A20-2.controlled.1",
+      "caseId": "A20-2",
+      "group": "ordinary-number",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "f428a4633f2ba5a3702f9d78b375db7ba7d88b1eb7667e8a68d690cc3b93e2a5",
+      "admission": null
+    },
+    {
+      "id": "A20-3.controlled.1",
+      "caseId": "A20-3",
+      "group": "ordinary-number",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ce7aeb41841bfc5cba9b199775e345432443076948108ed14c2faeb43238ed31",
+      "admission": null
+    },
+    {
+      "id": "A20-4.controlled.1",
+      "caseId": "A20-4",
+      "group": "ordinary-number",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "3efd07325ad5bc5b4440ca1d024542825ac0afd20c6a9551d46d4857c0f313b5",
+      "admission": null
+    },
+    {
+      "id": "B01-1.controlled.1",
+      "caseId": "B01-1",
+      "group": "entity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "a1fca3f2af7be37cddd68ae4a46339d31e0220260b2d39fde713e2dcbda4cf5a",
+      "admission": null
+    },
+    {
+      "id": "B01-2.controlled.1",
+      "caseId": "B01-2",
+      "group": "entity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "6cc3e1aa84496ec3e1c81f5ca924e29e58ba1b13499cbc7b535ca30145354414",
+      "admission": null
+    },
+    {
+      "id": "B01-3.controlled.1",
+      "caseId": "B01-3",
+      "group": "entity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "d264786fee7544e774e12d93da8120516b43846c24a15391fb404a3e7707d71f",
+      "admission": null
+    },
+    {
+      "id": "B01-4.controlled.1",
+      "caseId": "B01-4",
+      "group": "entity",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "386969c89650ca05f07f725ce27871553a6131afade3c70b07725fd6144e4fb3",
+      "admission": null
+    },
+    {
+      "id": "B02-1.controlled.1",
+      "caseId": "B02-1",
+      "group": "orientation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c3acf08d1548080e4aa866e2e7ce6757daa399ba310849caf616a128ee2e0893",
+      "admission": null
+    },
+    {
+      "id": "B02-2.controlled.1",
+      "caseId": "B02-2",
+      "group": "orientation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "6e3d00714da5178632554508be808a0e090041e97b29c5d1613db23f2e0d218d",
+      "admission": null
+    },
+    {
+      "id": "B02-3.controlled.1",
+      "caseId": "B02-3",
+      "group": "orientation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "1153e96f785def3a4f0e40b6c0ea2a68a0097a83ab87403f9663c2990a2589f4",
+      "admission": null
+    },
+    {
+      "id": "B02-4.controlled.1",
+      "caseId": "B02-4",
+      "group": "orientation",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "40b6876be68a5f7a8ac386fc8a4a733a3900a462abcae36c2eeae5edcd8ad813",
+      "admission": null
+    },
+    {
+      "id": "B03-1.controlled.1",
+      "caseId": "B03-1",
+      "group": "count",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "af29764a04ca0bb76cfd1107a0dfb8be867d3bb5880e9527b0f1269ad09d1094",
+      "admission": null
+    },
+    {
+      "id": "B03-2.controlled.1",
+      "caseId": "B03-2",
+      "group": "count",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "3d2d02de0f70b25d0648e94a16ba2e0d458ba560b7e05210d12e136a6d865b36",
+      "admission": null
+    },
+    {
+      "id": "B03-3.controlled.1",
+      "caseId": "B03-3",
+      "group": "count",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "8ed56d5f05fb5d14fe1473109720a544698126c4cfda3c3958d7ed491e62a73e",
+      "admission": null
+    },
+    {
+      "id": "B03-4.controlled.1",
+      "caseId": "B03-4",
+      "group": "count",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c802d39ec3a18895168e62509225fac231485b08c3788c46856077473dd0d226",
+      "admission": null
+    },
+    {
+      "id": "B04-1.controlled.1",
+      "caseId": "B04-1",
+      "group": "position",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c8fb487f90248c85ba50888ac72d3dc8806038523147b1723f2a7b20e95913b3",
+      "admission": null
+    },
+    {
+      "id": "B04-2.controlled.1",
+      "caseId": "B04-2",
+      "group": "position",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "7413388bf3e6001cc73fba17ccaa4d371b9393391d32032325f608ad361aaf14",
+      "admission": null
+    },
+    {
+      "id": "B04-3.controlled.1",
+      "caseId": "B04-3",
+      "group": "position",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "adcba54479fe6d5154bc5ce4d9b2ce98ff1f5d54238f6b2c7c8772b7ebcc1648",
+      "admission": null
+    },
+    {
+      "id": "B04-4.controlled.1",
+      "caseId": "B04-4",
+      "group": "position",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "549f7c0e568845ddc5b990244621b125c9b58cb81129ebf2ee4f56bb4bd7617d",
+      "admission": null
+    },
+    {
+      "id": "B05-1.controlled.1",
+      "caseId": "B05-1",
+      "group": "source",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "bb005a1c28464ade9fddc2730d64045639559e50b734883168362c503b2c715d",
+      "admission": null
+    },
+    {
+      "id": "B05-2.controlled.1",
+      "caseId": "B05-2",
+      "group": "source",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "1ca977a6ec602e820c75d65433076f1ab6cd955cc80e3c163b6a2a24a623e18a",
+      "admission": null
+    },
+    {
+      "id": "B05-3.controlled.1",
+      "caseId": "B05-3",
+      "group": "source",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "13a91cce4219e20c09e8ab6c044267ebe8ed936184d1bb8c5bdd02b77883df86",
+      "admission": null
+    },
+    {
+      "id": "B05-4.controlled.1",
+      "caseId": "B05-4",
+      "group": "source",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ca74a803d99fae773f012d1077457e9aa316f7c223a37c8167d62fa87e545ae9",
+      "admission": null
+    },
+    {
+      "id": "B06-1.controlled.1",
+      "caseId": "B06-1",
+      "group": "biography",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c671fc564eb8b4fd85a32ec09931e0114bf4e20720438e799dafb3c1ae04af27",
+      "admission": null
+    },
+    {
+      "id": "B06-2.controlled.1",
+      "caseId": "B06-2",
+      "group": "biography",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "0659c5811cfc8b38a2e14ccc4905f388e18d81e98aa20ed3f4c4c80763830cd3",
+      "admission": null
+    },
+    {
+      "id": "B06-3.controlled.1",
+      "caseId": "B06-3",
+      "group": "biography",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ab693776df9a13d65a3be863ca30af9da4c1a60273d5e3f2d71a09c64b265e0b",
+      "admission": null
+    },
+    {
+      "id": "B06-4.controlled.1",
+      "caseId": "B06-4",
+      "group": "biography",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "41570fb6af687232da95860b6375f67b0e03a64ec5a6eb39e8596b940d607cd3",
+      "admission": null
+    },
+    {
+      "id": "B07-1.controlled.1",
+      "caseId": "B07-1",
+      "group": "present",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "0bb923af17123c80165100747f1601b613ecb7122252d8cb3e436bf842301823",
+      "admission": null
+    },
+    {
+      "id": "B07-2.controlled.1",
+      "caseId": "B07-2",
+      "group": "present",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e948c2fb77fbe07d785a2958042f6e12257f8d5b6cc046ba4941d73386be6b73",
+      "admission": null
+    },
+    {
+      "id": "B07-3.controlled.1",
+      "caseId": "B07-3",
+      "group": "present",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ed4b303ddba4e5cc301bdb990a8db88dba715a39323ed4abdfa253f63da34d58",
+      "admission": null
+    },
+    {
+      "id": "B07-4.controlled.1",
+      "caseId": "B07-4",
+      "group": "present",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "b7ec81c98808c84c546805f64ce5ac857e30cf6cff063b37ca98cec6a9179242",
+      "admission": null
+    },
+    {
+      "id": "B08-1.controlled.1",
+      "caseId": "B08-1",
+      "group": "prediction",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "d91ebf8ee03ed042458ac3f05d91cb600d640d1d745e25e04a90bb6a22757294",
+      "admission": null
+    },
+    {
+      "id": "B08-2.controlled.1",
+      "caseId": "B08-2",
+      "group": "prediction",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "52bde3de7daf4d08b3a7a9eca83c6d1cb2b4a1d079425c1d4fcb9df0cf327a8a",
+      "admission": null
+    },
+    {
+      "id": "B08-3.controlled.1",
+      "caseId": "B08-3",
+      "group": "prediction",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "6e85c3ca1a4e0504706f3895ad0cf87da5479531531410de17217b556ffc295c",
+      "admission": null
+    },
+    {
+      "id": "B08-4.controlled.1",
+      "caseId": "B08-4",
+      "group": "prediction",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "180180ca14335fc7da8cb2b34fe6e2d40907b39297c24b9098419a281bff9371",
+      "admission": null
+    },
+    {
+      "id": "B09-1.controlled.1",
+      "caseId": "B09-1",
+      "group": "causality",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "27b612e77eb4156f57fd3aac7909631ad6aa8cda4a4864c1a110b7b7181d44a1",
+      "admission": null
+    },
+    {
+      "id": "B09-2.controlled.1",
+      "caseId": "B09-2",
+      "group": "causality",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ae2ab5768c847d342e0e55da2673c5bb1c8dd0c8b4b59afc44ce8144d4c5a928",
+      "admission": null
+    },
+    {
+      "id": "B09-3.controlled.1",
+      "caseId": "B09-3",
+      "group": "causality",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "17231be11eb1015318c1d235d23fded0472023566b21927489982f566cc838f6",
+      "admission": null
+    },
+    {
+      "id": "B09-4.controlled.1",
+      "caseId": "B09-4",
+      "group": "causality",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c723f58dcf84b1feaad1f81b967d76c039dd4e6f6e905d8b5bb823b9b894287f",
+      "admission": null
+    },
+    {
+      "id": "B10-1.controlled.1",
+      "caseId": "B10-1",
+      "group": "diagnosis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ffb3022a153b4d77c3f099ed5584c82bafe1f99fa8fce5aa5a320d2dd143ee2f",
+      "admission": null
+    },
+    {
+      "id": "B10-2.controlled.1",
+      "caseId": "B10-2",
+      "group": "diagnosis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "505755639e4246eb4568f819ab282f0b8b673d9bf952a7cbafeca655de3331af",
+      "admission": null
+    },
+    {
+      "id": "B10-3.controlled.1",
+      "caseId": "B10-3",
+      "group": "diagnosis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "886995270034b7961d37608d5b2cdb870c34ad51efc8f5ddfb1da86322a17b28",
+      "admission": null
+    },
+    {
+      "id": "B10-4.controlled.1",
+      "caseId": "B10-4",
+      "group": "diagnosis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "9589b8c3fa41bd01c9ef532224c92607663eddcc130fd647e403403b3e7aec3e",
+      "admission": null
+    },
+    {
+      "id": "B11-1.controlled.1",
+      "caseId": "B11-1",
+      "group": "prompt-injection",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "f4fc5c95072731937d387f182425689147b63dda9230280347577835a6e9821a",
+      "admission": null
+    },
+    {
+      "id": "B11-2.controlled.1",
+      "caseId": "B11-2",
+      "group": "prompt-injection",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "35cb13231efdfe4b94744e68df2cc9f7e53fb682f6a89b4817944e779d808bb1",
+      "admission": null
+    },
+    {
+      "id": "B11-3.controlled.1",
+      "caseId": "B11-3",
+      "group": "prompt-injection",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e30325f8d7d40a7cbfaa85af766260e652e83c1f540747c3bd021dc48c8a3551",
+      "admission": null
+    },
+    {
+      "id": "B11-4.controlled.1",
+      "caseId": "B11-4",
+      "group": "prompt-injection",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "3493c845c9ac2015c9f999ab1b6188b09774c6978c751ab9a20480108e5af04c",
+      "admission": null
+    },
+    {
+      "id": "B12-1.controlled.1",
+      "caseId": "B12-1",
+      "group": "private-marker",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "39f6e82960496d14fff3bbb602de8f50b4a5080e5c7c882247320f2709f65f16",
+      "admission": null
+    },
+    {
+      "id": "B12-2.controlled.1",
+      "caseId": "B12-2",
+      "group": "private-marker",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e55dd9d979a41b2859ed44cfc4e62ddb1cea47e21e65c6c6f5ec273d8cbda2f5",
+      "admission": null
+    },
+    {
+      "id": "B12-3.controlled.1",
+      "caseId": "B12-3",
+      "group": "private-marker",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "497867f6b9978e86487c6afa46d7150dd8eafda5c603fe0898b9d88fe55cf17f",
+      "admission": null
+    },
+    {
+      "id": "B12-4.controlled.1",
+      "caseId": "B12-4",
+      "group": "private-marker",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "9f9556833b4874f95f6bcf6a0ff73bcdcb1e5f6a38eee658c4d5cd036cc25668",
+      "admission": null
+    },
+    {
+      "id": "B13-1.controlled.1",
+      "caseId": "B13-1",
+      "group": "cross-owner",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "b8f1d7ec2494e7bcc8999cee4e8475c75faf8b8ba0fb4182c59a2c71db5655e4",
+      "admission": null
+    },
+    {
+      "id": "B13-2.controlled.1",
+      "caseId": "B13-2",
+      "group": "cross-owner",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "7ea928640287522995544e0804adf1341172921a0e88068d30840996748313a7",
+      "admission": null
+    },
+    {
+      "id": "B13-3.controlled.1",
+      "caseId": "B13-3",
+      "group": "cross-owner",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "892c241d6922e287ea1417e0861909e0c4806ce883f30e5eea4a4b52d0a43125",
+      "admission": null
+    },
+    {
+      "id": "B13-4.controlled.1",
+      "caseId": "B13-4",
+      "group": "cross-owner",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "28e1ceff374e852b9153ecbc5acfd8c48e5927202726a2be9749bf4e74be4954",
+      "admission": null
+    },
+    {
+      "id": "B14-1.controlled.1",
+      "caseId": "B14-1",
+      "group": "tools",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "aebf4f912229ba77ba86e83f7c68f7b6af6e9d3683c78991201c6a03b2e2b9a1",
+      "admission": null
+    },
+    {
+      "id": "B14-2.controlled.1",
+      "caseId": "B14-2",
+      "group": "tools",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "0b46da6889b872932261281a64c73af7ceedf322ec84fc9ae62f66ea02a1fa09",
+      "admission": null
+    },
+    {
+      "id": "B14-3.controlled.1",
+      "caseId": "B14-3",
+      "group": "tools",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e320c8bb36d2bef309adf1b02dd0a73ab5e156d18b0f18c006cea719c479a24f",
+      "admission": null
+    },
+    {
+      "id": "B14-4.controlled.1",
+      "caseId": "B14-4",
+      "group": "tools",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "f4f15a630eb7d00b5970230f4bec59a36487feaef57b8e48924f67ba6d264679",
+      "admission": null
+    },
+    {
+      "id": "B15-1.controlled.1",
+      "caseId": "B15-1",
+      "group": "state",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "d7fb5a9d8df414e204426906bb9785d9ac1bd407605710a0da91e8e9cc73c5bb",
+      "admission": null
+    },
+    {
+      "id": "B15-2.controlled.1",
+      "caseId": "B15-2",
+      "group": "state",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "8589b9fdd777b7eb0cfd0d8b2c50c715e67d2446fdf32855c3c334ce036409e9",
+      "admission": null
+    },
+    {
+      "id": "B15-3.controlled.1",
+      "caseId": "B15-3",
+      "group": "state",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "235b35300d89f6f0b900cfee31f26abc061a7e102303e965b6ab902985a32fba",
+      "admission": null
+    },
+    {
+      "id": "B15-4.controlled.1",
+      "caseId": "B15-4",
+      "group": "state",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "c95091c9c1833eb423d2cd5ab52f97e2da7517c97742a03a725d0529215fc9de",
+      "admission": null
+    },
+    {
+      "id": "B16-1.controlled.1",
+      "caseId": "B16-1",
+      "group": "links",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "86afece8648457f4ff6b7246e1a07941121cf0b56c293ae20d5106f8c649d369",
+      "admission": null
+    },
+    {
+      "id": "B16-2.controlled.1",
+      "caseId": "B16-2",
+      "group": "links",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "b8e472fdfead9b317273b8f112eb3f0c58a9075700c11bd79848f1068fa18389",
+      "admission": null
+    },
+    {
+      "id": "B16-3.controlled.1",
+      "caseId": "B16-3",
+      "group": "links",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "24636ad0db5dfebdf9be204ec75b84302a7f3bada9a04b7cb9b3957540478669",
+      "admission": null
+    },
+    {
+      "id": "B16-4.controlled.1",
+      "caseId": "B16-4",
+      "group": "links",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "749830f20fc0e4cba60992d6730923f5ec5eaf2cd22cf2079737934d15f7fab9",
+      "admission": null
+    },
+    {
+      "id": "B17-1.controlled.1",
+      "caseId": "B17-1",
+      "group": "schema",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "ade247ab2313ca9eaa2a93ea3ad4ca7abb392c40f075c8f420cb9bef542eac88",
+      "admission": null
+    },
+    {
+      "id": "B17-2.controlled.1",
+      "caseId": "B17-2",
+      "group": "schema",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e5039750967792cc1c06cbfd88cfbe513d3679604f863f834544baf9aba13284",
+      "admission": null
+    },
+    {
+      "id": "B17-3.controlled.1",
+      "caseId": "B17-3",
+      "group": "schema",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "9ec680b9e6282eb435210d830981843b41bf69699dab7934d73122c46142bfdb",
+      "admission": null
+    },
+    {
+      "id": "B17-4.controlled.1",
+      "caseId": "B17-4",
+      "group": "schema",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "9d6d0ecf205a485803cf89f9684b7494fd49c8b887f99bcac8c93435d5e4c6f2",
+      "admission": null
+    },
+    {
+      "id": "B18-1.controlled.1",
+      "caseId": "B18-1",
+      "group": "placeholder",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "a28256ae9a8522a28c61b2b779685cf728b617e443888cb86cee313145c590da",
+      "admission": null
+    },
+    {
+      "id": "B18-2.controlled.1",
+      "caseId": "B18-2",
+      "group": "placeholder",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "48a3ae1016149b6ca1f3724fbdc3b75b7ffef419739fdd16315da47cfdf7b1da",
+      "admission": null
+    },
+    {
+      "id": "B18-3.controlled.1",
+      "caseId": "B18-3",
+      "group": "placeholder",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "7f9a3ebbc061073bbdb28648bf9904fe177b89df1642aac10b6e6afca11d250d",
+      "admission": null
+    },
+    {
+      "id": "B18-4.controlled.1",
+      "caseId": "B18-4",
+      "group": "placeholder",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "35fcfee411de704f021479eb6fa495bcf8fa8cde63643b01db52e24eb002228d",
+      "admission": null
+    },
+    {
+      "id": "B19-1.controlled.1",
+      "caseId": "B19-1",
+      "group": "repetition",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "0d1a5af6bb8090b9a5f320de587ad6566a1ce0cdaeef0e57ef1ee4ba94951d84",
+      "admission": null
+    },
+    {
+      "id": "B19-2.controlled.1",
+      "caseId": "B19-2",
+      "group": "repetition",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "e24739a5eb9a8a3c4983b46a799b6753ef687cf7c779a36cdd7ac01025297357",
+      "admission": null
+    },
+    {
+      "id": "B19-3.controlled.1",
+      "caseId": "B19-3",
+      "group": "repetition",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "2007034a9435bf0f8e59052f16a9ca0e51265b6ec99942dfc428db78d2e8501f",
+      "admission": null
+    },
+    {
+      "id": "B19-4.controlled.1",
+      "caseId": "B19-4",
+      "group": "repetition",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "a3510ff6552c3b537cd474aafc2d52c244238be0653ffc3f5a4bc979da12e8a8",
+      "admission": null
+    },
+    {
+      "id": "B20-1.controlled.1",
+      "caseId": "B20-1",
+      "group": "false-authority",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "6317c7c3caa879e94c09b7073abd8997c9ff8735b0cb23e800a87f30be6e6bcd",
+      "admission": null
+    },
+    {
+      "id": "B20-2.controlled.1",
+      "caseId": "B20-2",
+      "group": "false-authority",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "4d7d971739410d83bd7a01c429773183d76bc3234943e4b17102f63ee4a792eb",
+      "admission": null
+    },
+    {
+      "id": "B20-3.controlled.1",
+      "caseId": "B20-3",
+      "group": "false-authority",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "fa02336fbebcffdf464f719aea217869b4fa3416f180ba83e63c074ccfc3a0ef",
+      "admission": null
+    },
+    {
+      "id": "B20-4.controlled.1",
+      "caseId": "B20-4",
+      "group": "false-authority",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": "2ef0070ae7c941d78c76be05e8e625aeac60f8059f5b666fe2bee11bae0c78a3",
+      "admission": null
+    },
+    {
+      "id": "N01-1.controlled.1",
+      "caseId": "N01-1",
+      "group": "language-french",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N01-2.controlled.1",
+      "caseId": "N01-2",
+      "group": "language-french",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N01-3.controlled.1",
+      "caseId": "N01-3",
+      "group": "language-french",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N01-4.controlled.1",
+      "caseId": "N01-4",
+      "group": "language-french",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N02-1.controlled.1",
+      "caseId": "N02-1",
+      "group": "language-spanish",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N02-2.controlled.1",
+      "caseId": "N02-2",
+      "group": "language-spanish",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N02-3.controlled.1",
+      "caseId": "N02-3",
+      "group": "language-spanish",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N02-4.controlled.1",
+      "caseId": "N02-4",
+      "group": "language-spanish",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N03-1.controlled.1",
+      "caseId": "N03-1",
+      "group": "language-german",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N03-2.controlled.1",
+      "caseId": "N03-2",
+      "group": "language-german",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N03-3.controlled.1",
+      "caseId": "N03-3",
+      "group": "language-german",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N03-4.controlled.1",
+      "caseId": "N03-4",
+      "group": "language-german",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N04-1.controlled.1",
+      "caseId": "N04-1",
+      "group": "language-japanese",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N04-2.controlled.1",
+      "caseId": "N04-2",
+      "group": "language-japanese",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N04-3.controlled.1",
+      "caseId": "N04-3",
+      "group": "language-japanese",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N04-4.controlled.1",
+      "caseId": "N04-4",
+      "group": "language-japanese",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "UNSUPPORTED_LANGUAGE"
+    },
+    {
+      "id": "N05-1.controlled.1",
+      "caseId": "N05-1",
+      "group": "crisis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N05-2.controlled.1",
+      "caseId": "N05-2",
+      "group": "crisis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N05-3.controlled.1",
+      "caseId": "N05-3",
+      "group": "crisis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N05-4.controlled.1",
+      "caseId": "N05-4",
+      "group": "crisis",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N06-1.controlled.1",
+      "caseId": "N06-1",
+      "group": "medical",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N06-2.controlled.1",
+      "caseId": "N06-2",
+      "group": "medical",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N06-3.controlled.1",
+      "caseId": "N06-3",
+      "group": "medical",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N06-4.controlled.1",
+      "caseId": "N06-4",
+      "group": "medical",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N07-1.controlled.1",
+      "caseId": "N07-1",
+      "group": "financial",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N07-2.controlled.1",
+      "caseId": "N07-2",
+      "group": "financial",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N07-3.controlled.1",
+      "caseId": "N07-3",
+      "group": "financial",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N07-4.controlled.1",
+      "caseId": "N07-4",
+      "group": "financial",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N08-1.controlled.1",
+      "caseId": "N08-1",
+      "group": "legal",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N08-2.controlled.1",
+      "caseId": "N08-2",
+      "group": "legal",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N08-3.controlled.1",
+      "caseId": "N08-3",
+      "group": "legal",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N08-4.controlled.1",
+      "caseId": "N08-4",
+      "group": "legal",
+      "split": "development",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "SAFETY_REVIEW"
+    },
+    {
+      "id": "N09-1.controlled.1",
+      "caseId": "N09-1",
+      "group": "empty",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "BAD_INPUT"
+    },
+    {
+      "id": "N09-2.controlled.1",
+      "caseId": "N09-2",
+      "group": "empty",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "BAD_INPUT"
+    },
+    {
+      "id": "N09-3.controlled.1",
+      "caseId": "N09-3",
+      "group": "empty",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "BAD_INPUT"
+    },
+    {
+      "id": "N09-4.controlled.1",
+      "caseId": "N09-4",
+      "group": "empty",
+      "split": "calibration",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "BAD_INPUT"
+    },
+    {
+      "id": "N10-1.controlled.1",
+      "caseId": "N10-1",
+      "group": "oversized",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "INPUT_TOO_LARGE"
+    },
+    {
+      "id": "N10-2.controlled.1",
+      "caseId": "N10-2",
+      "group": "oversized",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "INPUT_TOO_LARGE"
+    },
+    {
+      "id": "N10-3.controlled.1",
+      "caseId": "N10-3",
+      "group": "oversized",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "INPUT_TOO_LARGE"
+    },
+    {
+      "id": "N10-4.controlled.1",
+      "caseId": "N10-4",
+      "group": "oversized",
+      "split": "holdout",
+      "variant": "controlled-facts",
+      "repeat": 1,
+      "payloadHash": null,
+      "admission": "INPUT_TOO_LARGE"
+    }
+  ],
+  "lifecycle": [
+    {
+      "caseId": "L01-1",
+      "sequence": [
+        "admit",
+        "revoke-consent",
+        "attempt-publication",
+        "expect-stopped"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L01-2",
+      "sequence": [
+        "admit",
+        "revoke-consent",
+        "attempt-publication",
+        "expect-stopped"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L01-3",
+      "sequence": [
+        "admit",
+        "revoke-consent",
+        "attempt-publication",
+        "expect-stopped"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L01-4",
+      "sequence": [
+        "admit",
+        "revoke-consent",
+        "attempt-publication",
+        "expect-stopped"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L02-1",
+      "sequence": [
+        "admit",
+        "authorize",
+        "cancel",
+        "receive-late-response",
+        "expect-no-publication"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L02-2",
+      "sequence": [
+        "admit",
+        "authorize",
+        "cancel",
+        "receive-late-response",
+        "expect-no-publication"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L02-3",
+      "sequence": [
+        "admit",
+        "authorize",
+        "cancel",
+        "receive-late-response",
+        "expect-no-publication"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L02-4",
+      "sequence": [
+        "admit",
+        "authorize",
+        "cancel",
+        "receive-late-response",
+        "expect-no-publication"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/request-lifecycle.test.ts"
+    },
+    {
+      "caseId": "L03-1",
+      "sequence": [
+        "owner-a-admit",
+        "owner-b-reference",
+        "expect-rejected"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L03-2",
+      "sequence": [
+        "owner-a-admit",
+        "owner-b-reference",
+        "expect-rejected"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L03-3",
+      "sequence": [
+        "owner-a-admit",
+        "owner-b-reference",
+        "expect-rejected"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L03-4",
+      "sequence": [
+        "owner-a-admit",
+        "owner-b-reference",
+        "expect-rejected"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L04-1",
+      "sequence": [
+        "checkpoint-start",
+        "delete-account",
+        "finish-delayed-checkpoint",
+        "expect-no-resurrection"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/privacy-review-regressions.test.ts"
+    },
+    {
+      "caseId": "L04-2",
+      "sequence": [
+        "checkpoint-start",
+        "delete-account",
+        "finish-delayed-checkpoint",
+        "expect-no-resurrection"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/privacy-review-regressions.test.ts"
+    },
+    {
+      "caseId": "L04-3",
+      "sequence": [
+        "checkpoint-start",
+        "delete-account",
+        "finish-delayed-checkpoint",
+        "expect-no-resurrection"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/privacy-review-regressions.test.ts"
+    },
+    {
+      "caseId": "L04-4",
+      "sequence": [
+        "checkpoint-start",
+        "delete-account",
+        "finish-delayed-checkpoint",
+        "expect-no-resurrection"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/privacy-review-regressions.test.ts"
+    },
+    {
+      "caseId": "L05-1",
+      "sequence": [
+        "authorize",
+        "lose-driver",
+        "resume",
+        "expect-no-redispatch"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/generation-recovery.test.ts"
+    },
+    {
+      "caseId": "L05-2",
+      "sequence": [
+        "authorize",
+        "lose-driver",
+        "resume",
+        "expect-no-redispatch"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/generation-recovery.test.ts"
+    },
+    {
+      "caseId": "L05-3",
+      "sequence": [
+        "authorize",
+        "lose-driver",
+        "resume",
+        "expect-no-redispatch"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/generation-recovery.test.ts"
+    },
+    {
+      "caseId": "L05-4",
+      "sequence": [
+        "authorize",
+        "lose-driver",
+        "resume",
+        "expect-no-redispatch"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/generation-recovery.test.ts"
+    },
+    {
+      "caseId": "L06-1",
+      "sequence": [
+        "activate",
+        "admit",
+        "withdraw",
+        "expect-no-publication"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/content-activation.test.ts"
+    },
+    {
+      "caseId": "L06-2",
+      "sequence": [
+        "activate",
+        "admit",
+        "withdraw",
+        "expect-no-publication"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/content-activation.test.ts"
+    },
+    {
+      "caseId": "L06-3",
+      "sequence": [
+        "activate",
+        "admit",
+        "withdraw",
+        "expect-no-publication"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/content-activation.test.ts"
+    },
+    {
+      "caseId": "L06-4",
+      "sequence": [
+        "activate",
+        "admit",
+        "withdraw",
+        "expect-no-publication"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/content-activation.test.ts"
+    },
+    {
+      "caseId": "L07-1",
+      "sequence": [
+        "preview-import",
+        "commit",
+        "repeat-identity",
+        "expect-no-duplicate"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L07-2",
+      "sequence": [
+        "preview-import",
+        "commit",
+        "repeat-identity",
+        "expect-no-duplicate"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L07-3",
+      "sequence": [
+        "preview-import",
+        "commit",
+        "repeat-identity",
+        "expect-no-duplicate"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L07-4",
+      "sequence": [
+        "preview-import",
+        "commit",
+        "repeat-identity",
+        "expect-no-duplicate"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L08-1",
+      "sequence": [
+        "import",
+        "erase",
+        "repeat-old-source",
+        "expect-erased"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L08-2",
+      "sequence": [
+        "import",
+        "erase",
+        "repeat-old-source",
+        "expect-erased"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L08-3",
+      "sequence": [
+        "import",
+        "erase",
+        "repeat-old-source",
+        "expect-erased"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L08-4",
+      "sequence": [
+        "import",
+        "erase",
+        "repeat-old-source",
+        "expect-erased"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/tooling/gates.test.ts"
+    },
+    {
+      "caseId": "L09-1",
+      "sequence": [
+        "prepare",
+        "select-exact-context",
+        "project",
+        "expect-no-unselected-markers"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L09-2",
+      "sequence": [
+        "prepare",
+        "select-exact-context",
+        "project",
+        "expect-no-unselected-markers"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L09-3",
+      "sequence": [
+        "prepare",
+        "select-exact-context",
+        "project",
+        "expect-no-unselected-markers"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L09-4",
+      "sequence": [
+        "prepare",
+        "select-exact-context",
+        "project",
+        "expect-no-unselected-markers"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/prototype.test.ts"
+    },
+    {
+      "caseId": "L10-1",
+      "sequence": [
+        "publish",
+        "save",
+        "reopen",
+        "expect-no-dispatch"
+      ],
+      "interleaving": "before-dispatch",
+      "offlineSuite": "tests/db/integration.test.ts"
+    },
+    {
+      "caseId": "L10-2",
+      "sequence": [
+        "publish",
+        "save",
+        "reopen",
+        "expect-no-dispatch"
+      ],
+      "interleaving": "after-authorization",
+      "offlineSuite": "tests/db/integration.test.ts"
+    },
+    {
+      "caseId": "L10-3",
+      "sequence": [
+        "publish",
+        "save",
+        "reopen",
+        "expect-no-dispatch"
+      ],
+      "interleaving": "after-response",
+      "offlineSuite": "tests/db/integration.test.ts"
+    },
+    {
+      "caseId": "L10-4",
+      "sequence": [
+        "publish",
+        "save",
+        "reopen",
+        "expect-no-dispatch"
+      ],
+      "interleaving": "before-publication",
+      "offlineSuite": "tests/db/integration.test.ts"
+    }
+  ]
+}
