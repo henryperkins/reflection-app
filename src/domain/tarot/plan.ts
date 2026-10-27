@@ -11,15 +11,17 @@ import { sha256Json } from '../json.ts';
 import { assertBasis } from './facts.ts';
 export type BuildPlanInput = Omit<
   PreparedPlan,
-  'version' | 'contentHash' | 'sources' | 'mandatoryFactIds'
+  'version' | 'contentHash' | 'sources' | 'mandatoryFactIds' | 'fallbackClosing'
 > & { content: z.infer<typeof ContentBundle> };
 type Source = z.infer<typeof CanonSource>;
 /** Review metadata is excluded so approval can bind the reviewed content without a hash cycle. */
-export async function sourceHash(source: Source): Promise<string> {
+export async function sourceHash<T extends { hash: string; review: unknown }>(
+  source: T,
+): Promise<string> {
   const { hash: _hash, review: _review, ...reviewed } = source;
   return sha256Json(reviewed);
 }
-export async function bundleHash(bundle: z.infer<typeof ContentBundle>): Promise<string> {
+export async function bundleHash<T extends { editionHash: string }>(bundle: T): Promise<string> {
   const { editionHash: _hash, ...content } = bundle;
   return sha256Json(content);
 }
@@ -92,6 +94,10 @@ export async function buildPlan(input: BuildPlanInput): Promise<PreparedPlan> {
     version: 'tarot-plan.v1',
     contentHash: content.editionHash,
     sources,
+    fallbackClosing:
+      input.operation === 'followup'
+        ? content.productCopy.followupClosing
+        : content.productCopy.initialClosing,
     mandatoryFactIds: TarotFactId.options,
   });
 }

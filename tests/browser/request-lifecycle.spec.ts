@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiSchemas, AcceptedReading } from '../../src/contracts/index.ts';
+import { apiSchemas, AcceptedReadingV2 } from '../../src/contracts/index.ts';
 import { account, reading, savedSnapshot } from '../fixtures/browser-reading.ts';
 
 async function form(page: Page, question = 'Synthetic request interruption') {
@@ -227,7 +227,7 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
   const status = apiSchemas.RequestStatus.parse(
     await (await page.request.get(`/api/v1/requests/${id}`)).json(),
   );
-  const artifact = AcceptedReading.parse(
+  const artifact = AcceptedReadingV2.parse(
     await (await page.request.get(`/api/v1/readings/${status.editionId}`)).json(),
   );
   const positions = ['Situation', 'Tension', 'Possibility'];
@@ -236,17 +236,28 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
       source = artifact.sources[i]!;
     await expect(
       accepted.getByRole('heading', {
-        name: `${positions[i]}: Synthetic ${card.cardId} (${card.cardId}) · ${card.orientation}`,
+        name: `${positions[i]}: ${artifact.draw[i]!.name} (${card.cardId}) · ${card.orientation}`,
         exact: true,
       }),
     ).toBeVisible();
     await expect(
-      accepted.locator('.source').nth(i).getByText(source.text, { exact: true }),
+      accepted.locator('.source').nth(i).getByText(source.meaning.core, { exact: true }),
     ).toBeVisible();
+    await expect(
+      accepted.locator('.source').nth(i).getByText(source.meaning.positive, { exact: true }),
+    ).toBeVisible();
+    for (const distinction of source.meaning.distinctions)
+      await expect(
+        accepted.locator('.source').nth(i).getByText(distinction, { exact: true }),
+      ).toBeVisible();
     await expect(
       accepted.getByText(source.rights.attribution, { exact: true }).first(),
     ).toBeVisible();
   }
+  await expect(accepted.getByRole('heading', { name: 'Putting it together' })).toBeVisible();
+  await expect(accepted.getByText(artifact.synthesis.text, { exact: true })).toBeVisible();
+  await expect(accepted.getByRole('heading', { name: 'An optional next step' })).toBeVisible();
+  await expect(accepted.getByText(artifact.action.text, { exact: true })).toBeVisible();
   await page.screenshot({ path: '/tmp/reflection-request-inspection-desktop.png', fullPage: true });
   await page.setViewportSize({ width: 320, height: 740 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -323,7 +334,7 @@ test('revoking AI during progress keeps the stopped request and history availabl
 });
 
 for (const [state, errorCode, copy] of [
-  ['blocked', 'PROVIDER_REFUSAL', 'The writer declined this question'],
+  ['blocked', 'PROVIDER_REFUSAL', 'The AI provider declined this request'],
   ['expired', 'EXPIRED', 'This reading request expired'],
   ['failed', 'PROVIDER_UNCERTAIN', 'The writer did not confirm a result'],
   ['failed', 'PROVIDER_UNAVAILABLE', 'The writer is unavailable'],

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, type AuthResult } from '../contracts/index.ts';
+import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
 import { api, ApiFailure } from './api.ts';
 import { enroll, signIn } from './passkeys.ts';
 import { ReadingWorkspace } from './readings.tsx';
@@ -28,6 +29,18 @@ function kitText(kit: Kit) {
   );
 }
 export function IdentityApp() {
+  const [live, setLive] = useState<boolean | null>(null);
+  useEffect(() => {
+    void fetch('/health', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((runtime) => {
+        if (typeof runtime === 'object' && runtime !== null && 'mode' in runtime) {
+          if (runtime.mode === 'live-local' || runtime.mode === 'live-preview') setLive(true);
+          if (runtime.mode === 'synthetic-only') setLive(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [session, setSession] = useState<View | null>(null);
   const [kit, setKit] = useState<Kit | null>(null);
   const [grant, setGrant] = useState<Grant | null>(null);
@@ -259,7 +272,7 @@ export function IdentityApp() {
             </span>
             Reflection
           </a>
-          <span className="test-label">Local test build</span>
+          <span className="test-label">Development build</span>
         </div>
       </header>
       <main
@@ -281,8 +294,11 @@ export function IdentityApp() {
                   {title}
                 </h1>
                 <p className="test-notice">
-                  Use synthetic text and test accounts only. This local build simulates readings and
-                  never contacts an AI provider.
+                  {live === null
+                    ? 'Reading service status is unavailable. Saved readings remain available.'
+                    : live
+                      ? 'Live AI readings are enabled for this development app.'
+                      : 'Use synthetic text and test accounts only. This local build simulates readings and never contacts an AI provider.'}
                 </p>
                 {kit && (
                   <p className="lead">
@@ -434,6 +450,7 @@ export function IdentityApp() {
                 <section className="account-content">
                   <div inert={checking || busy}>
                     <ReadingWorkspace
+                      live={live}
                       key={session.subjectId}
                       user={session}
                       onSession={setSession}
@@ -604,10 +621,7 @@ export function IdentityApp() {
                   </details>
                   <p className="account-storage">
                     <Icon name="lock" />
-                    <span>
-                      Storage is encrypted and readable by the service for authorized operations.
-                      This is not end-to-end encryption.
-                    </span>
+                    <span>{READING_PRODUCT_COPY.serviceStorage}</span>
                   </p>
                   <div className="actions account-actions">
                     <button
@@ -743,7 +757,7 @@ export function IdentityApp() {
                         })
                       }
                     >
-                      Create a test account
+                      {live === false ? 'Create a test account' : 'Create an account'}
                     </button>
                     <button
                       type="button"

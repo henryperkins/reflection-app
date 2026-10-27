@@ -12,7 +12,7 @@ import {
 import { localIdentity } from '../identity/routes.ts';
 import { RecordBase } from '../readings/base.ts';
 import { SessionErasure } from '../readings/erasure.ts';
-import { syntheticBundle } from '../readings/local-content.ts';
+import { syntheticBundle, localDevelopmentBundle } from '../readings/local-content.ts';
 import { objects, erasureJobIds, type Chain } from './ledger.ts';
 import { recoveryExclusive, type RecoveryLease } from './coordination.ts';
 import { CleanupJournal, CLEANUP_STATE_KEY } from './cleanup-state.ts';
@@ -323,12 +323,13 @@ export class OfflineRestore {
     ]);
   }
   private async checkContent() {
-    const approved = (await syntheticBundle()).editionHash;
+    // Exact localhost fixture editions only; this is not a production approval list.
+    const fixtures = [(await syntheticBundle()).editionHash, localDevelopmentBundle().editionHash];
     await this.env.DB.batch([
       q(
         this.env.DB,
-        `UPDATE content_editions SET state='withdrawn',withdrawn_at=coalesce(withdrawn_at,${DB_NOW}) WHERE hash!=? AND state!='withdrawn'`,
-        approved,
+        `UPDATE content_editions SET state='withdrawn',withdrawn_at=coalesce(withdrawn_at,${DB_NOW}) WHERE hash NOT IN (?,?) AND state!='withdrawn'`,
+        ...fixtures,
       ),
       q(
         this.env.DB,

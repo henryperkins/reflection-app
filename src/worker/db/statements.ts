@@ -16,8 +16,15 @@ export function currentGuard(
   db: D1Database,
   values: Record<string, Binding>,
   stage: 'start' | 'dispatch' | 'publish' | 'recover',
+  developmentContent = false,
 ) {
   let source = publicationGuard;
+  // Only the explicit local-live service admits draft content. Default guards stay unchanged.
+  if (developmentContent)
+    source = source.replace(
+      "AND c.state IN('approved','superseded') AND c.rights_status='cleared'\n    AND c.reviewed_hash=c.hash AND c.reviewer_kind='human_approved'",
+      "AND c.state='staged' AND c.rights_status!='disallowed' AND c.reviewer_kind='agent_reviewed'",
+    );
   if (stage === 'recover')
     source = source.replace(
       "r.state IN('validating','fallback_pending')",

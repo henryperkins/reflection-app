@@ -26,6 +26,12 @@ export function sourceDigest(root: string, additionalIgnored: readonly string[] 
       )
         continue;
       const path = join(relative, entry.name);
+      // Only public frozen fixtures belong to source identity; private evaluation data is external.
+      if (
+        relative === 'evaluation' &&
+        !['corpus.json', 'manifest.json', 'README.md'].includes(entry.name)
+      )
+        continue;
       if (entry.isDirectory()) visit(path);
       else if (entry.isFile())
         digest

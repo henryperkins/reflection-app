@@ -1,3 +1,4 @@
+import { providerReceipt } from '../fixtures/provider.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeEach, expect, test, vi } from 'vitest';
@@ -17,11 +18,18 @@ const writer: WritingProvider = {
   write: vi.fn(async () => ({
     kind: 'candidate' as const,
     candidate: { synthetic: true },
-    providerResponseId: null,
-    returnedModel: 'gpt-5.6-terra',
-    inputTokens: 1,
-    outputTokens: 1,
-    durationMs: 1,
+    receipt: providerReceipt({
+      responseId: null,
+      returnedModel: 'gpt-6.1-terra',
+      durationMs: 1,
+      usage: {
+        inputTokens: 1,
+        outputTokens: 1,
+        cachedInputTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+      },
+    }),
   })),
 };
 beforeEach(async () => {
@@ -185,7 +193,11 @@ test('cross-owner links cannot reserve or persist a request', async () => {
 test('uncertain provider result never retries and releases product quota while retaining spend', async () => {
   const f = await prepared();
   const uncertain: WritingProvider = {
-    write: vi.fn(async () => ({ kind: 'uncertain' as const, reason: 'lost_response' as const })),
+    write: vi.fn(async () => ({
+      kind: 'uncertain' as const,
+      reason: 'lost_response' as const,
+      receipt: null,
+    })),
   };
   const service = new SyntheticGenerationPrototype(env.DB, uncertain);
   await service.dispatch(f.lease, new Uint8Array([1]));
@@ -224,15 +236,15 @@ test('known provider usage settles cost separately from product quota', async ()
   const f = await validating();
   expect(
     await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
-  ).toEqual({ state: 'actual', actual_microusd: 14 });
+  ).toEqual({ state: 'actual', actual_microusd: 6 });
   expect(
     await env.DB.prepare('SELECT sum(committed_microusd) AS n FROM spend_buckets').first(),
-  ).toEqual({ n: 28 });
+  ).toEqual({ n: 12 });
   await f.service.terminalize(OWNER, f.requestId, 'cancelled');
   expect(await quota()).toEqual({ held: 0, consumed: 0 });
   expect(
     await env.DB.prepare('SELECT sum(committed_microusd) AS n FROM spend_buckets').first(),
-  ).toEqual({ n: 28 });
+  ).toEqual({ n: 12 });
 });
 
 test('an injected mid-publication statement failure rolls the entire actual D1 batch back', async () => {
@@ -322,7 +334,7 @@ test('cancellation before a late receipt cannot restore candidate material', asy
   expect(await count('reading_editions')).toBe(0);
   expect(
     await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
-  ).toEqual({ state: 'actual', actual_microusd: 14 });
+  ).toEqual({ state: 'actual', actual_microusd: 6 });
 });
 for (const kind of ['parent status', 'parent content', 'selected native content'] as const)
   test(`guard blocks ${kind} withdrawal even when the request uses newer content`, async () => {
@@ -486,20 +498,27 @@ test('provider usage exceeding reservation increases aggregate liability and dis
     write: async () => ({
       kind: 'candidate',
       candidate: { synthetic: true },
-      providerResponseId: null,
-      returnedModel: 'gpt-5.6-terra',
-      inputTokens: 0,
-      outputTokens: 4000,
-      durationMs: 1,
+      receipt: providerReceipt({
+        responseId: null,
+        returnedModel: 'gpt-6.1-terra',
+        durationMs: 1,
+        usage: {
+          inputTokens: 0,
+          outputTokens: 10000,
+          cachedInputTokens: 0,
+          cacheWriteTokens: 0,
+          reasoningTokens: 0,
+        },
+      }),
     }),
   };
   await new SyntheticGenerationPrototype(env.DB, expensive).dispatch(f.lease, new Uint8Array([1]));
   expect(await env.DB.prepare('SELECT actual_microusd FROM cost_reservations').first()).toEqual({
-    actual_microusd: 48000,
+    actual_microusd: 50000,
   });
   expect(
     await env.DB.prepare('SELECT sum(committed_microusd) AS total FROM spend_buckets').first(),
-  ).toEqual({ total: 96000 });
+  ).toEqual({ total: 100000 });
   expect(await env.DB.prepare('SELECT generation_enabled FROM system_state').first()).toEqual({
     generation_enabled: 0,
   });

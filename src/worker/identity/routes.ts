@@ -13,7 +13,7 @@ export interface IdentityBindings {
 }
 export function localIdentity(env: IdentityBindings): IdentityService | null {
   if (
-    env.IDENTITY_MODE !== 'synthetic-local' ||
+    !['synthetic-local', 'live-local', 'live-preview'].includes(env.IDENTITY_MODE ?? '') ||
     !env.RECOVERY ||
     !env.IDENTITY_ORIGIN ||
     !env.IDENTITY_SECRETS
@@ -22,12 +22,14 @@ export function localIdentity(env: IdentityBindings): IdentityService | null {
   const origin = new URL(env.IDENTITY_ORIGIN);
   if (
     origin.origin !== env.IDENTITY_ORIGIN ||
-    origin.hostname !== 'localhost' ||
+    (env.IDENTITY_MODE === 'live-preview'
+      ? origin.protocol !== 'https:' || origin.hostname === 'localhost'
+      : origin.hostname !== 'localhost') ||
     !['http:', 'https:'].includes(origin.protocol)
   )
     return null;
   const secrets = parseIdentitySecrets(env.IDENTITY_SECRETS);
-  if (secrets.environment !== 'synthetic-local') return null;
+  if (secrets.environment !== env.IDENTITY_MODE) return null;
   return new IdentityService(
     env.DB,
     env.RECOVERY,

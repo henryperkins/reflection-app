@@ -1,3 +1,5 @@
+import { providerReceipt } from '../fixtures/provider.ts';
+import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { expect, test, vi } from 'vitest';
@@ -39,7 +41,7 @@ test('synthetic domain plan reaches the intercepted writer and publishes once th
   const plan = await buildPlan(input);
   const facts = renderFacts(plan.basis);
   const template = await composeTemplate(plan);
-  const payload = await projectWriterPayload(plan);
+  const payload = await projectWriterPayload(plan, READING_PROVIDER_POLICY);
   const payloadText = new TextDecoder().decode(payload);
   const body = JSON.parse(payloadText);
   const supplied = JSON.parse(body.input[2].content);
@@ -115,11 +117,18 @@ test('synthetic domain plan reaches the intercepted writer and publishes once th
     outcome: {
       kind: 'candidate',
       candidate,
-      providerResponseId: 'synthetic-test-only-response',
-      returnedModel: 'gpt-5.6-terra',
-      inputTokens: 100,
-      outputTokens: 100,
-      durationMs: 1,
+      receipt: providerReceipt({
+        responseId: 'synthetic-test-only-response',
+        returnedModel: 'gpt-6.1-terra',
+        durationMs: 1,
+        usage: {
+          inputTokens: 100,
+          outputTokens: 100,
+          cachedInputTokens: 0,
+          cacheWriteTokens: 0,
+          reasoningTokens: 0,
+        },
+      }),
     },
   });
   const write = vi.spyOn(intercepted, 'write');

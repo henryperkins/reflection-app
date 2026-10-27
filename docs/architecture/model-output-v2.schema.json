@@ -1,0 +1,210 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 2
+    },
+    "kind": {
+      "type": "string",
+      "const": "tarot.interpretation.v2"
+    },
+    "units": {
+      "minItems": 3,
+      "maxItems": 3,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "position": {
+            "type": "string",
+            "enum": [
+              "situation",
+              "tension",
+              "possibility"
+            ]
+          },
+          "factIds": {
+            "minItems": 1,
+            "maxItems": 3,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "card:situation",
+                "card:tension",
+                "card:possibility",
+                "count:wands",
+                "count:cups",
+                "count:swords",
+                "count:pentacles"
+              ]
+            }
+          },
+          "sourceIds": {
+            "minItems": 1,
+            "maxItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "interpretation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 650
+          },
+          "contextRefs": {
+            "minItems": 1,
+            "maxItems": 1,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "const": "reader:question"
+            }
+          }
+        },
+        "required": [
+          "position",
+          "factIds",
+          "sourceIds",
+          "interpretation",
+          "contextRefs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "synthesis": {
+      "type": "object",
+      "properties": {
+        "sourceIds": {
+          "minItems": 2,
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "contextRefs": {
+          "minItems": 1,
+          "maxItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "reader:question"
+          }
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 650
+        },
+        "relationshipIds": {
+          "maxItems": 2,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        }
+      },
+      "required": [
+        "sourceIds",
+        "contextRefs",
+        "text",
+        "relationshipIds"
+      ],
+      "additionalProperties": false
+    },
+    "action": {
+      "type": "object",
+      "properties": {
+        "sourceIds": {
+          "minItems": 1,
+          "maxItems": 3,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "contextRefs": {
+          "minItems": 1,
+          "maxItems": 1,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "const": "reader:question"
+          }
+        },
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        }
+      },
+      "required": [
+        "sourceIds",
+        "contextRefs",
+        "text"
+      ],
+      "additionalProperties": false
+    },
+    "reflectionQuestion": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "sourceIds": {
+              "minItems": 1,
+              "maxItems": 3,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              }
+            },
+            "contextRefs": {
+              "minItems": 1,
+              "maxItems": 1,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "const": "reader:question"
+              }
+            },
+            "text": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "sourceIds",
+            "contextRefs",
+            "text"
+          ],
+          "additionalProperties": false
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "kind",
+    "units",
+    "synthesis",
+    "action",
+    "reflectionQuestion"
+  ],
+  "additionalProperties": false
+}

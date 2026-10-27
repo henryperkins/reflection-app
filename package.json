@@ -3,11 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Reflection: verified local tarot MVP; deployment disabled",
+  "description": "Reflection: local and hosted development app with live tarot readings",
   "engines": {
     "node": ">=26.0.0 <27"
   },
   "scripts": {
+    "provider:evaluate": "tsx scripts/provider-evaluate.ts",
     "dev": "vite --host 127.0.0.1",
     "dev:worker": "wrangler dev --local",
     "schemas": "tsx scripts/schemas.ts",
@@ -24,12 +25,16 @@
     "verify": "tsx scripts/verify.ts",
     "release": "tsx scripts/release.ts",
     "dev:identity": "tsx scripts/local-identity.ts",
+    "dev:live": "tsx scripts/local-live.ts",
+    "deploy:preview": "vite build && wrangler deploy --config wrangler.preview.jsonc --env-file scripts/verification.env --minify",
     "test:browser": "playwright test",
     "restore:rehearse": "vitest run --config vitest.db.config.ts tests/db/privacy-restore.test.ts tests/db/privacy-review-regressions.test.ts",
     "cleanup:rehearse": "vitest run --config vitest.db.config.ts tests/db/storage-accounting.test.ts tests/db/retention.test.ts tests/db/recovery-cleanup.test.ts tests/db/cleanup-review-regressions.test.ts",
     "package": "tsx scripts/package.ts",
     "key:rotate": "tsx scripts/key-rotation.ts",
-    "check:publication-guard": "tsx scripts/generate-publication-guard.ts --check"
+    "check:publication-guard": "tsx scripts/generate-publication-guard.ts --check",
+    "content:activate": "tsx scripts/content-activate.ts",
+    "provider:reconcile": "tsx scripts/provider-reconcile.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",

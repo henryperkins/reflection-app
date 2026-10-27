@@ -26,7 +26,7 @@ The original full provider qualification is preserved below as deferred producti
 - Preserve Start's `24-hour` processing/recovery retention, separate Save retention until deletion, server-readable encryption disclosure, and model consent independent of owned-record access.
 - Every application source is hash-bound and human-approved with cleared rights. Synthetic fixture metadata never constitutes editorial approval.
 - No follow-up, context-selection, revisit-note or import routes are enabled. Offline evaluation may exercise their existing contracts without making them product features.
-- This is a planning deliverable. Paid evaluation, hosted provisioning and production activation are subsequent explicit actions; all current qualification statuses remain pending.
+- Production qualification remains pending. The completed four-case live development check and hosted development preview do not authorize broader evaluation or production activation.
 
 ## Review Focus
 
@@ -181,7 +181,7 @@ open; they do not block completion of the smaller development check above.
 
 ## Handoff
 
-L1–L5 implementation and verified L6 integration are present in the isolated worktree.
+L1–L5 implementation and verified L6 integration are present in the application.
 The owner-revised L7 development check is complete. Continue with
 [key lifecycle](2026-10-27-production-key-lifecycle.md) and
 [production qualification](2026-10-27-production-qualification.md) when that work is requested.
@@ -189,8 +189,9 @@ The human-approved corpus, catalog rights/review and broader provider qualificat
 production work. The current catalog packet is
 `docs/content-review/2026-10-27-reading-canon-v2.md`. Verification and independent review
 evidence is recorded in the execution ledger and `artifacts/verify.json`; the new live
-results are linked above. No production receipt, hosted provisioning or production
-activation was performed. All production acceptance gates remain pending.
+results are linked above. No production receipt or production activation was performed.
+The [hosted development preview](../../../README.md#hosted-development-preview) is a
+separate development deployment. All production acceptance gates remain pending.
 
 ## L6/L7 continuation — current v2 candidate
 

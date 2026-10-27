@@ -50,9 +50,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
       throw new Error(
         `Generated artifacts drifted: ${drift.join(', ')}. Review source changes, then run npm run schemas.`,
       );
-    console.log('All six generated schemas/source projections match their authorities.');
+    console.log('All generated schemas/source projections match their authorities.');
   } else {
     writeArtifacts();
-    console.log('Generated six schema/source projections.');
+    console.log('Generated schema/source projections.');
   }
 }

@@ -4,7 +4,7 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { apiSchemas, type WriterOutcome } from '../../src/contracts/index.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
 import { RecordBase } from '../../src/worker/readings/base.ts';
-import { LocalGeneration } from '../../src/worker/readings/generation.ts';
+import { LocalGeneration } from '../../src/worker/readings/local-generation.ts';
 import { InterceptedWritingProvider } from '../../src/worker/provider/intercepted.ts';
 import { RetentionMaintenance } from '../../src/worker/maintenance/retention.ts';
 import { clearDatabase } from '../fixtures/database.ts';
@@ -232,9 +232,9 @@ test('cancellation checks owner and revision and preserves a published reading',
 });
 
 test.each([
-  [{ kind: 'refusal' }, 'blocked', 'PROVIDER_REFUSAL'],
-  [{ kind: 'rejected', status: 503 }, 'published', null],
-  [{ kind: 'uncertain', reason: 'timeout' }, 'published', null],
+  [{ kind: 'refusal', receipt: null }, 'blocked', 'PROVIDER_REFUSAL'],
+  [{ kind: 'rejected', status: 503, receipt: null }, 'published', null],
+  [{ kind: 'uncertain', reason: 'timeout', receipt: null }, 'published', null],
 ] as const)(
   'writer outcome %j is distinct and never retried',
   async (outcome, state, errorCode) => {

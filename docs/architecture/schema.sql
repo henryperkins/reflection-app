@@ -800,3 +800,228 @@ ALTER TABLE system_state ADD COLUMN recovery_epoch INTEGER NOT NULL DEFAULT 0 CH
 
 -- A registration is not proof of recent existing-passkey authentication.
 ALTER TABLE auth_sessions ADD COLUMN passkey_authenticated_at INTEGER;
+
+-- Forward-only model allowlist expansion. Historical transmissions, readings and costs are immutable.
+-- D1 applies this migration in one batch. There are no inbound dispatch FKs.
+-- Temporarily remove the account trigger referencing this table so the rename validates.
+-- Remove accounting triggers before replacement: copying rows must not change storage counters.
+DROP TRIGGER storage_accounts_insert;
+DROP TRIGGER storage_provider_dispatches_insert;
+DROP TRIGGER storage_provider_dispatches_delete;
+DROP TRIGGER storage_provider_dispatches_update;
+
+CREATE TABLE provider_dispatches_terra (
+  id TEXT PRIMARY KEY NOT NULL, owner_id TEXT NOT NULL, request_id TEXT NOT NULL UNIQUE, attempt_id TEXT NOT NULL,
+  state TEXT NOT NULL CHECK(state IN('authorized','received','rejected','unknown')),
+  provider TEXT NOT NULL CHECK(provider='openai'), requested_model TEXT NOT NULL CHECK(requested_model IN('gpt-5.6-terra','gpt-6.1-terra')),
+  returned_model TEXT, provider_response_id_enc TEXT, transmission_enc TEXT, transmission_hmac TEXT NOT NULL,
+  candidate_enc TEXT, key_version INTEGER NOT NULL, prompt_hash TEXT NOT NULL, validator_hash TEXT NOT NULL,
+  content_hash TEXT NOT NULL REFERENCES content_editions(hash), parameters_json TEXT NOT NULL CHECK(json_valid(parameters_json)),
+  input_tokens INTEGER CHECK(input_tokens>=0), output_tokens INTEGER CHECK(output_tokens>=0),
+  duration_ms INTEGER CHECK(duration_ms>=0), authorized_at INTEGER NOT NULL, received_at INTEGER, cost_expired_at INTEGER,
+  FOREIGN KEY(owner_id,request_id) REFERENCES generation_requests(owner_id,id) ON DELETE CASCADE,
+  FOREIGN KEY(owner_id,attempt_id) REFERENCES generation_attempts(owner_id,id),
+  FOREIGN KEY(owner_id,key_version) REFERENCES account_keys(owner_id,version), UNIQUE(owner_id,id)
+);
+INSERT INTO provider_dispatches_terra SELECT * FROM provider_dispatches;
+DROP TABLE provider_dispatches;
+ALTER TABLE provider_dispatches_terra RENAME TO provider_dispatches;
+CREATE INDEX dispatch_retention ON provider_dispatches(received_at);
+
+CREATE TRIGGER storage_accounts_insert AFTER INSERT ON accounts BEGIN
+  UPDATE accounts SET storage_bytes=1024+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(account_keys."wrapped_key_enc" AS BLOB)),0)+coalesce(length(CAST(account_keys."wrapped_index_key_enc" AS BLOB)),0)) FROM "account_keys" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "auth_challenges" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "auth_sessions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(basis_snapshots."body_enc" AS BLOB)),0)) FROM "basis_snapshots" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "context_grants" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "cost_reservations" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "credentials" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(deletion_jobs."target_enc" AS BLOB)),0)) FROM "deletion_jobs" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "export_tickets" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "generation_attempts" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(generation_context."fragment_enc" AS BLOB)),0)) FROM "generation_context" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(generation_requests."input_enc" AS BLOB)),0)+coalesce(length(CAST(generation_requests."plan_enc" AS BLOB)),0)) FROM "generation_requests" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "idempotency_keys" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "import_batches" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(import_identities."source_record_enc" AS BLOB)),0)) FROM "import_identities" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(import_items."body_enc" AS BLOB)),0)) FROM "import_items" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "permission_revisions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(provider_dispatches."provider_response_id_enc" AS BLOB)),0)+coalesce(length(CAST(provider_dispatches."transmission_enc" AS BLOB)),0)+coalesce(length(CAST(provider_dispatches."candidate_enc" AS BLOB)),0)) FROM "provider_dispatches" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "quota_buckets" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "quota_events" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "quota_reservations" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(reading_editions."body_enc" AS BLOB)),0)) FROM "reading_editions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(reading_sessions."question_enc" AS BLOB)),0)) FROM "reading_sessions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "recovery_codes" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(reflection_revisions."body_enc" AS BLOB)),0)) FROM "reflection_revisions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "reflections" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "request_events" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(revisits."note_enc" AS BLOB)),0)) FROM "revisits" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(security_operations."snapshot_enc" AS BLOB)),0)) FROM "security_operations" WHERE owner_id=NEW.id),0)+
+  1024*(SELECT count(*) FROM cost_adjustments a JOIN cost_reservations c ON c.id=a.cost_id WHERE c.owner_id=NEW.id) WHERE id=NEW.id;
+END;
+
+CREATE TRIGGER storage_provider_dispatches_insert AFTER INSERT ON "provider_dispatches" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes+(1024+coalesce(length(CAST(NEW."provider_response_id_enc" AS BLOB)),0)+coalesce(length(CAST(NEW."transmission_enc" AS BLOB)),0)+coalesce(length(CAST(NEW."candidate_enc" AS BLOB)),0)) WHERE id=NEW.owner_id;
+END;
+
+CREATE TRIGGER storage_provider_dispatches_delete AFTER DELETE ON "provider_dispatches" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes-(1024+coalesce(length(CAST(OLD."provider_response_id_enc" AS BLOB)),0)+coalesce(length(CAST(OLD."transmission_enc" AS BLOB)),0)+coalesce(length(CAST(OLD."candidate_enc" AS BLOB)),0)) WHERE id=OLD.owner_id;
+END;
+
+CREATE TRIGGER storage_provider_dispatches_update AFTER UPDATE OF "owner_id","provider_response_id_enc","transmission_enc","candidate_enc" ON "provider_dispatches" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes-(1024+coalesce(length(CAST(OLD."provider_response_id_enc" AS BLOB)),0)+coalesce(length(CAST(OLD."transmission_enc" AS BLOB)),0)+coalesce(length(CAST(OLD."candidate_enc" AS BLOB)),0)) WHERE id=OLD.owner_id;
+  UPDATE accounts SET storage_bytes=storage_bytes+(1024+coalesce(length(CAST(NEW."provider_response_id_enc" AS BLOB)),0)+coalesce(length(CAST(NEW."transmission_enc" AS BLOB)),0)+coalesce(length(CAST(NEW."candidate_enc" AS BLOB)),0)) WHERE id=NEW.owner_id;
+END;
+
+-- Receipt metadata survives rejected prose. NULL means unknown, never zero usage.
+-- L2 introduces storage; L4 supplies qualified pricing and reconciliation.
+ALTER TABLE provider_dispatches ADD COLUMN cached_input_tokens INTEGER
+  CHECK(cached_input_tokens IS NULL OR (input_tokens IS NOT NULL AND cached_input_tokens>=0 AND cached_input_tokens<=input_tokens));
+ALTER TABLE provider_dispatches ADD COLUMN cache_write_tokens INTEGER
+  CHECK(cache_write_tokens IS NULL OR (input_tokens IS NOT NULL AND cached_input_tokens IS NOT NULL AND cache_write_tokens>=0 AND cache_write_tokens<=input_tokens-cached_input_tokens));
+ALTER TABLE provider_dispatches ADD COLUMN reasoning_tokens INTEGER
+  CHECK(reasoning_tokens IS NULL OR (output_tokens IS NOT NULL AND reasoning_tokens>=0 AND reasoning_tokens<=output_tokens));
+ALTER TABLE provider_dispatches ADD COLUMN service_tier TEXT CHECK(service_tier IS NULL OR length(service_tier) BETWEEN 1 AND 32);
+
+-- Rebuild the referenced financial graph in one D1 migration batch.
+-- Copying rows must preserve storage counters, historical bills and all foreign keys.
+-- Admission ceilings remain enforced by dispatch; real liability can exceed them.
+
+
+DROP TRIGGER storage_accounts_insert;
+
+DROP TRIGGER storage_cost_reservations_insert;
+
+DROP TRIGGER storage_cost_reservations_delete;
+
+DROP TRIGGER storage_cost_reservations_update;
+
+DROP TRIGGER storage_cost_adjustments_insert;
+
+DROP TRIGGER storage_cost_adjustments_delete;
+
+DROP TRIGGER storage_cost_adjustments_update;
+
+CREATE TABLE spend_buckets_next (
+  period TEXT PRIMARY KEY NOT NULL,
+  ceiling_microusd INTEGER NOT NULL CHECK(ceiling_microusd>=0),
+  committed_microusd INTEGER NOT NULL DEFAULT 0 CHECK(committed_microusd>=0)
+);
+INSERT INTO spend_buckets_next SELECT * FROM spend_buckets;
+
+CREATE TABLE cost_reservations_next (
+  id TEXT PRIMARY KEY NOT NULL, owner_id TEXT REFERENCES accounts(id) ON DELETE SET NULL,
+  dispatch_id TEXT UNIQUE, day_period TEXT NOT NULL REFERENCES spend_buckets_next(period),
+  month_period TEXT NOT NULL REFERENCES spend_buckets_next(period),
+  state TEXT NOT NULL CHECK(state IN('reserved','actual','unknown')),
+  reserved_microusd INTEGER NOT NULL CHECK(reserved_microusd>=0),
+  actual_microusd INTEGER CHECK(actual_microusd>=0), price_basis_json TEXT NOT NULL CHECK(json_valid(price_basis_json)),
+  created_at INTEGER NOT NULL, settled_at INTEGER,
+  dispatch_hash TEXT CHECK(dispatch_hash IS NULL OR length(dispatch_hash)=64),
+  requested_model TEXT,
+  application_policy_hash TEXT,
+  provider_policy_hash TEXT,
+  reconciled_policy_hash TEXT,
+  price_hash TEXT,
+  receipt_hash TEXT,
+  receipt_id TEXT,
+  returned_model TEXT,
+  service_tier TEXT,
+  input_tokens INTEGER CHECK(input_tokens IS NULL OR input_tokens>=0),
+  cached_input_tokens INTEGER CHECK(cached_input_tokens IS NULL OR cached_input_tokens BETWEEN 0 AND input_tokens),
+  cache_write_tokens INTEGER CHECK(cache_write_tokens IS NULL OR cache_write_tokens BETWEEN 0 AND input_tokens-cached_input_tokens),
+  output_tokens INTEGER CHECK(output_tokens IS NULL OR output_tokens>=0),
+  reasoning_tokens INTEGER CHECK(reasoning_tokens IS NULL OR reasoning_tokens BETWEEN 0 AND output_tokens)
+);
+
+INSERT INTO cost_reservations_next(id,owner_id,dispatch_id,day_period,month_period,state,reserved_microusd,actual_microusd,price_basis_json,created_at,settled_at) SELECT id,owner_id,dispatch_id,day_period,month_period,state,reserved_microusd,actual_microusd,price_basis_json,created_at,settled_at FROM cost_reservations;
+
+CREATE TABLE cost_adjustments_next (
+  idempotency_key TEXT PRIMARY KEY NOT NULL, cost_id TEXT NOT NULL REFERENCES cost_reservations_next(id) ON DELETE CASCADE,
+  before_microusd INTEGER NOT NULL CHECK(before_microusd>=0), after_microusd INTEGER NOT NULL CHECK(after_microusd>=0),
+  reason TEXT NOT NULL CHECK(reason IN('usage','reconciliation','price_correction')), created_at INTEGER NOT NULL
+);
+
+INSERT INTO cost_adjustments_next SELECT * FROM cost_adjustments;
+
+DROP TABLE cost_adjustments;
+
+DROP TABLE cost_reservations;
+
+DROP TABLE spend_buckets;
+
+ALTER TABLE spend_buckets_next RENAME TO spend_buckets;
+
+ALTER TABLE cost_reservations_next RENAME TO cost_reservations;
+
+ALTER TABLE cost_adjustments_next RENAME TO cost_adjustments;
+
+CREATE INDEX cost_reconcile ON cost_reservations(state,created_at);
+
+CREATE UNIQUE INDEX cost_dispatch_hash ON cost_reservations(dispatch_hash) WHERE dispatch_hash IS NOT NULL;
+
+CREATE TRIGGER storage_accounts_insert AFTER INSERT ON accounts BEGIN
+  UPDATE accounts SET storage_bytes=1024+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(account_keys."wrapped_key_enc" AS BLOB)),0)+coalesce(length(CAST(account_keys."wrapped_index_key_enc" AS BLOB)),0)) FROM "account_keys" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "auth_challenges" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "auth_sessions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(basis_snapshots."body_enc" AS BLOB)),0)) FROM "basis_snapshots" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "context_grants" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "cost_reservations" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "credentials" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(deletion_jobs."target_enc" AS BLOB)),0)) FROM "deletion_jobs" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "export_tickets" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "generation_attempts" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(generation_context."fragment_enc" AS BLOB)),0)) FROM "generation_context" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(generation_requests."input_enc" AS BLOB)),0)+coalesce(length(CAST(generation_requests."plan_enc" AS BLOB)),0)) FROM "generation_requests" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "idempotency_keys" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "import_batches" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(import_identities."source_record_enc" AS BLOB)),0)) FROM "import_identities" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(import_items."body_enc" AS BLOB)),0)) FROM "import_items" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "permission_revisions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(provider_dispatches."provider_response_id_enc" AS BLOB)),0)+coalesce(length(CAST(provider_dispatches."transmission_enc" AS BLOB)),0)+coalesce(length(CAST(provider_dispatches."candidate_enc" AS BLOB)),0)) FROM "provider_dispatches" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "quota_buckets" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "quota_events" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "quota_reservations" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(reading_editions."body_enc" AS BLOB)),0)) FROM "reading_editions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(reading_sessions."question_enc" AS BLOB)),0)) FROM "reading_sessions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "recovery_codes" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(reflection_revisions."body_enc" AS BLOB)),0)) FROM "reflection_revisions" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "reflections" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024) FROM "request_events" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(revisits."note_enc" AS BLOB)),0)) FROM "revisits" WHERE owner_id=NEW.id),0)+
+  coalesce((SELECT sum(1024+coalesce(length(CAST(security_operations."snapshot_enc" AS BLOB)),0)) FROM "security_operations" WHERE owner_id=NEW.id),0)+
+  1024*(SELECT count(*) FROM cost_adjustments a JOIN cost_reservations c ON c.id=a.cost_id WHERE c.owner_id=NEW.id) WHERE id=NEW.id;
+END;
+
+CREATE TRIGGER storage_cost_reservations_insert AFTER INSERT ON "cost_reservations" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes+(1024+1024*(SELECT count(*) FROM cost_adjustments WHERE cost_id=NEW.id)) WHERE id=NEW.owner_id;
+END;
+
+CREATE TRIGGER storage_cost_reservations_delete BEFORE DELETE ON "cost_reservations" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes-(1024+1024*(SELECT count(*) FROM cost_adjustments WHERE cost_id=OLD.id)) WHERE id=OLD.owner_id;
+END;
+
+CREATE TRIGGER storage_cost_reservations_update AFTER UPDATE OF "owner_id" ON "cost_reservations" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes-(1024+1024*(SELECT count(*) FROM cost_adjustments WHERE cost_id=OLD.id)) WHERE id=OLD.owner_id;
+  UPDATE accounts SET storage_bytes=storage_bytes+(1024+1024*(SELECT count(*) FROM cost_adjustments WHERE cost_id=NEW.id)) WHERE id=NEW.owner_id;
+END;
+
+CREATE TRIGGER storage_cost_adjustments_insert AFTER INSERT ON "cost_adjustments" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes+(1024) WHERE id=(SELECT owner_id FROM cost_reservations WHERE id=NEW.cost_id);
+END;
+
+CREATE TRIGGER storage_cost_adjustments_delete AFTER DELETE ON "cost_adjustments" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes-(1024) WHERE id=(SELECT owner_id FROM cost_reservations WHERE id=OLD.cost_id);
+END;
+
+CREATE TRIGGER storage_cost_adjustments_update AFTER UPDATE OF "cost_id" ON "cost_adjustments" BEGIN
+  UPDATE accounts SET storage_bytes=storage_bytes-(1024) WHERE id=(SELECT owner_id FROM cost_reservations WHERE id=OLD.cost_id);
+  UPDATE accounts SET storage_bytes=storage_bytes+(1024) WHERE id=(SELECT owner_id FROM cost_reservations WHERE id=NEW.cost_id);
+END;
+
+-- Signed editorial approval metadata contains only public catalog evidence digests.
+ALTER TABLE content_editions ADD COLUMN approval_json TEXT CHECK(approval_json IS NULL OR json_valid(approval_json));
+ALTER TABLE content_editions ADD COLUMN approval_hash TEXT CHECK(approval_hash IS NULL OR length(approval_hash)=64);

@@ -41,7 +41,10 @@ test('save without reflection retains identical accepted content through sign-in
   expect(history.items).toHaveLength(1);
   expect(history.items[0]).toMatchObject({
     id: started.sessionId,
-    questionPreview: reading.kind === 'tarot.accepted.v1' ? reading.question : null,
+    questionPreview:
+      reading.kind === 'tarot.accepted.v1' || reading.kind === 'tarot.accepted.v2'
+        ? reading.question
+        : null,
     latestEditionId: reading.editionId,
   });
   expect(await (await client.request(`/readings/${reading.editionId}`)).json()).toEqual(reading);

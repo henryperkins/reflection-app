@@ -503,6 +503,22 @@
           "nullable": true,
           "default": null,
           "export": "public source provenance"
+        },
+        "approval_json": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "public"
+        },
+        "approval_hash": {
+          "aadRule": null,
+          "class": "P",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "public"
         }
       }
     },
@@ -729,6 +745,126 @@
           "nullable": true,
           "default": null,
           "export": "owned numeric usage only"
+        },
+        "dispatch_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "requested_model": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "application_policy_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "provider_policy_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "reconciled_policy_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "price_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "receipt_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "receipt_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "returned_model": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "service_tier": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
+        },
+        "input_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
+        },
+        "cached_input_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
+        },
+        "cache_write_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
+        },
+        "output_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
+        },
+        "reasoning_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "owned verified provider receipt metadata; no raw rejected candidate"
         }
       }
     },
@@ -1752,7 +1888,7 @@
           "sqlType": "TEXT",
           "nullable": false,
           "default": null,
-          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+          "export": "accepted requested model; historical gpt-5.6-terra or gpt-6.1-terra, never rewritten"
         },
         "returned_model": {
           "aadRule": null,
@@ -1881,6 +2017,38 @@
           "nullable": true,
           "default": null,
           "export": "generation receipt cost state only; expired never means zero"
+        },
+        "cached_input_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "verified provider receipt metadata; no raw rejected candidate"
+        },
+        "cache_write_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "verified provider receipt metadata; no raw rejected candidate"
+        },
+        "reasoning_tokens": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "verified provider receipt metadata; no raw rejected candidate"
+        },
+        "service_tier": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "verified provider receipt metadata; no raw rejected candidate"
         }
       }
     },

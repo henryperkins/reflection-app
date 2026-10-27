@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { apiSchemas, Reading, Reflection, Id, type PortableRecord } from '../../contracts/index.ts';
+import {
+  apiSchemas,
+  Reading,
+  Reflection,
+  Id,
+  WriterReceiptV2,
+  type PortableRecord,
+} from '../../contracts/index.ts';
 import { statement as q, DB_NOW } from '../db/core.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
@@ -124,7 +131,7 @@ export class ReadingExports {
       FROM reflection_revisions r JOIN reflections f ON f.id=r.reflection_id AND f.owner_id=r.owner_id JOIN reading_sessions s ON s.id=f.session_id AND s.owner_id=f.owner_id WHERE f.owner_id=? AND r.erased_at IS NULL AND ${availableSession}
       UNION ALL
       SELECT 'generation_receipt',r.id,r.revision,r.session_id,d.transmission_enc,r.key_version,
-        json_object('state',r.state,'createdAt',r.created_at,'dispatchId',d.id,'inputTokens',d.input_tokens,'outputTokens',d.output_tokens,'costState',coalesce(cost.state,CASE WHEN d.cost_expired_at IS NOT NULL THEN 'expired' ELSE 'none' END),'actualCost',cost.actual_microusd)
+        json_object('state',r.state,'createdAt',r.created_at,'dispatchId',d.id,'inputTokens',coalesce(cost.input_tokens,d.input_tokens),'outputTokens',coalesce(cost.output_tokens,d.output_tokens),'cachedInputTokens',coalesce(cost.cached_input_tokens,d.cached_input_tokens),'cacheWriteTokens',coalesce(cost.cache_write_tokens,d.cache_write_tokens),'reasoningTokens',coalesce(cost.reasoning_tokens,d.reasoning_tokens),'serviceTier',coalesce(cost.service_tier,d.service_tier),'costState',coalesce(cost.state,CASE WHEN d.cost_expired_at IS NOT NULL THEN 'expired' ELSE 'none' END),'actualCost',cost.actual_microusd)
       FROM generation_requests r JOIN reading_sessions s ON s.id=r.session_id AND s.owner_id=r.owner_id LEFT JOIN provider_dispatches d ON d.request_id=r.id AND d.owner_id=r.owner_id LEFT JOIN cost_reservations cost ON cost.dispatch_id=d.id AND cost.owner_id=r.owner_id WHERE r.owner_id=? AND ${availableSession}
       UNION ALL
       SELECT 'permission',p.owner_id,p.revision,NULL,NULL,1,json_object('allowed',p.model_allowed)
@@ -323,7 +330,12 @@ export class ReadingExports {
       return value;
     }
     const transmission = row.value_enc
-      ? await this.base.opened<{ v: 1; syntheticOnly: true; payload: string }>(
+      ? await this.base.opened<{
+          v: 1;
+          syntheticOnly: boolean;
+          payload: string;
+          contextReceipt?: z.infer<typeof WriterReceiptV2> | null;
+        }>(
           owner,
           'provider_dispatches',
           'transmission_enc',
@@ -331,8 +343,9 @@ export class ReadingExports {
           row.value_enc,
           z.strictObject({
             v: z.literal(1),
-            syntheticOnly: z.literal(true),
+            syntheticOnly: z.boolean(),
             payload: z.string().max(200000),
+            contextReceipt: WriterReceiptV2.nullable().optional(),
           }),
           1,
           row.key_version,
@@ -344,9 +357,14 @@ export class ReadingExports {
       createdAt: iso(Number(metadata.createdAt)),
       inputTokens: metadata.inputTokens,
       outputTokens: metadata.outputTokens,
+      cachedInputTokens: metadata.cachedInputTokens ?? null,
+      cacheWriteTokens: metadata.cacheWriteTokens ?? null,
+      reasoningTokens: metadata.reasoningTokens ?? null,
+      serviceTier: metadata.serviceTier ?? null,
       actualCostMicroUsd: metadata.actualCost ?? null,
       costState: metadata.costState,
       transmission: transmission?.payload ?? null,
+      ...(transmission?.contextReceipt ? { contextReceipt: transmission.contextReceipt } : {}),
       reproduction: transmission ? 'complete' : 'redacted',
     };
   }

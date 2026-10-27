@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "reflection-live-development",
+  "main": "src/worker/local-live.ts",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "reflection-live-local",
+    "migrations_dir": "src/worker/db/migrations"
+  }],
+  "observability": { "enabled": false },
+  "send_metrics": false
+}

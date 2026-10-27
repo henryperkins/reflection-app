@@ -79,7 +79,7 @@ const legalDirective =
   /(?:^|[,;:]|\b(?:then|and|please|must|should|need to|ought to))\s*sue\s+(?:your|the|a|an|him|her|them|someone|anyone)\b/;
 const imperative =
   /\b(?:stop|start|take|increase|decrease|change|ignore|avoid|must|should|need to)\b/;
-function prose(text: string, plan: PreparedPlan) {
+export function screenProse(text: string, plan: Pick<PreparedPlan, 'question' | 'selected'>) {
   if (!text.trim()) reject('LENGTH');
   if (/\{\{|\}\}|<[^>]*>|https?:\/\/|www\.|\[[^\]]*\]\(|```|\[\[(?:[^\]]*)\]\]/i.test(text))
     reject('PROMPT_INJECTION');
@@ -127,7 +127,7 @@ export function validateCandidate(plan: PreparedPlan, value: unknown, template =
   if (all.split(/\s+/u).length > 4000) reject('LENGTH');
   const sentences = new Set<string>();
   for (const field of fields) {
-    prose(field, plan);
+    screenProse(field, plan);
     for (const sentence of field.split(/[.!?]+/u)) {
       const key = normalized(sentence)
         .replace(/[^\p{L}\p{N}]+/gu, ' ')

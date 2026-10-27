@@ -1,3 +1,7 @@
+import { costReservationStatement, reconcileProviderCost } from '../provider/costs.ts';
+import { ProviderReceipt } from '../../contracts/index.ts';
+import { providerReceiptStatements } from '../provider/receipts.ts';
+import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
 import type { WritingProvider, WriterOutcome } from '../../contracts/index.ts';
 import {
   assertChanges,
@@ -294,7 +298,7 @@ export class SyntheticGenerationPrototype {
         ),
         q(
           this.db,
-          `UPDATE spend_buckets SET committed_microusd=committed_microusd+40000 WHERE period IN (${DAY},${MONTH}) AND committed_microusd+40000<=ceiling_microusd`,
+          `UPDATE spend_buckets SET committed_microusd=committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd} WHERE period IN (${DAY},${MONTH}) AND committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd}<=ceiling_microusd`,
         ),
         assertChanges(this.db, 2),
         assertExists(
@@ -304,11 +308,12 @@ export class SyntheticGenerationPrototype {
         ...this.fragments(h),
         q(
           this.db,
-          `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai','gpt-5.6-terra',?,?,?,?,?,?,?,${DB_NOW})`,
+          `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai',?,?,?,?,?,?,?,?,${DB_NOW})`,
           dispatchId,
           h.ownerId,
           h.requestId,
           h.attemptId,
+          READING_PROVIDER_POLICY.model,
           PLACEHOLDER,
           h.plan.planHmac,
           h.plan.keyVersion,
@@ -317,18 +322,17 @@ export class SyntheticGenerationPrototype {
           h.plan.contentHash,
           JSON.stringify({
             syntheticOnly: true,
-            store: false,
-            max_output_tokens: 1600,
-            reasoning: 'none',
+            externalCall: false,
+            ...READING_PROVIDER_POLICY.request,
           }),
         ),
-        q(
-          this.db,
-          `INSERT INTO cost_reservations(id,owner_id,dispatch_id,day_period,month_period,state,reserved_microusd,price_basis_json,created_at) VALUES (?,?,?,${DAY},${MONTH},'reserved',40000,'{"syntheticOnly":true}',${DB_NOW})`,
-          crypto.randomUUID(),
-          h.ownerId,
+        await costReservationStatement(this.db, {
+          id: crypto.randomUUID(),
+          ownerId: h.ownerId,
           dispatchId,
-        ),
+          applicationPolicyHash: h.plan.policyHash,
+          policy: READING_PROVIDER_POLICY,
+        }),
         currentGuard(this.db, guardValues(h, 'prepared'), 'dispatch'),
         q(
           this.db,
@@ -358,7 +362,7 @@ export class SyntheticGenerationPrototype {
     try {
       outcome = await this.writer.write({
         dispatchId,
-        model: 'gpt-5.6-terra',
+        model: READING_PROVIDER_POLICY.model,
         payload,
         timeoutMs: 18000,
         maxOutputTokens: 1600,
@@ -367,10 +371,19 @@ export class SyntheticGenerationPrototype {
         signal: AbortSignal.timeout(18000),
       });
     } catch {
-      outcome = { kind: 'uncertain', reason: 'network' };
+      outcome = { kind: 'uncertain', reason: 'network', receipt: null };
     }
     await this.barriers.beforeReceipt?.();
-    if (outcome.kind !== 'candidate') {
+    const parsedReceipt = ProviderReceipt.safeParse(outcome.receipt);
+    const receipt = parsedReceipt.success ? parsedReceipt.data : null;
+    const halt = outcome.kind === 'uncertain' && outcome.haltGeneration;
+    const receiptWrites = [
+      ...providerReceiptStatements(this.db, dispatchId, h.ownerId, receipt),
+      ...(halt ? [q(this.db, 'UPDATE system_state SET generation_enabled=0 WHERE id=1')] : []),
+    ];
+    if (receiptWrites.length) await this.db.batch(receiptWrites);
+    if (receipt) await this.settleUsage(dispatchId, receipt);
+    if (outcome.kind !== 'candidate' || !receipt || halt) {
       await this.db.batch([
         q(
           this.db,
@@ -380,24 +393,23 @@ export class SyntheticGenerationPrototype {
         ),
         q(
           this.db,
-          `UPDATE cost_reservations SET state='unknown',settled_at=${DB_NOW} WHERE dispatch_id=?`,
+          `UPDATE cost_reservations SET state='unknown',settled_at=${DB_NOW} WHERE dispatch_id=? AND state='reserved'`,
           dispatchId,
         ),
       ]);
       await this.terminalize(h.ownerId, h.requestId, 'failed');
       return outcome;
     }
-    await this.settleUsage(dispatchId, outcome);
     // Placeholder persistence deliberately never serializes the private candidate.
     await this.db.batch([
       q(
         this.db,
         `UPDATE provider_dispatches SET state='received',candidate_enc=?,returned_model=?,input_tokens=?,output_tokens=?,duration_ms=?,received_at=${DB_NOW} WHERE id=? AND owner_id=?`,
         PLACEHOLDER,
-        outcome.returnedModel,
-        outcome.inputTokens,
-        outcome.outputTokens,
-        outcome.durationMs,
+        receipt.returnedModel,
+        receipt.usage.inputTokens,
+        receipt.usage.outputTokens,
+        receipt.durationMs,
         dispatchId,
         h.ownerId,
       ),
@@ -495,52 +507,15 @@ export class SyntheticGenerationPrototype {
     }
     return editionId;
   }
-  private async settleUsage(
-    dispatchId: string,
-    outcome: Extract<WriterOutcome, { kind: 'candidate' }>,
-  ): Promise<void> {
-    const actual = outcome.inputTokens * 2 + outcome.outputTokens * 12;
-    if (
-      !Number.isSafeInteger(actual) ||
-      actual < 0 ||
-      !Number.isSafeInteger(outcome.inputTokens) ||
-      outcome.inputTokens < 0 ||
-      !Number.isSafeInteger(outcome.outputTokens) ||
-      outcome.outputTokens < 0
-    )
-      throw new Error('INVALID_USAGE');
-    const cost = await q(
-      this.db,
-      'SELECT id,state FROM cost_reservations WHERE dispatch_id=?',
+  private async settleUsage(dispatchId: string, receipt: ProviderReceipt): Promise<void> {
+    await reconcileProviderCost(this.db, {
       dispatchId,
-    ).first<{ id: string; state: string }>();
-    if (cost?.state !== 'reserved') return;
-    await this.db.batch([
-      q(
-        this.db,
-        `UPDATE cost_reservations SET state='actual',actual_microusd=?,settled_at=${DB_NOW} WHERE id=? AND state='reserved'`,
-        actual,
-        cost.id,
-      ),
-      assertChanges(this.db, 1),
-      q(
-        this.db,
-        `UPDATE spend_buckets SET committed_microusd=min(ceiling_microusd,committed_microusd+?) WHERE period IN (SELECT day_period FROM cost_reservations WHERE id=? UNION SELECT month_period FROM cost_reservations WHERE id=?)`,
-        actual - 40000,
-        cost.id,
-        cost.id,
-      ),
-      assertChanges(this.db, 2),
-      q(
-        this.db,
-        `INSERT INTO cost_adjustments VALUES (?,?,40000,?,'usage',${DB_NOW})`,
-        dispatchId,
-        cost.id,
-        actual,
-      ),
-      q(this.db, `UPDATE system_state SET generation_enabled=0 WHERE id=1 AND ?>40000`, actual),
-    ]);
+      receiptId: `${dispatchId}:usage`,
+      receipt,
+      policy: READING_PROVIDER_POLICY,
+    });
   }
+
   async terminalize(
     ownerId: string,
     requestId: string,

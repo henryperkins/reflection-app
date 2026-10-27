@@ -1,7 +1,7 @@
 /** Specification projection only. Does not create application routes. */
 import {z} from 'zod';
 import YAML from 'yaml';
-import {apiSchemas,ModelCandidate} from '../src/contracts/index.ts';
+import {apiSchemas,ModelCandidate,ModelCandidateV2} from '../src/contracts/index.ts';
 type Name=keyof typeof apiSchemas;
 type Op={method:'get'|'post'|'put'|'delete';path:string;id:string;body?:Name;out?:Name;
   status?:number;public?:boolean;recent?:boolean;cas?:boolean;key?:boolean;description:string;query?:string[]};
@@ -84,5 +84,6 @@ export function generateSchemas(): Record<string, string> {
  return {
   'docs/architecture/openapi.yaml': '# Generated from src/contracts/index.ts by scripts/schemas.ts; do not edit.\n'+YAML.stringify(document),
   'docs/architecture/model-output.schema.json': JSON.stringify(z.toJSONSchema(ModelCandidate,{target:'draft-2020-12'}),null,2)+'\n',
+  'docs/architecture/model-output-v2.schema.json': JSON.stringify(z.toJSONSchema(ModelCandidateV2,{target:'draft-2020-12'}),null,2)+'\n',
  };
 }

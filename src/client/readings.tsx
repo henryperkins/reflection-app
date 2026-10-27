@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
-import { apiSchemas, type AcceptedReading, type Reflection } from '../contracts/index.ts';
+import { apiSchemas, type AnyAcceptedReading, type Reflection } from '../contracts/index.ts';
+import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
 import { api, ApiFailure } from './api.ts';
 import { signIn } from './passkeys.ts';
 import {
@@ -39,10 +40,12 @@ function download(name: string, chunks: BlobPart[], type: string) {
 /** Mounted only for a verified account. All private state and unfinished actions die on unmount. */
 export function ReadingWorkspace({
   user,
+  live = false,
   onSession,
   onExpired,
 }: {
   user: View;
+  live?: boolean | null;
   onSession: (value: View) => void;
   onExpired: () => void;
 }) {
@@ -56,7 +59,7 @@ export function ReadingWorkspace({
   const focusResultOnCommit = useRef(false);
   const [history, setHistory] = useState<History>({ items: [], nextCursor: null });
   const [record, setRecord] = useState<RecordView | null>(null);
-  const [reading, setReading] = useState<z.infer<typeof AcceptedReading> | null>(null);
+  const [reading, setReading] = useState<z.infer<typeof AnyAcceptedReading> | null>(null);
   useLayoutEffect(() => {
     if (mode === 'reading' && reading && focusResultOnCommit.current) {
       focusResultOnCommit.current = false;
@@ -171,7 +174,7 @@ export function ReadingWorkspace({
         : Promise.resolve(null),
     ]);
     if (!current()) return;
-    if (content.kind !== 'tarot.accepted.v1')
+    if (content.kind !== 'tarot.accepted.v1' && content.kind !== 'tarot.accepted.v2')
       throw new Error('This reading format is not available in the local build.');
     setRecord(session);
     setReading(content);
@@ -541,14 +544,23 @@ export function ReadingWorkspace({
         <Art name="study-return" className="consent-art" />
         <div className="consent-copy">
           <h2>AI readings are {user.permission.modelAllowed ? 'on' : 'off'}</h2>
-          <p>
-            AI permission is separate from saving. It allows your question to be used for a new
-            reading. Saved readings and reflections are not sent automatically.
+          <p>{READING_PRODUCT_COPY.aiPermission}</p>
+          <p className="muted">
+            {live === null
+              ? 'Refresh to check the reading service before enabling AI. Your saved readings and reflections remain available.'
+              : live
+                ? 'Your question, drawn cards and selected source meanings are sent to OpenAI to write the reading. Saved readings and reflections are not sent. OpenAI may retain request data according to your project settings.'
+                : READING_PRODUCT_COPY.providerRetention}
           </p>
           {!user.permission.modelAllowed && (
             <p>History, reopening, reflections, export and deletion remain available.</p>
           )}
-          <button type="button" className="secondary" disabled={busy} onClick={permission}>
+          <button
+            type="button"
+            className="secondary"
+            disabled={busy || (live === null && !user.permission.modelAllowed)}
+            onClick={permission}
+          >
             {user.permission.modelAllowed ? 'Turn off AI readings' : 'Enable AI readings'}
           </button>
         </div>
@@ -575,7 +587,7 @@ export function ReadingWorkspace({
         </button>
         <button
           type="button"
-          disabled={busy || !user.permission.modelAllowed || requestPending}
+          disabled={busy || !user.permission.modelAllowed || requestPending || live === null}
           onClick={() => {
             if (!canLeave()) return;
             // A deliberate new reading is a new intent, even if the question is unchanged.
@@ -687,7 +699,7 @@ export function ReadingWorkspace({
             event.preventDefault();
             if (inFlight.current || requestPending) return;
             const values = {
-              question: question.trim(),
+              question,
               languageConfirmed: 'en' as const,
               reversals,
               permissionRevision: currentUser.current.permission.revision,
@@ -711,8 +723,13 @@ export function ReadingWorkspace({
           <div className="new-reading-content">
             <h2 className="title-section">A new reading</h2>
             <label htmlFor="reading-question">Your question</label>
+            <p id="reading-question-help">
+              Include what you are considering, what already works, and anything you want the
+              reading to take into account.
+            </p>
             <textarea
               id="reading-question"
+              aria-describedby="reading-question-help"
               rows={3}
               maxLength={500}
               required
@@ -740,20 +757,26 @@ export function ReadingWorkspace({
             </label>
             <p className="storage-notice">
               <Icon name="clock" />
-              <span>
-                Start temporarily stores your question and processing/recovery records for 24 hours
-                from creation. Save reading keeps the result until you delete it.
-              </span>
+              <span>{READING_PRODUCT_COPY.startProcessing}</span>
             </p>
             <p className="test-notice">
-              Drafts stay in memory until submitted. This build uses a local simulated writer. Use
-              synthetic text only.
+              {live === null
+                ? 'Refresh to check the reading service before submitting. Your draft stays in memory.'
+                : live
+                  ? 'Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.'
+                  : 'Drafts stay in memory until submitted. This build uses a local simulated writer. Use synthetic text only.'}
             </p>
             <div className="new-reading-footer">
               <button
                 type="submit"
                 className="large"
-                disabled={busy || !english || !question.trim() || !user.permission.modelAllowed}
+                disabled={
+                  busy ||
+                  !english ||
+                  !question.trim() ||
+                  !user.permission.modelAllowed ||
+                  live === null
+                }
               >
                 Start reading
               </button>
@@ -769,7 +792,12 @@ export function ReadingWorkspace({
           <article data-testid="accepted-reading" className="accepted-reading">
             <div className="reading-header">
               <div className="reading-title">
-                <p className="test-notice">Local simulated reading</p>
+                <p className="test-notice">
+                  {reading.provenance.provider === 'openai'
+                    ? 'AI reading'
+                    : 'Local simulated reading'}
+                  {reading.mode === 'template' ? ' · Prepared reflection template' : ''}
+                </p>
                 <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
                 <h2 ref={resultHeading} tabIndex={-1}>
                   {reading.question}
@@ -779,7 +807,10 @@ export function ReadingWorkspace({
             </div>
             {reading.units.map((unit, index) => {
               const card = reading.basis.cards.find((item) => item.position === unit.position);
-              const name = card && cardName(reading.basis.deckEdition, card.cardId);
+              const name =
+                reading.kind === 'tarot.accepted.v2'
+                  ? reading.draw.find((item) => item.position === unit.position)?.name
+                  : card && cardName(reading.basis.deckEdition, card.cardId);
               return (
                 <section key={unit.position} className="card position-card">
                   <Art name={`position-${unit.position}`} className="position-art" />
@@ -802,25 +833,49 @@ export function ReadingWorkspace({
                         <h4>Interpretation</h4>
                         <p>{unit.interpretation}</p>
                       </div>
-                      <div className="reflection-prompt">
-                        <h4>Reflection prompt</h4>
-                        <p>{unit.reflectionQuestion}</p>
-                      </div>
+                      {'reflectionQuestion' in unit && (
+                        <div className="reflection-prompt">
+                          <h4>Reflection prompt</h4>
+                          <p>{unit.reflectionQuestion}</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </section>
               );
             })}
-            <p className="reading-closing">{reading.closing}</p>
+            {reading.kind === 'tarot.accepted.v2' ? (
+              <div className="reading-closing">
+                <section>
+                  <h3>Putting it together</h3>
+                  <p>{reading.synthesis.text}</p>
+                </section>
+                <section>
+                  <h3>An optional next step</h3>
+                  <p>{reading.action.text}</p>
+                </section>
+                {reading.reflectionQuestion && (
+                  <section>
+                    <h3>A question to consider</h3>
+                    <p>{reading.reflectionQuestion.text}</p>
+                  </section>
+                )}
+              </div>
+            ) : (
+              <p className="reading-closing">{reading.closing}</p>
+            )}
             <details className="reading-sources">
               <summary>Cards and sources</summary>
               <h3>Traditional source material</h3>
               <p className="muted">
                 These source snapshots are separate from the generated interpretation and your own
-                reflection. This local build uses synthetic source text.
+                reflection. This local build uses unapproved development source material.
               </p>
               {reading.basis.cards.map((card, index) => {
-                const name = cardName(reading.basis.deckEdition, card.cardId);
+                const name =
+                  reading.kind === 'tarot.accepted.v2'
+                    ? reading.draw[index]!.name
+                    : cardName(reading.basis.deckEdition, card.cardId);
                 const position = card.position[0]!.toUpperCase() + card.position.slice(1);
                 return (
                   <div key={card.id} className="source">
@@ -830,7 +885,26 @@ export function ReadingWorkspace({
                         {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
                         {card.orientation}
                       </h3>
-                      <p>{reading.sources[index]!.text}</p>
+                      {reading.kind === 'tarot.accepted.v2' ? (
+                        <>
+                          <p>{reading.sources[index]!.meaning.core}</p>
+                          <ul>
+                            {reading.sources[index]!.meaning.distinctions.map((text) => (
+                              <li key={text}>{text}</li>
+                            ))}
+                          </ul>
+                          <p>{reading.sources[index]!.meaning.positive}</p>
+                          <p>{reading.sources[index]!.meaning.limits.join(' ')}</p>
+                          {reading.sources[index]!.meaning.imagery && (
+                            <p>
+                              {reading.sources[index]!.meaning.imagery!.text} —{' '}
+                              {reading.sources[index]!.meaning.imagery!.reference}
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <p>{reading.sources[index]!.text}</p>
+                      )}
                       <p className="source-attribution">
                         {reading.sources[index]!.rights.attribution}
                       </p>
@@ -843,8 +917,12 @@ export function ReadingWorkspace({
                 );
               })}
               <p className="muted">
-                Generated by the local simulation. Original accepted text and source snapshot are
-                preserved.
+                {reading.mode === 'template'
+                  ? 'Prepared reflection template.'
+                  : reading.provenance.provider === 'openai'
+                    ? 'Generated by OpenAI.'
+                    : 'Generated by the local simulation.'}{' '}
+                Original accepted text and source snapshot are preserved.
               </p>
             </details>
           </article>
@@ -862,10 +940,7 @@ export function ReadingWorkspace({
                     <p>
                       <strong>Not saved</strong> · Temporary storage lasts 24 hours from creation.
                     </p>
-                    <p className="muted">
-                      Save keeps this reading, its cards and sources until deletion. No reflection
-                      is required.
-                    </p>
+                    <p className="muted">{READING_PRODUCT_COPY.saveReading}</p>
                   </div>
                 </div>
                 <button type="button" onClick={save} disabled={busy}>

@@ -1,11 +1,17 @@
+import { READING_PRODUCT_COPY } from '../../contracts/product-copy.ts';
 import type { z } from 'zod';
-import type { ContentBundle } from '../../contracts/index.ts';
+import { type ContentBundle, ContentBundleV2 } from '../../contracts/index.ts';
+import developmentDraft from '../../../content/reading-canon-v2-draft.json';
 import { sha256Json } from '../../domain/json.ts';
 import { bundleHash, sourceHash } from '../../domain/tarot/plan.ts';
 // Explicit local simulation only. These markers are NOT real editorial approval.
 const TEST_ONLY = 'SYNTHETIC LOCAL SIMULATION — never production editorial approval';
 const TEST_HASH = 'a'.repeat(64);
 const TEST_TIME = '2026-10-26T00:00:00Z';
+/** Agent-reviewed/unknown-rights metadata remains intact. Never a production repository. */
+export function localDevelopmentBundle() {
+  return ContentBundleV2.parse(developmentDraft);
+}
 export async function syntheticBundle(): Promise<z.infer<typeof ContentBundle>> {
   const ids = [
     ...Array.from({ length: 22 }, (_, i) => `major-${String(i).padStart(2, '0')}`),
@@ -62,6 +68,7 @@ export async function syntheticBundle(): Promise<z.infer<typeof ContentBundle>> 
       { position: 'possibility', text: `${TEST_ONLY}: possibility` },
     ],
     productCopy: {
+      ...READING_PRODUCT_COPY,
       unsupportedLanguage: TEST_ONLY,
       crisis: TEST_ONLY,
       uncertainSafety: TEST_ONLY,

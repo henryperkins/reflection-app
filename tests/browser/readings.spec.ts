@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { apiSchemas, ContentBundle } from '../../src/contracts/index.ts';
+import {
+  apiSchemas,
+  AcceptedReading,
+  AnyAcceptedReading,
+  ContentBundle,
+} from '../../src/contracts/index.ts';
 import { renderFacts } from '../../src/domain/tarot/facts.ts';
 
 import {
@@ -10,6 +15,33 @@ import {
   reading,
   savedSnapshot,
 } from '../fixtures/browser-reading.ts';
+
+// Keep historical v1 presentation coverage while the local generator now produces v2.
+function legacyReading(value: ReturnType<typeof AnyAcceptedReading.parse>) {
+  if (value.kind === 'tarot.accepted.v1') return value;
+  const {
+    draw: _draw,
+    spread: _spread,
+    relationships: _relationships,
+    synthesis: _synthesis,
+    action: _action,
+    reflectionQuestion: _reflectionQuestion,
+    contextReceipt: _contextReceipt,
+    ...reading
+  } = value;
+  const { schemaHash: _schemaHash, contextHash: _contextHash, ...provenance } = value.provenance;
+  return AcceptedReading.parse({
+    ...reading,
+    kind: 'tarot.accepted.v1',
+    sources: value.sources.map(({ meaning: _meaning, ...source }) => source),
+    units: value.units.map(({ contextRefs: _contextRefs, ...unit }, index) => ({
+      ...unit,
+      reflectionQuestion: value.sources[index]!.reflectionQuestion,
+    })),
+    closing: 'Synthetic legacy reading.',
+    provenance,
+  });
+}
 
 test('source headings preserve launch-deck names, card codes and orientations while capitalizing only the position', async ({
   page,
@@ -28,8 +60,7 @@ test('source headings preserve launch-deck names, card codes and orientations wh
   // Exercise launch metadata through the real client without enabling it for generation.
   await page.route('**/api/v1/readings/*', async (route) => {
     const response = await route.fetch();
-    const value = apiSchemas.Reading.parse(await response.json());
-    if (value.kind !== 'tarot.accepted.v1') throw new Error('Expected accepted tarot');
+    const value = legacyReading(AnyAcceptedReading.parse(await response.json()));
     value.basis.deckEdition = launch.deckEdition;
     value.basis.reversals = true;
     value.basis.cards.forEach((card, index) => {
@@ -79,27 +110,36 @@ test('card names match the deck edition beside unchanged facts and unknown decks
   page,
 }) => {
   await account(page, '192.0.2.175');
+  const launch = ContentBundle.parse(
+    JSON.parse(
+      await readFile(new URL('../../content/launch-canon-draft.json', import.meta.url), 'utf8'),
+    ),
+  );
+  let unknownDeck = false;
+  await page.route('**/api/v1/readings/*', async (route) => {
+    const response = await route.fetch();
+    const value = legacyReading(AnyAcceptedReading.parse(await response.json()));
+    if (unknownDeck) value.basis.deckEdition = 'f'.repeat(64);
+    await route.fulfill({ response, json: value });
+  });
   const question = 'Synthetic edition-bound card names';
   await reading(page, question);
   await page.getByRole('button', { name: 'Save reading', exact: true }).click();
   await expect(page.getByRole('status').filter({ hasText: 'Reading saved.' })).toBeVisible();
   const saved = await savedSnapshot(page);
   if (saved.reading.kind !== 'tarot.accepted.v1') throw new Error('Expected accepted tarot');
+  expect(saved.reading.basis.deckEdition).toBe(launch.deckEdition);
   const accepted = page.getByTestId('accepted-reading');
   for (const card of saved.reading.basis.cards) {
+    const name = launch.deck.find((item) => item.id === card.cardId)!.name;
     await expect(
-      accepted.getByRole('heading', { name: `Drawn card: Synthetic ${card.cardId}`, exact: true }),
+      accepted.getByRole('heading', { name: `Drawn card: ${name}`, exact: true }),
     ).toBeVisible();
   }
   for (const unit of saved.reading.units) {
     await expect(accepted.getByText(unit.basisText, { exact: true })).toBeVisible();
   }
-  await page.route('**/api/v1/readings/*', async (route) => {
-    const response = await route.fetch();
-    const value = await response.json();
-    value.basis.deckEdition = 'f'.repeat(64);
-    await route.fulfill({ response, json: value });
-  });
+  unknownDeck = true;
   await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
   await page.getByRole('button', { name: question, exact: true }).click();
   await expect(accepted.getByRole('heading', { name: 'Drawn card', exact: true })).toHaveCount(3);
@@ -589,3 +629,30 @@ test('a rejected deletion can be freshly confirmed against the updated reading r
     }),
   ).toBeVisible();
 });
+
+for (const mode of ['model', 'template'] as const) {
+  test(`reading attribution distinguishes OpenAI and prepared content: ${mode}`, async ({
+    page,
+  }) => {
+    // Presentation fixture only; the D1 suite covers qualified generation itself.
+    await account(page, mode === 'model' ? '192.0.2.91' : '192.0.2.92');
+    await page.route('**/api/v1/readings/*', async (route) => {
+      const response = await route.fetch();
+      const body = await response.json();
+      body.mode = mode;
+      body.provenance.provider = 'openai';
+      body.provenance.fallbackReason = mode === 'template' ? 'VALIDATION' : null;
+      await route.fulfill({ response, json: body });
+    });
+    await reading(page, 'Compare ways to develop a creative project.');
+    await page.getByText('Cards and sources', { exact: true }).click();
+    await expect(
+      page.getByText(mode === 'model' ? 'Generated by OpenAI.' : 'Prepared reflection template.', {
+        exact: false,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText('Generated by the local simulation.', { exact: false }),
+    ).toHaveCount(0);
+  });
+}

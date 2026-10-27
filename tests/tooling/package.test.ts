@@ -13,7 +13,15 @@ afterEach(() => {
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'reflection-package-'));
   temporary.push(root);
-  for (const dir of ['src', 'artifacts', '.wrangler', 'node_modules']) mkdirSync(join(root, dir));
+  for (const dir of [
+    'src',
+    'artifacts',
+    '.wrangler',
+    'node_modules',
+    'evaluation',
+    'evaluation/private',
+  ])
+    mkdirSync(join(root, dir));
   writeFileSync(join(root, 'src/app.ts'), 'export const app = true;');
   writeFileSync(join(root, 'package.json'), '{"name":"reflection-app"}');
   writeFileSync(join(root, 'package-lock.json'), '{}');
@@ -22,6 +30,10 @@ function fixture() {
   writeFileSync(join(root, '.env'), 'SECRET=must-not-be-shipped');
   writeFileSync(join(root, '.wrangler/private.sqlite'), 'private database');
   writeFileSync(join(root, 'node_modules/private.key'), 'private key');
+  writeFileSync(join(root, 'evaluation/corpus.json'), '{"synthetic":true}');
+  writeFileSync(join(root, 'evaluation/manifest.json'), '{"frozen":true}');
+  writeFileSync(join(root, 'evaluation/private/permit.json'), 'PRIVATE_PERMIT_MARKER');
+  writeFileSync(join(root, 'evaluation/private/output.enc'), 'PRIVATE_OUTPUT_MARKER');
   writeFileSync(
     join(root, 'artifacts/verify.json'),
     JSON.stringify({
@@ -61,6 +73,9 @@ test('the ZIP is reproducible, includes verification evidence, and excludes loca
   ).stdout;
   expect(contents).toContain('reflection-app/src/app.ts');
   expect(contents).toContain('reflection-app/artifacts/verify.json');
+  expect(contents).toContain('reflection-app/evaluation/corpus.json');
+  expect(contents).toContain('reflection-app/evaluation/manifest.json');
+  expect(contents).not.toContain('evaluation/private');
   expect(contents).toContain('local-snapshot');
   expect(contents).not.toMatch(/\.env|node_modules|\.sqlite|private\.key/);
   expect(readFileSync(`${first}.sha256`, 'utf8')).toMatch(/^[a-f0-9]{64} {2}one.zip\n$/);

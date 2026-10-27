@@ -23,7 +23,7 @@ export class InterceptedWritingProvider implements WritingProvider {
         }
         resolve(
           this.delayMs >= input.timeoutMs
-            ? { kind: 'uncertain', reason: 'timeout' }
+            ? { kind: 'uncertain', reason: 'timeout', receipt: null }
             : structuredClone(this.outcome),
         );
       };

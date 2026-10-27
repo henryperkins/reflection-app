@@ -18,7 +18,12 @@ export class ReadingClient {
   cookies = new Map<string, string>();
   csrf = '';
   ip = crypto.randomUUID();
-  constructor(readonly bindings = readingBindings) {}
+  constructor(
+    readonly bindings = readingBindings,
+    readonly handler: {
+      fetch: (request: Request, env: Env) => Response | Promise<Response>;
+    } = worker,
+  ) {}
   async request(
     path: string,
     body?: unknown,
@@ -29,11 +34,11 @@ export class ReadingClient {
       headers?: Record<string, string>;
     } = {},
   ) {
-    const response = await worker.fetch(
-      new Request(`${IDENTITY_ORIGIN}/api/v1${path}`, {
+    const response = await this.handler.fetch(
+      new Request(`${this.bindings.IDENTITY_ORIGIN ?? IDENTITY_ORIGIN}/api/v1${path}`, {
         method: options.method ?? (body === undefined ? 'GET' : 'POST'),
         headers: {
-          Origin: IDENTITY_ORIGIN,
+          Origin: this.bindings.IDENTITY_ORIGIN ?? IDENTITY_ORIGIN,
           'Content-Type': 'application/json',
           Cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; '),
           'X-CSRF-Token': this.csrf,
@@ -105,15 +110,14 @@ export class ReadingClient {
     return { started, status, reading };
   }
 }
-export async function readingAccount(ack = true, allowed = true) {
-  const client = new ReadingClient(),
-    passkey = await syntheticPasskey();
+export async function readingAccount(ack = true, allowed = true, client = new ReadingClient()) {
+  const passkey = await syntheticPasskey();
   const options = AuthOptions.parse(
     await (await client.request('/auth/options', { purpose: 'register' })).json(),
   );
   const reply = await client.request('/auth/register', {
     challengeId: options.challengeId,
-    credential: await passkey.register(options),
+    credential: await passkey.register(options, client.bindings.IDENTITY_ORIGIN),
   });
   expect(reply.status).toBe(200);
   const kit = AuthResult.parse(await reply.json());

@@ -1,3 +1,4 @@
+import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
 import { describe, expect, it } from 'vitest';
 import { buildPlan, bundleHash, sourceHash } from '../../src/domain/tarot/plan.ts';
 import { composeTemplate, projectWriterPayload } from '../../src/domain/tarot/render.ts';
@@ -19,7 +20,9 @@ function fragment(text: string, ordinal = 0) {
   };
 }
 async function payload(plan: Parameters<typeof projectWriterPayload>[0]) {
-  return JSON.parse(new TextDecoder().decode(await projectWriterPayload(plan)));
+  return JSON.parse(
+    new TextDecoder().decode(await projectWriterPayload(plan, READING_PROVIDER_POLICY)),
+  );
 }
 describe('shared template and egress plan', () => {
   it('composes exact approved fallback beside controlled facts and the approved question', async () => {
@@ -46,7 +49,9 @@ describe('shared template and egress plan', () => {
     expect(body.text.format.schema.properties.units.items.properties.sourceIds.items.enum).toEqual(
       plan.sources.map((s) => s.id),
     );
-    expect(body.model).toBe('gpt-5.6-terra');
+    expect(body.model).toBe('gpt-6.1-terra');
+    expect(body.service_tier).toBe('default');
+    expect(body.prompt_cache_options).toEqual({ mode: 'implicit', ttl: '30m' });
     expect(body.store).toBe(false);
     expect(body.reasoning).toEqual({ effort: 'none' });
     expect(body.max_output_tokens).toBe(1600);
@@ -57,7 +62,9 @@ describe('shared template and egress plan', () => {
     const input = await syntheticPlanInput();
     input.selected = [fragment('SELECTED_TEXT_SENTINEL')];
     const plan = await buildPlan(input);
-    const encoded = new TextDecoder().decode(await projectWriterPayload(plan));
+    const encoded = new TextDecoder().decode(
+      await projectWriterPayload(plan, READING_PROVIDER_POLICY),
+    );
     const body = JSON.parse(encoded);
     const data = JSON.parse(body.input[2].content);
     expect(data.selected).toEqual([
@@ -117,7 +124,9 @@ describe('shared template and egress plan', () => {
       fragment('密'.repeat(600), 2),
     ];
     const plan = await buildPlan(input);
-    await expect(projectWriterPayload(plan)).rejects.toThrow('INPUT_TOO_LARGE');
+    await expect(projectWriterPayload(plan, READING_PROVIDER_POLICY)).rejects.toThrow(
+      'INPUT_TOO_LARGE',
+    );
   });
   it.each(['erased', 'offset', 'ordinal', 'aggregate'])(
     'rejects invalid selected %s context',
@@ -148,11 +157,13 @@ describe('shared template and egress plan', () => {
     const plan = await buildPlan(await syntheticPlanInput());
     plan.sources[0]!.fallbackText = 'changed';
     await expect(composeTemplate(plan)).rejects.toThrow('CONTENT_UNAVAILABLE');
-    await expect(projectWriterPayload(plan)).rejects.toThrow('CONTENT_UNAVAILABLE');
+    await expect(projectWriterPayload(plan, READING_PROVIDER_POLICY)).rejects.toThrow(
+      'CONTENT_UNAVAILABLE',
+    );
   });
   it('does not accept extra plan fields as an egress side channel', async () => {
     const plan = await buildPlan(await syntheticPlanInput());
     Object.assign(plan, { ownerSecret: 'PRIVATE_OWNER_SENTINEL' });
-    await expect(projectWriterPayload(plan)).rejects.toThrow('BAD_INPUT');
+    await expect(projectWriterPayload(plan, READING_PROVIDER_POLICY)).rejects.toThrow('BAD_INPUT');
   });
 });

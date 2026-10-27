@@ -8,3 +8,7 @@ __pycache__/
 .env*
 .dev.vars*
 !.env.example
+evaluation/*
+!evaluation/corpus.json
+!evaluation/manifest.json
+!evaluation/README.md
