@@ -1,3 +1,4 @@
+import { ACCOUNT_FIELD_HANDLERS } from './private-fields.ts';
 import type { ApplicationRuntime } from '../runtime/application.ts';
 import type { HostedCoordinator, OfflineContext } from './hosted-coordinator.ts';
 import type { ProtectedBackupInventory } from './backup-inventory.ts';
@@ -392,93 +393,22 @@ export class OfflineRestore {
     ]);
   }
   private async validateBodies() {
-    for (const table of [
-      'import_batches',
-      'import_items',
-      'import_identities',
-      'generation_context',
-      'revisits',
-    ])
-      if (await q(this.env.DB, `SELECT 1 FROM ${table} LIMIT 1`).first())
-        throw new Error('Unsupported restored record family');
-    const families: Array<{
-      table: string;
-      columns: string[];
-      id: string;
-      revision: string;
-      version: string;
-    }> = [
-      {
-        table: 'reading_sessions',
-        columns: ['question_enc'],
-        id: 'id',
-        revision: '1',
-        version: '1',
-      },
-      {
-        table: 'basis_snapshots',
-        columns: ['body_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-      {
-        table: 'reading_editions',
-        columns: ['body_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-      {
-        table: 'reflection_revisions',
-        columns: ['body_enc'],
-        id: "reflection_id||':'||revision",
-        revision: 'revision',
-        version: 'key_version',
-      },
-      {
-        table: 'generation_requests',
-        columns: ['input_enc', 'plan_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-      {
-        table: 'provider_dispatches',
-        columns: ['transmission_enc', 'candidate_enc', 'provider_response_id_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-    ];
-    for (const family of families)
-      for (const column of family.columns)
-        for (let offset = 0; ; offset += 100) {
-          const rows = (
-            await q(
-              this.env.DB,
-              `SELECT owner_id,${family.id} AS record_id,${family.revision} AS revision,${family.version} AS version,${column} AS body FROM ${family.table} WHERE ${column} IS NOT NULL ORDER BY owner_id,record_id LIMIT 100 OFFSET ?`,
-              offset,
-            ).all<{
-              owner_id: string;
-              record_id: string;
-              revision: number;
-              version: number;
-              body: string;
-            }>()
-          ).results;
-          for (const row of rows)
-            await this.base.crypt.open(
-              row.owner_id,
-              family.table,
-              column,
-              row.record_id,
-              row.body,
-              z.unknown(),
-              row.revision,
-              row.version,
-            );
-          if (rows.length < 100) break;
+    for (const field of ACCOUNT_FIELD_HANDLERS) {
+      for (let offset = 0; ; offset += 100) {
+        const rows = (
+          await q(
+            this.env.DB,
+            `SELECT * FROM ${field.table} WHERE ${field.column} IS NOT NULL ORDER BY owner_id,${field.keyColumns.join(',')} LIMIT 100 OFFSET ?`,
+            offset,
+          ).all<Record<string, unknown>>()
+        ).results;
+        for (const row of rows) {
+          const body = row[field.column];
+          if (typeof body !== 'string') throw new Error('Encrypted field unavailable');
+          await this.base.crypt.open(field.identity(row, body), body, z.unknown());
         }
+        if (rows.length < 100) break;
+      }
+    }
   }
 }

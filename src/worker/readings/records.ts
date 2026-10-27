@@ -10,10 +10,13 @@ export class ReadingRecords {
   async question(owner: string, row: SessionRow) {
     if (!row.question_enc) return null;
     const value = await this.base.opened<z.infer<typeof Question>>(
-      owner,
-      'reading_sessions',
-      'question_enc',
-      row.id,
+      {
+        ownerId: owner,
+        table: 'reading_sessions',
+        column: 'question_enc',
+        recordId: row.id,
+        aadRevision: 1,
+      },
       row.question_enc,
       Question,
     );
@@ -82,14 +85,15 @@ export class ReadingRecords {
     )
       throw new RecordError(410, 'CONTENT_UNAVAILABLE');
     const result = await this.base.opened<z.infer<typeof Reading>>(
-      session.subjectId,
-      'reading_editions',
-      'body_enc',
-      id,
+      {
+        ownerId: session.subjectId,
+        table: 'reading_editions',
+        column: 'body_enc',
+        recordId: id,
+        aadRevision: 1,
+      },
       row.body_enc,
       Reading,
-      1,
-      row.key_version,
     );
     if (
       result.editionId !== id ||

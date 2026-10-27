@@ -4,6 +4,13 @@ import { canonicalJson } from '../../domain/json.ts';
 import { decode, encode, type IdentityCrypto } from '../identity/crypto.ts';
 import { statement as q } from '../db/core.ts';
 
+export interface RecordFieldIdentity {
+  ownerId: string;
+  table: string;
+  column: string;
+  recordId: string;
+  aadRevision: number;
+}
 const utf8 = new TextEncoder();
 /** One request-scoped key cache. No plaintext keys or records survive the request. */
 export class RecordCrypto {
@@ -56,15 +63,10 @@ export class RecordCrypto {
       ]),
     );
   }
-  async seal(
-    owner: string,
-    table: string,
-    column: string,
-    id: string,
-    value: unknown,
-    revision = 1,
-    version = 1,
-  ) {
+  async seal(field: RecordFieldIdentity, value: unknown, version: number) {
+    const { ownerId: owner, table, column, recordId: id, aadRevision: revision } = field;
+    if (!Number.isSafeInteger(revision) || revision < 1)
+      throw new Error('Invalid immutable field revision');
     const bytes = utf8.encode(canonicalJson(value));
     if (bytes.length > 1_000_000) throw new Error('Record too large');
     const key = await crypto.subtle.importKey(
@@ -96,20 +98,14 @@ export class RecordCrypto {
       }),
     );
   }
-  async open<T>(
-    owner: string,
-    table: string,
-    column: string,
-    id: string,
-    value: string,
-    schema: z.ZodType<T>,
-    revision = 1,
-    version = 1,
-  ): Promise<T> {
+  async open<T>(field: RecordFieldIdentity, value: string, schema: z.ZodType<T>): Promise<T> {
+    const { ownerId: owner, table, column, recordId: id, aadRevision: revision } = field;
+    if (!Number.isSafeInteger(revision) || revision < 1)
+      throw new Error('Invalid immutable field revision');
     if (value.length > 1_500_000) throw new Error('Record too large');
     const envelope = Ciphertext.parse(JSON.parse(value));
-    if (envelope.aadRevision !== revision || envelope.keyVersion !== version)
-      throw new Error('Record identity mismatch');
+    const version = envelope.keyVersion;
+    if (envelope.aadRevision !== revision) throw new Error('Record identity mismatch');
     const nonce = decode(envelope.nonce),
       data = decode(envelope.data);
     if (nonce.length !== 12 || data.length < 16 || data.length > 1_000_016)

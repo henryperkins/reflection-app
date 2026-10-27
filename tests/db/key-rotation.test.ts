@@ -66,24 +66,27 @@ test('account key versions are authenticated and record decryption selects the n
   const records = new RecordCrypto(env.DB, identity),
     id = crypto.randomUUID();
   const encrypted = await records.seal(
-    owner,
-    'reflection_revisions',
-    'body_enc',
-    id,
+    {
+      ownerId: owner,
+      table: 'reflection_revisions',
+      column: 'body_enc',
+      recordId: id,
+      aadRevision: 2,
+    },
     { text: 'Synthetic version seven' },
-    2,
     7,
   );
   expect(
     await records.open(
-      owner,
-      'reflection_revisions',
-      'body_enc',
-      id,
+      {
+        ownerId: owner,
+        table: 'reflection_revisions',
+        column: 'body_enc',
+        recordId: id,
+        aadRevision: 2,
+      },
       encrypted,
       z.object({ text: z.string() }),
-      2,
-      7,
     ),
   ).toEqual({ text: 'Synthetic version seven' });
   await expect(identity.unwrapAccountKey(owner, wrapped.wrappedKey, 'data', 1)).rejects.toThrow();
