@@ -34,10 +34,10 @@
 
 **Interfaces:** Add `ContentBundleV2`, `CanonSourceV2`, `RelationshipSource`, `PreparedPlanV2`, `ModelCandidateV2`, `AcceptedReadingV2`; retain v1 exports. `buildPlanV2(input, diagnosticOnly=false)` freezes metadata, frames, meanings and eligible relationships. `validatePlanV2` recomputes selected source/relationship/frame identities.
 
-- [ ] Add tests for exact reader text, coverage and position-specific lookup, frame retention, all-condition relationships and stable selection, invalid source hashes, diagnostic vs reviewed eligibility.
-- [ ] Run `npm run test:domain -- tests/domain/context-v2.test.ts`; expected RED for missing v2 behavior.
-- [ ] Implement contracts and bounded deterministic plan assembly.
-- [ ] Run the targeted suite and typecheck; expected PASS. Commit the independently testable domain slice.
+- [x] Add tests for exact reader text, coverage and position-specific lookup, frame retention, all-condition relationships and stable selection, invalid source hashes, diagnostic vs reviewed eligibility.
+- [x] Run `npm run test:domain -- tests/domain/context-v2.test.ts`; expected RED for missing v2 behavior.
+- [x] Implement contracts and bounded deterministic plan assembly.
+- [x] Run the targeted suite and typecheck; expected PASS. Commit the independently testable domain slice.
 
 ### Task 2: Projection, output and screening
 

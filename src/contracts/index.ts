@@ -384,6 +384,147 @@ export const AcceptedReading = z.strictObject({
     fallbackReason: z.enum(['OUTAGE', 'MALFORMED', 'VALIDATION', 'TIMEOUT_UNKNOWN']).nullable(),
   }),
 });
+
+// V2 is additive: v1 schemas above remain frozen for stored bytes and evaluation identities.
+export const MeaningPackage = z.strictObject({
+  core: z.string().min(1).max(700),
+  distinctions: z.array(z.string().min(1).max(300)).min(2).max(3),
+  positive: z.string().min(1).max(350),
+  limits: z.array(z.string().min(1).max(220)).min(1).max(3),
+  themes: z.array(z.string().regex(/^[a-z][a-z0-9-]{0,59}$/)).max(6),
+  imagery: z
+    .strictObject({
+      text: z.string().min(1).max(250),
+      reference: z.string().min(1).max(200),
+      verified: z.literal(true),
+    })
+    .nullable(),
+});
+export const CanonSourceV2 = CanonSource.extend({ meaning: MeaningPackage });
+export const RelationshipSource = z.strictObject({
+  id: z.string().min(1).max(100),
+  version: Revision,
+  hash: Hash,
+  deckEdition: Hash,
+  priority: z.number().int().min(0).max(1000),
+  cards: z
+    .array(z.strictObject({ cardId: CardId, orientations: z.array(Orientation).min(1).max(2) }))
+    .max(3),
+  themes: z.array(z.string().regex(/^[a-z][a-z0-9-]{0,59}$/)).max(6),
+  sourceIds: z.array(z.string().min(1).max(100)).min(2).max(3),
+  text: z.string().min(1).max(500),
+  limits: z.string().min(1).max(300),
+  rights: CanonSource.shape.rights,
+  review: CanonSource.shape.review,
+});
+export const FallbackV2 = z.strictObject({
+  synthesis: z.string().min(1).max(650),
+  action: z.string().min(1).max(500),
+  question: z.string().min(1).max(200).nullable(),
+});
+export const ContentBundleV2 = ContentBundle.extend({
+  schemaVersion: z.literal(2),
+  spreadVersion: z.string().min(1).max(100),
+  sources: z.array(CanonSourceV2).min(156).max(1000),
+  relationships: z.array(RelationshipSource).max(1000),
+  fallbackV2: FallbackV2,
+});
+export const AnyContentBundle = z.discriminatedUnion('schemaVersion', [
+  ContentBundle,
+  ContentBundleV2,
+]);
+export const DrawCardContext = z.strictObject({
+  cardId: CardId,
+  name: z.string().min(1).max(80),
+  orientation: Orientation,
+  position: Position,
+  factId: TarotFactId,
+  deckEdition: Hash,
+});
+export const PreparedPlanV2 = PreparedPlan.omit({ fallbackClosing: true }).extend({
+  version: z.literal('tarot-plan.v2'),
+  operation: z.literal('initial'),
+  parentEditionId: z.null(),
+  sources: z.array(CanonSourceV2).length(3),
+  selected: z.array(SelectedFragment).length(0),
+  diagnosticOnly: z.boolean(),
+  contextHash: Hash,
+  reader: z.strictObject({ id: z.literal('reader:question'), text: z.string().min(1).max(500) }),
+  draw: z.array(DrawCardContext).length(3),
+  spread: z.strictObject({
+    version: z.string().min(1).max(100),
+    positions: ContentBundle.shape.positionFrames,
+  }),
+  relationships: z.array(RelationshipSource).max(2),
+  fallbackV2: FallbackV2,
+});
+export type PreparedPlanV2 = z.infer<typeof PreparedPlanV2>;
+export const AnyPreparedPlan = z.discriminatedUnion('version', [PreparedPlan, PreparedPlanV2]);
+const ContextRefs = z.array(z.literal('reader:question')).length(1);
+export const ModelUnitV2 = ModelUnit.omit({ reflectionQuestion: true }).extend({
+  contextRefs: ContextRefs,
+});
+export const ReferencedText = z.strictObject({
+  sourceIds: z.array(z.string().min(1).max(100)).min(1).max(3),
+  contextRefs: ContextRefs,
+  text: z.string().min(1),
+});
+export const ModelCandidateV2 = z.strictObject({
+  schemaVersion: z.literal(2),
+  kind: z.literal('tarot.interpretation.v2'),
+  units: z.array(ModelUnitV2).length(3),
+  synthesis: ReferencedText.extend({
+    sourceIds: z.array(z.string().min(1).max(100)).min(2).max(3),
+    relationshipIds: z.array(z.string().min(1).max(100)).max(2),
+    text: z.string().min(1).max(650),
+  }),
+  action: ReferencedText.extend({ text: z.string().min(1).max(500) }),
+  reflectionQuestion: ReferencedText.extend({ text: z.string().min(1).max(200) }).nullable(),
+});
+export type ModelCandidateV2 = z.infer<typeof ModelCandidateV2>;
+export const AnyModelCandidate = z.discriminatedUnion('schemaVersion', [
+  ModelCandidate,
+  ModelCandidateV2,
+]);
+export const WriterReceiptV2 = z.strictObject({
+  version: z.literal('writer-packet.v2'),
+  diagnosticOnly: z.boolean(),
+  contextHash: Hash,
+  contentHash: Hash,
+  deckEdition: Hash,
+  spreadVersion: z.string().max(100),
+  sources: z.array(z.strictObject({ id: z.string(), version: Revision, hash: Hash })).length(3),
+  relationships: z.array(z.strictObject({ id: z.string(), version: Revision, hash: Hash })).max(2),
+  omissions: z
+    .array(z.strictObject({ kind: z.enum(['relationship', 'imagery']), id: z.string() }))
+    .max(5),
+  promptHash: Hash,
+  schemaHash: Hash,
+  validatorHash: Hash,
+  policyHash: Hash,
+  transmissionHash: Hash,
+  estimatedInputTokens: z.number().int().positive(),
+  payloadBytes: z.number().int().positive(),
+});
+export type WriterReceiptV2 = z.infer<typeof WriterReceiptV2>;
+export const AcceptedReadingV2 = AcceptedReading.omit({ units: true, closing: true }).extend({
+  kind: z.literal('tarot.accepted.v2'),
+  sources: z.array(CanonSourceV2).length(3),
+  draw: z.array(DrawCardContext).length(3),
+  spread: PreparedPlanV2.shape.spread,
+  relationships: z.array(RelationshipSource).max(2),
+  units: z.array(ModelUnitV2.extend({ basisText: z.string().max(350) })).length(3),
+  synthesis: ModelCandidateV2.shape.synthesis,
+  action: ModelCandidateV2.shape.action,
+  reflectionQuestion: ModelCandidateV2.shape.reflectionQuestion,
+  contextReceipt: WriterReceiptV2.nullable(),
+  provenance: AcceptedReading.shape.provenance.extend({ schemaHash: Hash, contextHash: Hash }),
+});
+export const AnyAcceptedReading = z.discriminatedUnion('kind', [
+  AcceptedReading,
+  AcceptedReadingV2,
+]);
+
 export const LegacyBasis = z.strictObject({
   method: z.enum(['tarot', 'astrology', 'unknown']),
   cards: z
