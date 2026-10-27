@@ -28,7 +28,7 @@ test('signed complete inventory binds actual independent backup bytes across reo
   await expect(inventory.verified()).rejects.toThrow('Backup bytes');
 });
 
-test.each(['missing', 'duplicate', 'signature', 'extra', 'missing-copy'])(
+test.each(['missing', 'duplicate', 'signature', 'extra', 'missing-copy', 'unregistered-copy'])(
   'independent inventory fails closed for %s evidence',
   async (failure) => {
     const f = await backupInventoryFixture();
@@ -48,6 +48,11 @@ test.each(['missing', 'duplicate', 'signature', 'extra', 'missing-copy'])(
       );
     if (failure === 'extra')
       await env.BACKUP_INVENTORY.put(f.prefix + 'manifests/' + crypto.randomUUID() + '.json', '{}');
+    if (failure === 'unregistered-copy')
+      await env.BACKUP_INVENTORY.put(
+        'snapshots/' + f.environment + '/' + crypto.randomUUID(),
+        'Unregistered synthetic backup',
+      );
     if (failure === 'missing-copy') await env.BACKUP_INVENTORY.delete(f.manifests[2]!.objectKey);
     await expect(f.inventory.verified()).rejects.toThrow();
   },

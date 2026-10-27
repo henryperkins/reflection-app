@@ -6,8 +6,8 @@ import {
   ProtectedBackupInventory,
   type BackupManifest,
 } from '../../src/worker/recovery/backup-inventory.ts';
-export async function backupInventoryFixture(count = 3) {
-  const environment = 'backup-' + crypto.randomUUID(),
+export async function backupInventoryFixture(count = 3, environmentId?: string) {
+  const environment = environmentId ?? 'backup-' + crypto.randomUUID(),
     keys = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
   const prefix = `inventory/${environment}/`;
   const sign = async (document: unknown) => ({

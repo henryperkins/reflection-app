@@ -11,6 +11,12 @@ export const BackupManifestSchema = z
     id: z.uuid(),
     environmentId: id,
     kind: z.enum(['d1', 'recovery', 'offline-keys']),
+    purpose: z.enum(['backup', 'inventory']).optional(),
+    coordinatorEpoch: z.number().int().nonnegative().optional(),
+    recoveryObjects: z
+      .array(z.strictObject({ key: z.string().min(1).max(512), sha256: digest }))
+      .max(100000)
+      .optional(),
     objectKey: z.string().regex(/^snapshots\/[\w/-]+$/),
     sha256: digest,
     createdAt: z.iso.datetime(),
@@ -21,7 +27,14 @@ export const BackupManifestSchema = z
       .array(z.strictObject({ ownerId: z.uuid(), version: z.number().int().positive() }))
       .max(100000),
   })
-  .refine((m) => Date.parse(m.expiresAt) > Date.parse(m.createdAt));
+  .refine((m) => Date.parse(m.expiresAt) > Date.parse(m.createdAt))
+  .refine(
+    (m) =>
+      m.purpose !== 'inventory' ||
+      (m.kind === 'recovery' &&
+        m.coordinatorEpoch !== undefined &&
+        m.recoveryObjects !== undefined),
+  );
 export type BackupManifest = z.infer<typeof BackupManifestSchema>;
 const IndexSchema = z.strictObject({
   version: z.literal(1),
@@ -104,6 +117,7 @@ export class ProtectedBackupInventory implements BackupInventory {
       const manifest = await this.authenticated(key, BackupManifestSchema);
       if (
         manifest.environmentId !== this.environmentId ||
+        !manifest.objectKey.startsWith('snapshots/' + this.environmentId + '/') ||
         key !== this.prefix() + 'manifests/' + manifest.id + '.json' ||
         manifest.recoveryEpoch > index.epoch ||
         new Set(manifest.requiredEnvironmentKeyIds).size !==
@@ -114,6 +128,31 @@ export class ProtectedBackupInventory implements BackupInventory {
         throw new Error('Invalid backup manifest identity');
       manifests.push(manifest);
     }
+    const snapshots = new Set<string>();
+    let snapshotCursor: string | undefined;
+    const snapshotCursors = new Set<string>();
+    do {
+      const page = await this.bucket!.list({
+        prefix: 'snapshots/' + this.environmentId + '/',
+        ...(snapshotCursor ? { cursor: snapshotCursor } : {}),
+      });
+      for (const object of page.objects) {
+        if (snapshots.has(object.key) || snapshots.size >= 10000)
+          throw new Error('Duplicate backup copy');
+        snapshots.add(object.key);
+      }
+      snapshotCursor = page.truncated ? page.cursor : undefined;
+      if (snapshotCursor) {
+        if (snapshotCursors.has(snapshotCursor)) throw new Error('Incomplete backup copy listing');
+        snapshotCursors.add(snapshotCursor);
+      }
+    } while (snapshotCursor);
+    const expectedCopies = new Set(manifests.map((m) => m.objectKey));
+    if (
+      snapshots.size !== expectedCopies.size ||
+      [...snapshots].some((key) => !expectedCopies.has(key))
+    )
+      throw new Error('Unregistered or missing backup copy');
     // Detect inventory replacement or new/removed entries while listing.
     if (
       canonicalJson(index) !==

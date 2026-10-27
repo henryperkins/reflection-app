@@ -104,3 +104,34 @@ Journal rows participate in the existing owned-row storage accounting. Retain
 unfinished journals and both wrapped versions; completed audit retention and
 capacity must be considered when planning large rotations. No journal is silently
 purged to make a key appear unreferenced.
+
+## Independent key-reference inventory
+
+`inventoryKeyReferences(runtime, context, backups)` runs two authenticated scans
+inside one persistent offline invocation. It authenticates every account wrap
+and encrypted field, security operation, identity checkpoint, erasure chain,
+cleanup state and unfinished rekey. It also verifies every registered D1,
+recovery and offline-key backup against independently stored signed manifests.
+Both missing copies and physically present unregistered copies fail closed.
+
+The signed independent index must include exactly one current recovery-store
+attestation: `kind:recovery`, `purpose:inventory`, the coordinator's exact
+`coordinatorEpoch`, and the complete `recoveryObjects` key/SHA-256 list. Store
+that metadata object separately from actual backup copies (`purpose:backup`).
+`recoveryEpoch` remains the D1 cleanup floor; it never substitutes for the
+coordinator epoch. A protected attestation must be refreshed after intentional
+checkpoint/cleanup changes. It does not contain a recoverable copy by itself.
+
+The full inventory is private operational data. Store it outside the repository
+and public evidence. `summarizeKeyInventory` emits only counts, observation time
+and digest. Its reference digest binds ciphertext and wrap bytes, not only key
+IDs; any change between scans invalidates the result. Missing/incomplete
+inventory conservatively retains every installed environment bundle.
+
+An immutable checkpoint rollover under the active recovery bundle preserves
+credentials, used-code state and the kit verifier while advancing the serialized
+identity epoch and invalidating old sessions. It preserves prior objects. Current
+checkpoints retain their keys for their entire lifetime; superseded checkpoints
+have the existing 45-day minimum, with supported backup references retaining
+needed keys for as long as those actual copies remain registered. No local
+30-day assumption proves that hosted or offline backups have expired.
