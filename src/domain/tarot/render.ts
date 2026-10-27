@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ModelCandidate, ModelUnit, type PreparedPlan } from '../../contracts/index.ts';
-import type { ReadingProviderPolicy } from '../../contracts/provider-policy.ts';
+import type { WriterProviderPolicy } from '../../contracts/provider-policy.ts';
 import { renderFacts, type RenderedFact } from './facts.ts';
 import { validateCandidateBindings, validatePlanIntegrity } from './plan.ts';
 export type PreparedTemplate = {
@@ -44,7 +44,7 @@ export async function composeTemplate(value: PreparedPlan): Promise<PreparedTemp
 /** Closed allowlist projection. It deliberately never serializes a plan/source/fragment wholesale. */
 export async function projectWriterPayload(
   value: PreparedPlan,
-  policy: ReadingProviderPolicy,
+  policy: WriterProviderPolicy,
 ): Promise<Uint8Array> {
   const plan = await validatePlanIntegrity(value);
   const sourceIds = plan.sources.map((s) => s.id) as [string, ...string[]];

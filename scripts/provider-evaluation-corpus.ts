@@ -3,7 +3,11 @@ import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { PreparedPlan, WritingProvider } from '../src/contracts/index.ts';
-import { READING_PROVIDER_POLICY as policy } from '../src/contracts/provider-policy.ts';
+import {
+  FAST_XHIGH_EVALUATION_POLICY,
+  READING_PROVIDER_POLICY,
+  type WriterProviderPolicy,
+} from '../src/contracts/provider-policy.ts';
 import { providerPolicyHash } from '../src/domain/provider-policy.ts';
 import { canonicalJson, sha256Json } from '../src/domain/json.ts';
 import { drawTarot } from '../src/domain/tarot/draw.ts';
@@ -41,7 +45,7 @@ export type EvaluationRequest = {
 };
 export type EvaluationManifest = {
   version: 'reflection-evaluation-manifest.v1';
-  profile: 'baseline' | 'smoke' | 'human-review';
+  profile: 'baseline' | 'smoke' | 'human-review' | 'human-review-fast-xhigh';
   model: string;
   policyHash: string;
   contentHash: string;
@@ -72,6 +76,7 @@ export type EvaluationManifest = {
   }>;
 };
 export type PreparedEvaluation = {
+  policy: WriterProviderPolicy;
   manifest: EvaluationManifest;
   manifestHash: string;
   requests: EvaluationRequest[];
@@ -81,6 +86,8 @@ export type PreparedEvaluation = {
 export async function prepareEvaluation(
   profile: EvaluationManifest['profile'] = 'baseline',
 ): Promise<PreparedEvaluation> {
+  const policy =
+    profile === 'human-review-fast-xhigh' ? FAST_XHIGH_EVALUATION_POLICY : READING_PROVIDER_POLICY;
   const bytes = readFileSync(resolve(projectRoot, 'evaluation/corpus.json'));
   const corpus = z
     .object({
@@ -145,7 +152,11 @@ export async function prepareEvaluation(
       continue;
     }
     if (profile === 'smoke' && !smoke.has(c.id)) continue;
-    if (profile === 'human-review' && !c.humanReviewRequired) continue;
+    if (
+      (profile === 'human-review' || profile === 'human-review-fast-xhigh') &&
+      !c.humanReviewRequired
+    )
+      continue;
     const id = `${c.id}.controlled.1`;
     let admission = inputAdmission(c.question!, c.language);
     let payloadHash: string | null = null;
@@ -188,7 +199,7 @@ export async function prepareEvaluation(
             timeoutMs: policy.timeoutMs,
             maxOutputTokens: policy.request.max_output_tokens,
             store: false,
-            reasoning: 'none',
+            reasoning: policy.request.reasoning.effort,
             signal: new AbortController().signal,
           },
         });
@@ -209,5 +220,5 @@ export async function prepareEvaluation(
     });
   }
   manifest.maximumScheduledMicrousd = requests.length * policy.reservationMicrousd;
-  return { manifest, manifestHash: digest(canonicalJson(manifest)), requests };
+  return { policy, manifest, manifestHash: digest(canonicalJson(manifest)), requests };
 }

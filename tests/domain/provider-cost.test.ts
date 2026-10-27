@@ -1,6 +1,9 @@
 import { expect, test } from 'vitest';
 import { priceReceipt } from '../../src/domain/provider-cost.ts';
-import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
+import {
+  FAST_XHIGH_EVALUATION_POLICY,
+  READING_PROVIDER_POLICY,
+} from '../../src/contracts/provider-policy.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
 
 test.each([
@@ -43,3 +46,29 @@ test.each(['model', 'tier', 'cache', 'reasoning', 'negative', 'unsafe'])(
     expect(priceReceipt(receipt, READING_PROVIDER_POLICY)).toBeNull();
   },
 );
+
+test('fast receipts use premium rates, include reasoning once, and fit the evaluation reservation', () => {
+  const receipt = providerReceipt({
+    returnedModel: 'gpt-6.1-terra',
+    serviceTier: 'fast',
+    usage: {
+      inputTokens: 1000,
+      cachedInputTokens: 200,
+      cacheWriteTokens: 300,
+      outputTokens: 100,
+      reasoningTokens: 80,
+    },
+  });
+  expect(priceReceipt(receipt, FAST_XHIGH_EVALUATION_POLICY)).toEqual({ actualMicrousd: 2770 });
+  expect(priceReceipt(receipt, READING_PROVIDER_POLICY)).toBeNull();
+  receipt.usage = {
+    inputTokens: 8000,
+    cachedInputTokens: 0,
+    cacheWriteTokens: 8000,
+    outputTokens: 8192,
+    reasoningTokens: 7000,
+  };
+  const maximum = priceReceipt(receipt, FAST_XHIGH_EVALUATION_POLICY)!.actualMicrousd;
+  expect(maximum).toBe(101920);
+  expect(maximum).toBeLessThanOrEqual(FAST_XHIGH_EVALUATION_POLICY.reservationMicrousd);
+});

@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { WritingProvider, WriterOutcome } from '../src/contracts/index.ts';
-import { READING_PROVIDER_POLICY as policy } from '../src/contracts/provider-policy.ts';
+import type { WriterProviderPolicy } from '../src/contracts/provider-policy.ts';
 import { canonicalJson } from '../src/domain/json.ts';
 import { validateCandidate } from '../src/domain/tarot/safety.ts';
 import { OpenAIResponsesTransport } from '../src/worker/provider/transport.ts';
@@ -90,7 +90,12 @@ export async function runEvaluation(
 }
 
 /** Capture the exact bounded wire bytes without logging bodies, IDs, keys or headers. */
-function liveWriter(apiKey: string, projectId: string, fetcher: typeof fetch): CapturingWriter {
+function liveWriter(
+  apiKey: string,
+  projectId: string,
+  fetcher: typeof fetch,
+  policy: WriterProviderPolicy,
+): CapturingWriter {
   const captures = new Map<string, unknown>();
   return {
     takeCapture(id) {
@@ -174,7 +179,7 @@ export async function runEvaluationCli(
   if (argv.length === 1 && argv[0] === '--help')
     return {
       usage: [
-        'provider:evaluate -- --dry-run [--profile baseline|smoke|human-review]',
+        'provider:evaluate -- --dry-run [--profile baseline|smoke|human-review|human-review-fast-xhigh]',
         'provider:evaluate -- --execute --permit /protected/permit.json [--resume]',
         'provider:evaluate -- --purge-expired',
       ],
@@ -193,7 +198,12 @@ export async function runEvaluationCli(
         : argv.length === 3 && argv[1] === '--profile'
           ? argv[2]
           : null;
-    if (profile !== 'baseline' && profile !== 'smoke' && profile !== 'human-review')
+    if (
+      profile !== 'baseline' &&
+      profile !== 'smoke' &&
+      profile !== 'human-review' &&
+      profile !== 'human-review-fast-xhigh'
+    )
       throw new Error('Invalid evaluation profile');
     const prepared = await prepareEvaluation(profile);
     const frozen = JSON.parse(
@@ -228,9 +238,9 @@ export async function runEvaluationCli(
   const prepared = await prepareEvaluation(
     permit.purpose === 'transport-smoke'
       ? 'smoke'
-      : permit.purpose === 'human-review'
-        ? 'human-review'
-        : 'baseline',
+      : permit.purpose === 'synthetic-research'
+        ? 'baseline'
+        : permit.purpose,
   );
   validatePermit(permit, prepared);
   // No transport exists until authorization, identity, archive protection and journal all validate.
@@ -245,7 +255,11 @@ export async function runEvaluationCli(
     argv[3] === '--resume',
   );
   try {
-    return await runEvaluation(permit, liveWriter(apiKey, projectId, fetch), journal);
+    return await runEvaluation(
+      permit,
+      liveWriter(apiKey, projectId, fetch, prepared.policy),
+      journal,
+    );
   } finally {
     journal.close();
   }

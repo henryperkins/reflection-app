@@ -15,8 +15,12 @@ import {
 } from 'node:fs';
 import { dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { z } from 'zod';
-import { Hash, ProviderReceipt, type WriterOutcome } from '../src/contracts/index.ts';
-import { READING_PROVIDER_POLICY as policy } from '../src/contracts/provider-policy.ts';
+import {
+  Hash,
+  ModelCandidate,
+  ProviderReceipt,
+  type WriterOutcome,
+} from '../src/contracts/index.ts';
 import { canonicalJson } from '../src/domain/json.ts';
 import { priceReceipt } from '../src/domain/provider-cost.ts';
 import { digest, type PreparedEvaluation } from './provider-evaluation-corpus.ts';
@@ -25,7 +29,12 @@ export { digest } from './provider-evaluation-corpus.ts';
 export const EvaluationPermit = z.strictObject({
   version: z.literal('reflection-evaluation-permit.v1'),
   scope: z.literal('evaluation'),
-  purpose: z.enum(['transport-smoke', 'synthetic-research', 'human-review']),
+  purpose: z.enum([
+    'transport-smoke',
+    'synthetic-research',
+    'human-review',
+    'human-review-fast-xhigh',
+  ]),
   runId: z.uuid(),
   authorizedBy: z.string().trim().min(1).max(200),
   authorizedAt: z.iso.datetime(),
@@ -33,7 +42,7 @@ export const EvaluationPermit = z.strictObject({
   projectId: z.string().regex(/^proj_[A-Za-z0-9_-]+$/),
   credentialHash: Hash,
   encryptionKeyHash: Hash,
-  model: z.literal(policy.model),
+  model: z.literal('gpt-6.1-terra'),
   policyHash: Hash,
   contentHash: Hash,
   corpusHash: Hash,
@@ -131,15 +140,21 @@ export function validatePermit(
     now >= Date.parse(p.authorizedAt) + 90 * 86400000 ||
     p.manifestHash !== prepared.manifestHash ||
     digest(canonicalJson(m)) !== p.manifestHash ||
+    digest(
+      canonicalJson({ policy: prepared.policy, outputSchema: z.toJSONSchema(ModelCandidate) }),
+    ) !== p.policyHash ||
     p.policyHash !== m.policyHash ||
+    p.model !== m.model ||
+    p.model !== prepared.policy.model ||
+    m.reservationMicrousd !== prepared.policy.reservationMicrousd ||
     p.contentHash !== m.contentHash ||
     p.corpusHash !== m.corpusHash ||
     m.profile !==
       (p.purpose === 'transport-smoke'
         ? 'smoke'
-        : p.purpose === 'human-review'
-          ? 'human-review'
-          : 'baseline')
+        : p.purpose === 'synthetic-research'
+          ? 'baseline'
+          : p.purpose)
   )
     throw new Error('Evaluation permit rejected');
   return p;
@@ -321,6 +336,7 @@ export class EvaluationJournal {
   }
   reserve(attemptId: string): Reservation | null {
     validatePermit(this.permit, this.prepared);
+    const policy = this.prepared.policy;
     const request = this.prepared.requests.find((r) => r.id === attemptId);
     const scheduled = this.prepared.manifest.schedule.find((r) => r.id === attemptId);
     if (
@@ -365,6 +381,7 @@ export class EvaluationJournal {
     assessment = outcome.kind as string,
     raw: unknown = null,
   ) {
+    const policy = this.prepared.policy;
     return this.transaction(() => {
       const rows = this.events();
       if (
@@ -407,6 +424,7 @@ export class EvaluationJournal {
     });
   }
   summary(): EvaluationSummary {
+    const policy = this.prepared.policy;
     const events = this.events(),
       reservations = events
         .filter((e) => e.kind === 'reserved')

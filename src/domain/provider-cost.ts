@@ -1,10 +1,10 @@
 import { ProviderReceipt } from '../contracts/index.ts';
-import type { ReadingProviderPolicy } from '../contracts/provider-policy.ts';
+import type { WriterProviderPolicy } from '../contracts/provider-policy.ts';
 
 /** Cache reads/writes are disjoint input subsets. Reasoning is already included in output. */
 export function priceReceipt(
   value: ProviderReceipt,
-  policy: ReadingProviderPolicy,
+  policy: WriterProviderPolicy,
 ): { actualMicrousd: number } | null {
   const parsed = ProviderReceipt.safeParse(value);
   if (

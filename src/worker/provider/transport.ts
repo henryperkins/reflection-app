@@ -5,7 +5,7 @@ import {
   type WriterOutcome,
   type WritingProvider,
 } from '../../contracts/index.ts';
-import type { ReadingProviderPolicy } from '../../contracts/provider-policy.ts';
+import type { WriterProviderPolicy } from '../../contracts/provider-policy.ts';
 import { boundedCandidateJson } from '../../domain/tarot/safety.ts';
 
 const Count = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
@@ -27,23 +27,34 @@ const Metadata = z.object({
         v.total_tokens === v.input_tokens + v.output_tokens,
     ),
 });
+const MessageOutput = z.object({
+  type: z.literal('message'),
+  role: z.literal('assistant'),
+  status: z.literal('completed').optional(),
+  content: z
+    .array(
+      z.discriminatedUnion('type', [
+        z.object({ type: z.literal('output_text'), text: z.string() }),
+        z.object({ type: z.literal('refusal'), refusal: z.string() }),
+      ]),
+    )
+    .length(1),
+});
+const ReasoningOutput = z.object({
+  id: z.string().min(1).max(300),
+  type: z.literal('reasoning'),
+  status: z.literal('completed').optional(),
+  summary: z.array(z.object({ type: z.literal('summary_text'), text: z.string() })),
+});
 const Output = z
-  .array(
-    z.object({
-      type: z.literal('message'),
-      role: z.literal('assistant'),
-      status: z.literal('completed').optional(),
-      content: z
-        .array(
-          z.discriminatedUnion('type', [
-            z.object({ type: z.literal('output_text'), text: z.string() }),
-            z.object({ type: z.literal('refusal'), refusal: z.string() }),
-          ]),
-        )
-        .length(1),
-    }),
-  )
-  .length(1);
+  .array(z.discriminatedUnion('type', [MessageOutput, ReasoningOutput]))
+  .min(1)
+  .max(16)
+  .refine(
+    (items) =>
+      items.filter((item) => item.type === 'message').length === 1 &&
+      items.at(-1)?.type === 'message',
+  );
 
 const RefusalEnvelope = z.object({ output: z.array(z.unknown()) });
 const AssistantMessage = z.object({
@@ -136,7 +147,7 @@ export class OpenAIResponsesTransport implements WritingProvider {
     private readonly options: {
       apiKey: string;
       fetch: typeof fetch;
-      policy: ReadingProviderPolicy;
+      policy: WriterProviderPolicy;
     },
   ) {}
   async write(input: Parameters<WritingProvider['write']>[0]): Promise<WriterOutcome> {
@@ -255,8 +266,13 @@ export class OpenAIResponsesTransport implements WritingProvider {
         if (!envelope.success || envelope.data.status !== 'completed')
           return { kind: 'invalid', reason: 'malformed', receipt: known };
         const output = Output.safeParse(envelope.data.output);
-        if (!output.success) return { kind: 'invalid', reason: 'malformed', receipt: known };
-        const part = output.data[0]!.content[0]!;
+        if (
+          !output.success ||
+          (policy.request.reasoning.effort === 'none' && output.data.length !== 1)
+        )
+          return { kind: 'invalid', reason: 'malformed', receipt: known };
+        // Reasoning metadata is never interpreted or returned as reading content.
+        const part = output.data.find((item) => item.type === 'message')!.content[0]!;
         if (part.type === 'refusal') return { kind: 'refusal', receipt: known };
         try {
           const candidate: unknown = JSON.parse(part.text);

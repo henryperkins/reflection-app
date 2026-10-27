@@ -14,6 +14,22 @@ schedule and its hash; 20 attempts reserve at most $0.80. All outputs remain
 unapproved until a human records a review. This profile includes calibration and
 holdout examples for inspection, without changing their split or tuning the policy.
 
+`--dry-run --profile human-review-fast-xhigh` selects those same 20 prompts and draws
+using the separately versioned `reading-evaluation-fast-xhigh.v1` policy. It requests
+`gpt-6.1-terra`, `reasoning.effort: xhigh`, and `service_tier: fast`, with 8,192 total
+output tokens (including reasoning), a 60-second deadline, and a $0.12 reservation per
+attempt ($2.40 for all 20). Its permit requires `purpose: human-review-fast-xhigh` and
+the new policy/manifest hashes. The existing Standard profiles and application policy
+retain their previous hashes. Returned reasoning metadata is excluded from reading
+content; a returned service tier other than `fast` halts the run.
+
+[Terra pricing](https://developers.openai.com/api/docs/models/gpt-6.1-terra) lists
+[Fast mode](https://developers.openai.com/api/docs/guides/fast-mode) at twice Standard:
+$2 input, $0.10 cached input, $2.50 cache writes (30 minutes), and $10 output per million
+tokens. Reasoning tokens are already included in output tokens and are charged once.
+At the profile's input/output ceilings, the maximum calculated token cost is $0.101920,
+below the $0.12 reservation. Rates are frozen as of 2026-10-27 in the versioned policy.
+
 The staged corpus contains 80 must-accept cases (20 quiet, 20 requiring genuine human
 review, 20 follow-up contracts, 20 ordinary), 80 adversarial cases, 40 non-reading cases,
 and 40 lifecycle/privacy/import sequences. Four related cases stay together; splits are
@@ -35,7 +51,8 @@ An operator executes only with `--execute --permit /absolute/protected/permit.js
 The permit is a mode-0600 regular file, not a web request. It binds:
 
 - `version: reflection-evaluation-permit.v1`, `scope: evaluation`, a unique `runId`,
-  `purpose: transport-smoke|synthetic-research|human-review`, authorizer and authorization/expiry times;
+  `purpose: transport-smoke|synthetic-research|human-review|human-review-fast-xhigh`,
+  authorizer and authorization/expiry times;
 - actual `projectId`, SHA-256 `credentialHash` of the selected key, model and
   policy/content/corpus/manifest hashes;
 - `maxCalls` (at most 720), `maxConcurrency` (at most 2), `maxCostMicrousd` (at most
@@ -53,7 +70,8 @@ test environment; never move or delete that directory to restart a spent run. It
 tombstones apply across output locations. A per-run SQLite execution lock is released by
 the OS after a crash. FULL-synchronous append-only reservations commit before dispatch,
 and transactions serialize competing reservations. An interrupted attempt retains the
-full 40,000-microUSD reservation. `--resume` requires the identical permit and skips every
+full policy reservation (40,000 microUSD for Standard or 120,000 for fast/xhigh).
+`--resume` requires the identical permit and skips every
 reserved attempt, including those with no durable response. Run IDs cannot be recreated.
 
 Known receipts reconcile actual disjoint input/cache-read/cache-write/output costs,

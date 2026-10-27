@@ -41,3 +41,29 @@ export const READING_PROVIDER_POLICY = {
 } as const;
 
 export type ReadingProviderPolicy = typeof READING_PROVIDER_POLICY;
+
+/** Separate research policy: existing application qualification never authorizes this profile. */
+export const FAST_XHIGH_EVALUATION_POLICY = {
+  ...READING_PROVIDER_POLICY,
+  version: 'reading-evaluation-fast-xhigh.v1',
+  request: {
+    ...READING_PROVIDER_POLICY.request,
+    reasoning: { effort: 'xhigh' },
+    // Reasoning and the final answer share the output allowance.
+    max_output_tokens: 8192,
+    service_tier: 'fast',
+  },
+  timeoutMs: 60000,
+  reservationMicrousd: 120000,
+  priceBasis: {
+    ...READING_PROVIDER_POLICY.priceBasis,
+    version: 'openai-fast-short-context-30m.2026-10-27',
+    // Terra Fast mode is 2x Standard, including cache reads and writes.
+    inputMicrousdPerMillion: 2000000,
+    cachedInputMicrousdPerMillion: 100000,
+    cacheWriteMicrousdPerMillion: 2500000,
+    outputMicrousdPerMillion: 10000000,
+  },
+} as const;
+
+export type WriterProviderPolicy = ReadingProviderPolicy | typeof FAST_XHIGH_EVALUATION_POLICY;

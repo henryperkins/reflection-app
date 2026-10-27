@@ -1,5 +1,8 @@
 import { afterEach, beforeAll, expect, test, vi } from 'vitest';
-import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
+import {
+  FAST_XHIGH_EVALUATION_POLICY,
+  READING_PROVIDER_POLICY,
+} from '../../src/contracts/provider-policy.ts';
 import type { WritingProvider } from '../../src/contracts/index.ts';
 import { buildPlan } from '../../src/domain/tarot/plan.ts';
 import { projectWriterPayload } from '../../src/domain/tarot/render.ts';
@@ -134,6 +137,114 @@ test('transport can be shared without an application qualification', async () =>
     receipt: knownReceipt,
   });
 });
+
+async function fastInput(): Promise<Parameters<WritingProvider['write']>[0]> {
+  return {
+    ...input(),
+    payload: await projectWriterPayload(
+      await buildPlan(await syntheticPlanInput()),
+      FAST_XHIGH_EVALUATION_POLICY,
+    ),
+    reasoning: 'xhigh',
+    timeoutMs: 60000,
+    maxOutputTokens: 8192,
+  };
+}
+const reasoningItem = { id: 'rs_synthetic', type: 'reasoning', summary: [] };
+
+test('xhigh transport sends fast settings and extracts only the final message after reasoning items', async () => {
+  const supplied = await fastInput();
+  const body = {
+    ...envelope(),
+    service_tier: 'fast',
+    usage: { ...envelope().usage, output_tokens_details: { reasoning_tokens: 80 } },
+    output: [reasoningItem, ...envelope().output],
+  };
+  let calls = 0;
+  const writer = new OpenAIResponsesTransport({
+    apiKey: 'synthetic-test-only-key',
+    policy: FAST_XHIGH_EVALUATION_POLICY,
+    fetch: async (_url, init) => {
+      calls++;
+      expect(JSON.parse(new TextDecoder().decode(init!.body as Uint8Array))).toMatchObject({
+        reasoning: { effort: 'xhigh' },
+        service_tier: 'fast',
+        max_output_tokens: 8192,
+      });
+      return Response.json(body);
+    },
+  });
+  expect(await writer.write(supplied)).toMatchObject({
+    kind: 'candidate',
+    candidate,
+    receipt: { serviceTier: 'fast', usage: { outputTokens: 100, reasoningTokens: 80 } },
+  });
+  expect(calls).toBe(1);
+  // A baseline-qualified application still refuses these new request settings before fetch.
+  expect(
+    await new OpenAIWritingProvider(
+      options(async () => {
+        calls++;
+        return Response.json(body);
+      }),
+    ).write(supplied),
+  ).toMatchObject({ kind: 'rejected', status: 400 });
+  expect(calls).toBe(1);
+});
+
+test.each([
+  'tool',
+  'duplicate-message',
+  'missing-message',
+  'malformed-reasoning',
+  'incomplete',
+  'refusal',
+  'tier-downgrade',
+])(
+  'xhigh transport retains usage and handles %s without treating reasoning as a reading',
+  async (kind) => {
+    const body: Record<string, unknown> = {
+      ...envelope(),
+      service_tier: 'fast',
+      output: [reasoningItem, ...envelope().output],
+    };
+    if (kind === 'tool')
+      body.output = [
+        reasoningItem,
+        { type: 'function_call', name: 'forbidden' },
+        ...envelope().output,
+      ];
+    if (kind === 'duplicate-message')
+      body.output = [reasoningItem, ...envelope().output, ...envelope().output];
+    if (kind === 'missing-message') body.output = [reasoningItem];
+    if (kind === 'malformed-reasoning')
+      body.output = [{ ...reasoningItem, summary: 'invalid' }, ...envelope().output];
+    if (kind === 'incomplete') body.status = 'incomplete';
+    if (kind === 'refusal')
+      body.output = [
+        reasoningItem,
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'refusal', refusal: 'SYNTHETIC refusal' }],
+        },
+      ];
+    if (kind === 'tier-downgrade') body.service_tier = 'default';
+    const writer = new OpenAIResponsesTransport({
+      apiKey: 'synthetic-test-only-key',
+      policy: FAST_XHIGH_EVALUATION_POLICY,
+      fetch: async () => Response.json(body),
+    });
+    expect(await writer.write(await fastInput())).toMatchObject({
+      kind: kind === 'refusal' ? 'refusal' : kind === 'tier-downgrade' ? 'uncertain' : 'invalid',
+      ...(kind === 'tier-downgrade' ? { haltGeneration: true } : {}),
+      receipt: {
+        serviceTier: kind === 'tier-downgrade' ? 'default' : 'fast',
+        usage: knownReceipt.usage,
+      },
+    });
+  },
+);
 
 test('transport rejects tools, prior state, altered fixed prompts and unauthorized options without fetch', async () => {
   let calls = 0;

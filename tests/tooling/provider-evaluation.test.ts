@@ -13,6 +13,7 @@ import {
   type EvaluationPermit,
   digest,
   purgeExpiredEvaluationArchives,
+  validatePermit,
 } from '../../scripts/provider-evaluation-state.ts';
 import type { WriterOutcome, WritingProvider } from '../../src/contracts/index.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
@@ -33,8 +34,11 @@ const known: WriterOutcome = {
   kind: 'refusal',
   receipt: providerReceipt({ returnedModel: 'gpt-6.1-terra' }),
 };
-async function fixture(patch: Partial<EvaluationPermit> = {}) {
-  const prepared = await prepareEvaluation('smoke');
+async function fixture(
+  patch: Partial<EvaluationPermit> = {},
+  profile: Parameters<typeof prepareEvaluation>[0] = 'smoke',
+) {
+  const prepared = await prepareEvaluation(profile);
   const directory = mkdtempSync(join(tmpdir(), 'reflection-evaluation-'));
   directories.push(directory);
   const key = new Uint8Array(32).fill(13);
@@ -104,6 +108,110 @@ test('human-review profile freezes only the 20 explicitly requested prompts with
   expect(prepared.manifest.maximumScheduledMicrousd).toBe(800000);
   expect(prepared.manifestHash).not.toBe((await prepareEvaluation('smoke')).manifestHash);
   expect(prepared.manifestHash).not.toBe((await prepareEvaluation('baseline')).manifestHash);
+});
+
+test('fast xhigh review preserves the same 20 prompts and draws with a separately bound policy and budget', async () => {
+  const result = await runEvaluationCli(['--dry-run', '--profile', 'human-review-fast-xhigh'], {});
+  expect(result).toMatchObject({ mode: 'dry-run', calls: 0, qualificationEligible: false });
+  const baseline = await prepareEvaluation('human-review');
+  const fast = await prepareEvaluation('human-review-fast-xhigh');
+  expect(baseline.manifestHash).toBe(
+    '8bc5d6f4bb6d6ea645f04ee50c9ed42cdd15ca3e2801c2b3c02ff2c86aa30047',
+  );
+  expect(fast.manifest.policyHash).not.toBe(baseline.manifest.policyHash);
+  expect(fast.manifestHash).not.toBe(baseline.manifestHash);
+  expect(fast.manifest.contentHash).toBe(baseline.manifest.contentHash);
+  expect(fast.manifest.maximumScheduledMicrousd).toBe(2400000);
+  expect(fast.requests.map((r) => r.caseId)).toEqual(baseline.requests.map((r) => r.caseId));
+  for (const [i, request] of fast.requests.entries()) {
+    const body = JSON.parse(new TextDecoder().decode(request.input.payload));
+    expect(body).toMatchObject({
+      model: 'gpt-6.1-terra',
+      reasoning: { effort: 'xhigh' },
+      service_tier: 'fast',
+      max_output_tokens: 8192,
+      store: false,
+    });
+    expect(body.input).toEqual(
+      JSON.parse(new TextDecoder().decode(baseline.requests[i]!.input.payload)).input,
+    );
+    expect(request.input).toMatchObject({
+      reasoning: 'xhigh',
+      timeoutMs: 60000,
+      maxOutputTokens: 8192,
+    });
+  }
+});
+
+test('fast evaluation binds the policy and cannot reuse standard or application authorization', async () => {
+  const f = await fixture({ purpose: 'human-review-fast-xhigh' }, 'human-review-fast-xhigh');
+  expect(validatePermit(f.permit, f.prepared)).toEqual(f.permit);
+  expect(() => validatePermit({ ...f.permit, purpose: 'human-review' }, f.prepared)).toThrow();
+  expect(() =>
+    validatePermit(f.permit, { ...f.prepared, policy: READING_PROVIDER_POLICY }),
+  ).toThrow();
+  const writer = new OpenAIWritingProvider({ enabled: true, qualification: f.permit });
+  expect(await writer.write(f.prepared.requests[0]!.input)).toMatchObject({
+    kind: 'rejected',
+    status: 503,
+  });
+});
+
+test('fast unknown calls retain the larger reservation after recovery and are never resent', async () => {
+  const f = await fixture(
+    { purpose: 'human-review-fast-xhigh', maxCostMicrousd: 240000 },
+    'human-review-fast-xhigh',
+  );
+  const journal = f.open();
+  journal.reserve(f.prepared.requests[0]!.id);
+  journal.close();
+  const ids: string[] = [];
+  const result = await runEvaluation(
+    f.permit,
+    {
+      write: async (input) => {
+        ids.push(input.dispatchId);
+        return { kind: 'uncertain', reason: 'network', receipt: null };
+      },
+    },
+    f.open(true),
+  );
+  expect(ids).toEqual([f.prepared.requests[1]!.id]);
+  expect(result).toMatchObject({
+    attempts: 2,
+    unknown: 2,
+    chargedMicrousd: 240000,
+    status: 'budget-exhausted',
+  });
+});
+
+test('fast journal reconciles actual premium costs and halts if the returned tier changes', async () => {
+  const f = await fixture({ purpose: 'human-review-fast-xhigh' }, 'human-review-fast-xhigh');
+  const journal = f.open();
+  const [first, second] = f.prepared.requests;
+  journal.reserve(first!.id);
+  journal.recordReceipt(first!.id, {
+    kind: 'refusal',
+    receipt: providerReceipt({ returnedModel: 'gpt-6.1-terra', serviceTier: 'fast' }),
+  });
+  expect(journal.summary()).toMatchObject({
+    receipts: 1,
+    refused: 1,
+    chargedMicrousd: 340,
+    status: 'budget-exhausted',
+  });
+  // Insufficient allowance must stop before reserving a second fast request.
+  expect(journal.reserve(second!.id)).toBeNull();
+  const drift = await fixture({ purpose: 'human-review-fast-xhigh' }, 'human-review-fast-xhigh');
+  const driftJournal = drift.open();
+  driftJournal.reserve(drift.prepared.requests[0]!.id);
+  driftJournal.recordReceipt(drift.prepared.requests[0]!.id, known);
+  expect(driftJournal.summary()).toMatchObject({
+    receipts: 0,
+    unknown: 1,
+    chargedMicrousd: 120000,
+    status: 'halted',
+  });
 });
 
 test.each([

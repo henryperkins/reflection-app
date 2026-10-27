@@ -908,10 +908,10 @@ export interface WritingProvider {
     dispatchId: string;
     model: 'gpt-6.1-terra';
     payload: Uint8Array;
-    timeoutMs: 18000;
-    maxOutputTokens: 1600;
+    timeoutMs: 18000 | 60000;
+    maxOutputTokens: 1600 | 8192;
     store: false;
-    reasoning: 'none';
+    reasoning: 'none' | 'xhigh';
     signal: AbortSignal;
   }): Promise<WriterOutcome>;
 } // One call; no SDK auto-retries, tools, moderation call, or implicit provider state.
