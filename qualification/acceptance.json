@@ -19,7 +19,7 @@
     {
       "id": "provider",
       "status": "pending",
-      "reason": "L6 qualified dependency integration is implemented; no L7 qualification exists for reading-provider-policy.v2. The staged proposal awaits signed content, reviewed corpus, project privacy/access evidence, human output scoring and billing reconciliation. Earlier live diagnostics do not complete this gate."
+      "reason": "L6 integration and the owner-revised four-case L7 development check are complete. Production qualification for reading-provider-policy.v2 remains deferred: signed content, reviewed corpus, project privacy/access evidence, human output scoring and billing reconciliation are still required. The small check does not complete this production gate; see docs/superpowers/evidence/2026-10-27-four-case-live-check.md."
     },
     {
       "id": "release",

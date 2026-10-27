@@ -1,5 +1,10 @@
 # Reading v2 editorial candidate
 
+**Follow-up:** L6 now binds these editorial instructions into its distinct application
+policy. The owner then authorized the four-call candidate check, which
+[completed successfully](2026-10-27-four-case-live-check.md). The candidate-freeze record
+below describes the earlier state; its original outputs and freeze remain unchanged.
+
 V2 remains the development baseline. This separate candidate addresses the supplied editorial review: preserve the scope of constraints, use source limits without repeatedly explaining safeguards, preserve the reader's degree of evaluation, and permit shorter complete readings. No additional provider calls or production promotion are part of this change.
 
 The baseline profile `reading-v2-development-fast-xhigh` remains byte-for-byte reproducible with manifest `5e34ff3260f18e2078aa54233bc6fc3015f77ac97165c0802c15fdfbbc2a3945`. The four original outputs and their live evidence remain unchanged. I02 is retained as an editorial failure of constraint fidelity even though its mechanical screen accepted it. I01, I03 and I04 remain useful development examples with the tightening described below; this is not signed human acceptance.

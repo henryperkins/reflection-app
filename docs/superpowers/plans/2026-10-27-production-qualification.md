@@ -45,7 +45,7 @@ flowchart TD
   K --> P4
   P2 --> P5[P5: operations and alert delivery]
   P3 --> P6[P6: authenticators and accessibility]
-  E[Approved content and live evaluation: L3/L7] --> P7[P7: final evidence and launch packet]
+  E[Approved content and full provider qualification] --> P7[P7: final evidence and launch packet]
   P4 --> P7
   P5 --> P7
   P6 --> P7
@@ -72,7 +72,7 @@ The repository's `$10/day`, `$100/month`, `$40` evaluation caps and backup windo
 | `identity` | P1/P6 | `hosted-synthetic`: exact origin/RP ID; physical/synced passkeys; same-account complete-kit recovery and unchanged saved reading |
 | `keys` | K1–K4/P4 | `hosted-synthetic`: secret custody, resumable rekey/rewrap, retained receipts, complete inventory, safe retirement and key-loss refusal |
 | `content` | L3 | `human-review`: exact launch sources, positions, fallbacks, product/privacy copy, rights and attribution approved by named humans |
-| `provider` | L7 | `provider-evaluation`: GPT-6.1 Terra project/privacy settings, frozen corpus, human quality scores, bounded latency/tokens, actual cost reconciliation |
+| `provider` | Deferred full qualification, original L7 scope | `provider-evaluation`: GPT-6.1 Terra project/privacy settings, frozen corpus, human quality scores, bounded latency/tokens, actual cost reconciliation |
 | `release` | P3 | `hosted-synthetic`: failed main build blocks release, non-main production attempt rejected, preview credentials cannot access production markers |
 | `database` | P2/P4 | `hosted-synthetic`: actual D1 rollback/races, overlap/missed Cron, crash recovery, no duplicate publication/quota/call |
 | `restore` | P4 | `hosted-synthetic`: stale snapshot replay preserves erasure/factor/code/permission/spend fences; independent loss stays offline; measured RPO/RTO |

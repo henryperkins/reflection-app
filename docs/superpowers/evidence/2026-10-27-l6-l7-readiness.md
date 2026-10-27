@@ -1,5 +1,11 @@
 # L6 integration and L7 readiness
 
+**Subsequent scope decision:** The owner approved a four-call development check instead
+of the immediate large qualification. I01–I04 completed with four accepted outputs,
+$0.129070 calculated cost and 27.889-second mean provider duration. See the
+[results](2026-10-27-four-case-live-check.md). The large proposal and production evidence
+requirements below are deferred; they are not blockers for that completed checkpoint.
+
 The application now has a shared `ReadingGeneration` lifecycle with explicit content,
 policy, writer, and readiness dependencies. The local simulation owns its bootstrap and
 migration in a separate wrapper. The default Worker still has no live dependency factory.
@@ -27,7 +33,7 @@ provider deadline. Qualification of earlier evaluation profiles does not qualify
   provider credentials or AI consent. Live transmission exports preserve their receipts.
 - OpenAI model output, prepared templates and local simulation have distinct attribution.
 
-## Proposed L7 run
+## Deferred production qualification proposal
 
 The machine-readable [proposal](../../../qualification/evidence/provider-v2-proposal.json)
 is deliberately **not executable** and contains no permit or qualification receipt.
@@ -84,4 +90,5 @@ cannot supply human grounding or usefulness scores. A small sample cannot establ
 population-level one-percent escape guarantee.
 
 No new paid API calls, human approvals, production qualifications or activation occurred
-in this integration task. All ten production acceptance gates remain pending.
+during the L6 integration itself. The later four-call development run is recorded above.
+All ten production acceptance gates remain pending.

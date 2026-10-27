@@ -10,6 +10,11 @@
 
 **Spec:** [Generation](../../architecture/GENERATION.md), [verification](../../architecture/VERIFICATION_PLAN.md), [current application inventory](../../MILESTONE_2_ACCEPTANCE.md), [production acceptance](../../PRODUCTION_ACCEPTANCE.md), and the owner's 2026-10-27 selection of live-AI/production planning and GPT-6.1 Terra. That model selection supersedes the specification's GPT-5.6 Terra target for new generation; historical saved provenance remains unchanged.
 
+**Scope update, 2026-10-27:** The owner approved a smaller immediate L7: I01–I04 once
+with the frozen editorial candidate, fast/xhigh and a $0.64 cap. That development check
+is complete; see [results](../evidence/2026-10-27-four-case-live-check.md).
+The original full provider qualification is preserved below as deferred production work.
+
 ## Global Constraints
 
 - Baseline: clean `main` at `a553695`. This plan is based on source and test definitions, not a new execution receipt.
@@ -40,7 +45,8 @@
 | L1–L4: policy, transport, content admission and accounting | Existing implementation | Deterministic tests; no network |
 | L5: resumable evaluation harness | L1–L4 | Dry-run budget, privacy and crash tests |
 | L6: shared application generation | L1–L4 | Existing and new integrated application tests |
-| L7: actual provider qualification | L5/L6, human content approval, project settings and evaluation authorization | Frozen corpus, human rubric, measured usage/cost and provider receipt |
+| L7: small live development check (revised scope) | L5/L6, frozen editorial candidate and owner-authorized four-call cap | I01–I04 actual outputs, editorial review, usage/latency and completed-run resume check |
+| Deferred production provider qualification | Human-approved content, project settings, final corpus and separate run authorization | Human rubric, usage/billing reconciliation and production provider receipt |
 | Hosted experience | [Production plan](2026-10-27-production-qualification.md) | All ten production gates and a separate rollout decision |
 
 L5 and L6 can be developed independently after their dependencies. Production preparation can proceed while content review is pending. No task can manufacture missing human approval or infer API project access from public model documentation.
@@ -141,7 +147,26 @@ L5 implementation note: the CLI, durable encrypted journal, fixed synthetic corp
 - [x] On policy upgrade, obsolete prepared work terminates with a visible retry action; authorized work is not dispatched again. Durable received candidates must either validate under their retained original policy or terminalize; they are never reinterpreted under the new model. Saved editions remain immutable.
 - [x] Preserve parent/selection rejection and all consent-off record actions. Missing provider credentials or qualification blocks generation, not saved-content access. Rerun targeted domain/D1/browser checks, then `npm run verify` once on the completed candidate; commit the integration with live transport still gated.
 
-## L7 — Run qualification and issue a production-scoped provider receipt
+## L7 — Small live development check (owner-revised scope)
+
+- [x] Reuse the frozen `reading-v2-editorial-fast-xhigh` candidate for I01–I04, one call
+  each, with unchanged sources, draws, schema and fast/xhigh settings; cap spending at $0.64.
+- [x] Verify dry-run request identity and budget before dispatch. Use the existing
+  encrypted evaluation journal; do not add another harness.
+- [x] Execute the four authorized calls. All four passed automated validation; calculated
+  cost was $0.129070 and mean provider duration was 27.889 seconds.
+- [x] Review exact inputs and outputs for constraint fidelity, useful interpretation/action
+  and repeated qualification. No material targeted defect was observed; I02 preserves
+  the reader's definition of extra commitments. Retain unchanged outputs for review.
+- [x] Verify that resuming the completed run sends no calls. Record the
+  [results and limits](../evidence/2026-10-27-four-case-live-check.md).
+
+This checkpoint is complete. It does not issue a production-scoped provider receipt.
+
+## Deferred — Production provider qualification (original L7 scope)
+
+The owner moved this broader exercise to production readiness. These requirements remain
+open; they do not block completion of the smaller development check above.
 
 **Files/evidence:** `qualification/evidence/provider-*.json`, `qualification/evidence/content-*.json`, `evaluation/manifest.json`; update `qualification/acceptance.json` only after actual gate completion. Raw evaluation material stays in the approved external encrypted store.
 
@@ -156,10 +181,25 @@ L5 implementation note: the CLI, durable encrypted journal, fixed synthetic corp
 
 ## Handoff
 
-The first implementation slice is L1/L2 under network denial. Content review can begin from L3's review packet; there is no need to rebuild the save/history/reflection/privacy screens. Continue with [key lifecycle](2026-10-27-production-key-lifecycle.md) and [production qualification](2026-10-27-production-qualification.md). The owner approved native execution. L1–L5 implementation is present in the isolated worktree; L6 integration is implemented and verified; L5 genuine human-approved corpus examples and L7 qualification remain pending. The original L3 review packet is in `docs/content-review/2026-10-27-launch-canon.md`; the current v2 packet is `docs/content-review/2026-10-27-reading-canon-v2.md`; the catalog still requires genuine human approval and rights clearance. Verification and independent review evidence is recorded in the execution ledger and `artifacts/verify.json`. L5 includes an explicitly authorized three-call synthetic live smoke run; no application qualification, hosted provisioning or production activation was performed. All production acceptance gates remain pending.
+L1–L5 implementation and verified L6 integration are present in the isolated worktree.
+The owner-revised L7 development check is complete. Continue with
+[key lifecycle](2026-10-27-production-key-lifecycle.md) and
+[production qualification](2026-10-27-production-qualification.md) when that work is requested.
+The human-approved corpus, catalog rights/review and broader provider qualification remain
+production work. The current catalog packet is
+`docs/content-review/2026-10-27-reading-canon-v2.md`. Verification and independent review
+evidence is recorded in the execution ledger and `artifacts/verify.json`; the new live
+results are linked above. No production receipt, hosted provisioning or production
+activation was performed. All production acceptance gates remain pending.
 
 ## L6/L7 continuation — current v2 candidate
 
 The subsequent v2 context/output and editorial work supersedes the v1 generation limits above for new application qualification. The candidate retains fast/xhigh, 8,192 total output tokens, a 60-second provider deadline, 16,384 conservative input tokens (16,128 payload bytes plus framing), and a $0.16 reservation. It has its own application policy identity; earlier evaluation permits and receipts do not qualify it.
 
-See [integration and readiness](../evidence/2026-10-27-l6-l7-readiness.md) and the non-executable [L7 proposal](../../../qualification/evidence/provider-v2-proposal.json). The proposal identifies 144 possible calls/$23.04 and 100 offline checks, subject to final content and corpus review. Genuine human content/rights approval, a responsible reviewer, actual project privacy evidence and final corpus are still missing. The user's broad approval authorizes continued work; it does not manufacture those facts. L7 is pending, and production remains a separate decision.
+See [integration and readiness](../evidence/2026-10-27-l6-l7-readiness.md) and the completed
+[four-case development check](../evidence/2026-10-27-four-case-live-check.md). The retained,
+non-executable [production proposal](../../../qualification/evidence/provider-v2-proposal.json)
+identifies 144 possible calls/$23.04 and 100 offline checks. It is deferred, subject to
+final content/corpus review, responsible human review and actual project privacy evidence.
+The completed small check does not authorize that larger run. Production remains a
+separate decision.
