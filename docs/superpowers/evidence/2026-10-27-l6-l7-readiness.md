@@ -40,7 +40,9 @@ four development regressions. Current admission rules produce **144 potential pr
 calls and 100 offline checks**. The hard reservation ceiling is **$23.04**, at most two
 concurrent calls and one attempt per case, with no retries or comparison arms. These are
 proposal bounds, not spending already performed or authority to execute an unfrozen run.
-Follow-up cases test explicit rejection; saved history remains disabled.
+Follow-up cases test explicit rejection; saved history remains disabled. Draw seeds use
+SHA-256 of the raw UTF-8 group text, matching the existing evaluation builders. I01–I04
+retain their original questions, draws and meaning packages.
 
 The run would use the existing external encrypted archive under
 `~/.local/state/reflection-provider-evaluation`, a separate run directory, and 90-day
@@ -61,8 +63,9 @@ before final freezing. Any replacement changes the proposal, cost bounds and man
    covers all 156 orientation packages, positions, fallbacks and copy. All 156 currently
    remain agent-reviewed with unknown rights; the owner's broad instruction to proceed
    does not change those facts.
-2. The actual target project/environment and evidence of model access, retention and
-   data-sharing settings, current pricing and eventual isolated-project billing.
+2. The target environment and evidence of model access, retention and data-sharing
+   settings, current pricing and eventual isolated-project billing. The project ID was
+   already supplied through `.env`; retain that value in the external permit.
    The connected Platform tools available here support key setup; they do not expose
    these project privacy or billing settings.
 3. Final corpus review, execution under a hash-bound permit, responsible human scoring,
