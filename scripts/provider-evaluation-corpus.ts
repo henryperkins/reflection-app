@@ -7,6 +7,7 @@ import {
   FAST_XHIGH_EVALUATION_POLICY,
   READING_PROVIDER_POLICY,
   UNCERTAINTY_EVALUATION_POLICY,
+  CONCISE_UNCERTAINTY_EVALUATION_POLICY,
   type WriterProviderPolicy,
 } from '../src/contracts/provider-policy.ts';
 import { providerPolicyHash } from '../src/domain/provider-policy.ts';
@@ -52,7 +53,13 @@ export type EvaluationManifest = {
     | 'human-review'
     | 'human-review-fast-xhigh'
     | 'source-diagnostic-fast-xhigh'
-    | 'prompt-comparison-fast-xhigh';
+    | 'prompt-comparison-fast-xhigh'
+    | 'independent-context-fast-xhigh';
+  independentContexts?: {
+    parentManifestHash: string;
+    contextsHash: string;
+    scope: 'new-contexts-same-source-draws';
+  };
   promptComparison?: {
     parentManifestHash: string;
     oldPolicyHash: string;
@@ -109,6 +116,7 @@ export async function prepareEvaluation(
 ): Promise<PreparedEvaluation> {
   if (profile === 'source-diagnostic-fast-xhigh') return prepareSourceDiagnostic(sourceBundle);
   if (profile === 'prompt-comparison-fast-xhigh') return preparePromptComparison(sourceBundle);
+  if (profile === 'independent-context-fast-xhigh') return prepareIndependentContexts(sourceBundle);
   if (sourceBundle !== undefined) throw new Error('Source bundle requires a diagnostic profile');
   const policy =
     profile === 'human-review-fast-xhigh' ? FAST_XHIGH_EVALUATION_POLICY : READING_PROVIDER_POLICY;
@@ -437,4 +445,108 @@ export function evaluationPolicyForRequest(
   if (slot?.variant === 'revised-prompt') return UNCERTAINTY_EVALUATION_POLICY;
   if (slot?.variant === 'old-prompt') return prepared.policy;
   throw new Error('Unknown prompt comparison arm');
+}
+
+export const INDEPENDENT_READING_CONTEXTS = [
+  {
+    id: 'I01',
+    sourceCaseId: 'A07-2',
+    question:
+      'I am comparing my illustration newsletter with a small print project. The newsletter is running smoothly. The workload is manageable. My goal is to finish a cohesive collection. How can I compare the formats while preserving what already works?',
+  },
+  {
+    id: 'I02',
+    sourceCaseId: 'A07-2',
+    question:
+      'I ended an unused study group and kept its shared resource list. I am choosing between paired reading sessions and a discussion channel. How can I compare these formats without taking on extra commitments?',
+  },
+  {
+    id: 'I03',
+    sourceCaseId: 'A08-1',
+    question:
+      'My writing group is welcoming, my desk setup works, and I am not discouraged. I feel stuck on the opening of a short story. What could I try while keeping those supports?',
+  },
+  {
+    id: 'I04',
+    sourceCaseId: 'A08-1',
+    question:
+      'I feel discouraged after my sketches did not match what I imagined, but a drawing session with a friend helped. How can I approach another sketch without abandoning my current routine?',
+  },
+] as const;
+
+async function prepareIndependentContexts(value: unknown): Promise<PreparedEvaluation> {
+  const parent = await prepareSourceDiagnostic(value),
+    policy = CONCISE_UNCERTAINTY_EVALUATION_POLICY;
+  const policyHash = await providerPolicyHash(policy),
+    contextsHash = digest(canonicalJson(INDEPENDENT_READING_CONTEXTS));
+  const manifest: EvaluationManifest = {
+    ...parent.manifest,
+    profile: 'independent-context-fast-xhigh',
+    policyHash,
+    independentContexts: {
+      parentManifestHash: parent.manifestHash,
+      contextsHash,
+      scope: 'new-contexts-same-source-draws',
+    },
+    corpusHash: digest(
+      canonicalJson({ parentCorpusHash: parent.manifest.corpusHash, contextsHash }),
+    ),
+    counts: { mustAccept: 4, adversarial: 0, nonReading: 0, lifecycle: 0 },
+    splits: { development: 4, calibration: 0, holdout: 0 },
+    humanReviewRequired: 4,
+    maximumScheduledMicrousd: 480000,
+    schedule: [],
+    blockers: [
+      'New synthetic contexts reuse the same source/draw bundles; no statistical independence or qualification claimed',
+      'AI source review and single attempts do not establish human acceptance',
+    ],
+  };
+  const requests: EvaluationRequest[] = [];
+  for (const context of INDEPENDENT_READING_CONTEXTS) {
+    if (inputAdmission(context.question, 'en'))
+      throw new Error('Independent context failed admission');
+    const original = parent.requests.find(
+      (r) => r.id === `${context.sourceCaseId}.distinct-source.1`,
+    )!;
+    const body = JSON.parse(new TextDecoder().decode(original.input.payload)),
+      data = JSON.parse(body.input[2].content);
+    data.question = context.question;
+    body.input[2].content = JSON.stringify(data);
+    body.input[1].content = policy.prompt.developer;
+    const payload = new TextEncoder().encode(JSON.stringify(body)),
+      estimatedInputTokens = payload.length + policy.estimator.framingTokens;
+    if (
+      payload.length > policy.estimator.maxPayloadBytes ||
+      estimatedInputTokens > policy.estimator.maxInputTokens
+    )
+      throw new Error('INPUT_TOO_LARGE: independent context');
+    const id = `${context.id}.concise-prompt.1`,
+      payloadHash = digest(payload);
+    const plan = {
+      ...original.plan,
+      question: context.question,
+      generationPolicyHash: policyHash,
+      promptHash: await sha256Json(policy.prompt),
+    };
+    requests.push({
+      ...original,
+      id,
+      caseId: context.id,
+      plan,
+      payloadHash,
+      estimatedInputTokens,
+      input: { ...original.input, dispatchId: id, payload },
+    });
+    manifest.schedule.push({
+      id,
+      caseId: context.id,
+      group: context.sourceCaseId,
+      split: 'development',
+      variant: 'concise-prompt',
+      repeat: 1,
+      payloadHash,
+      admission: null,
+    });
+  }
+  return { policy, manifest, manifestHash: digest(canonicalJson(manifest)), requests };
 }

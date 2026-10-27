@@ -108,15 +108,24 @@ function liveWriter(
     },
     async write(input) {
       const policy = evaluationPolicyForRequest(prepared, input.dispatchId);
+      const startedAt = new Date().toISOString();
+      let fetchStartedAt: string | null = null,
+        responseHeadersAt: string | null = null,
+        providerRequestId: string | null = null,
+        fetchInvocations = 0;
       const chunks: Uint8Array[] = [];
       let length = 0,
         complete = false,
         mismatch = false;
       let status: number | null = null;
       const capturedFetch: typeof fetch = async (url, init) => {
+        fetchInvocations++;
+        fetchStartedAt = new Date().toISOString();
         const headers = new Headers(init?.headers);
         headers.set('OpenAI-Project', projectId);
         const response = await fetcher(url, { ...init, headers });
+        responseHeadersAt = new Date().toISOString();
+        providerRequestId = response.headers.get('x-request-id')?.slice(0, 300) ?? null;
         status = response.status;
         const returnedProject = response.headers.get('openai-project');
         mismatch = returnedProject !== null && returnedProject !== projectId;
@@ -151,6 +160,12 @@ function liveWriter(
         policy,
       }).write(input);
       captures.set(input.dispatchId, {
+        startedAt,
+        fetchStartedAt,
+        responseHeadersAt,
+        finishedAt: new Date().toISOString(),
+        providerRequestId,
+        fetchInvocations,
         status,
         complete,
         boundedBytes: length,
@@ -192,6 +207,7 @@ export async function runEvaluationCli(
         'provider:evaluate -- --dry-run [--profile baseline|smoke|human-review|human-review-fast-xhigh]',
         'provider:evaluate -- --dry-run --profile source-diagnostic-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --dry-run --profile prompt-comparison-fast-xhigh --source-bundle /protected/sources.json',
+        'provider:evaluate -- --dry-run --profile independent-context-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --execute --permit /protected/permit.json [--resume]',
         'provider:evaluate -- --purge-expired',
       ],
@@ -216,11 +232,14 @@ export async function runEvaluationCli(
       profile !== 'human-review' &&
       profile !== 'human-review-fast-xhigh' &&
       profile !== 'source-diagnostic-fast-xhigh' &&
-      profile !== 'prompt-comparison-fast-xhigh'
+      profile !== 'prompt-comparison-fast-xhigh' &&
+      profile !== 'independent-context-fast-xhigh'
     )
       throw new Error('Invalid evaluation profile');
     const diagnostic =
-      profile === 'source-diagnostic-fast-xhigh' || profile === 'prompt-comparison-fast-xhigh';
+      profile === 'source-diagnostic-fast-xhigh' ||
+      profile === 'prompt-comparison-fast-xhigh' ||
+      profile === 'independent-context-fast-xhigh';
     if (diagnostic ? argv.length !== 5 || argv[3] !== '--source-bundle' : argv.length > 3)
       throw new Error('Diagnostic source bundle required only for diagnostic profile');
     const prepared = await prepareEvaluation(
@@ -263,7 +282,8 @@ export async function runEvaluationCli(
         ? 'baseline'
         : permit.purpose,
     (permit.purpose === 'source-diagnostic-fast-xhigh' ||
-      permit.purpose === 'prompt-comparison-fast-xhigh') &&
+      permit.purpose === 'prompt-comparison-fast-xhigh' ||
+      permit.purpose === 'independent-context-fast-xhigh') &&
       permit.sourceBundlePath
       ? diagnosticBundle(permit.sourceBundlePath)
       : undefined,

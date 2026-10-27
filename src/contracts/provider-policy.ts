@@ -82,4 +82,18 @@ export const UNCERTAINTY_EVALUATION_POLICY = {
 export type WriterProviderPolicy =
   | ReadingProviderPolicy
   | typeof FAST_XHIGH_EVALUATION_POLICY
-  | typeof UNCERTAINTY_EVALUATION_POLICY;
+  | typeof UNCERTAINTY_EVALUATION_POLICY
+  | typeof CONCISE_UNCERTAINTY_EVALUATION_POLICY;
+
+/** Candidate for new-context probes; retains v1 as the tested development reference. */
+export const CONCISE_UNCERTAINTY_EVALUATION_POLICY = {
+  ...FAST_XHIGH_EVALUATION_POLICY,
+  version: 'reading-evaluation-concise-uncertainty.v1',
+  prompt: {
+    ...FAST_XHIGH_EVALUATION_POLICY.prompt,
+    version: 'tarot-writer-concise-uncertainty.v1',
+    developer:
+      FAST_XHIGH_EVALUATION_POLICY.prompt.developer +
+      ' Keep source-based personal possibilities conditional wherever they recur, including questions, advice and closing. State facts the reader supplied within their stated scope. Do not add applicability checks to general source ideas or reasoning methods the question already supports. Use a clear condition for each hypothetical claim rather than stacked qualifications. Allow that a suggested problem is absent or an arrangement already works. Connect the supported ideas to the reader’s goal and offer a concrete optional action without treating it as chosen. End with that useful option, not repeated permission or broad reassurance.',
+  },
+} as const;

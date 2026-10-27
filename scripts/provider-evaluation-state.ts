@@ -37,6 +37,7 @@ export const EvaluationPermit = z.strictObject({
     'human-review-fast-xhigh',
     'source-diagnostic-fast-xhigh',
     'prompt-comparison-fast-xhigh',
+    'independent-context-fast-xhigh',
   ]),
   runId: z.uuid(),
   authorizedBy: z.string().trim().min(1).max(200),
@@ -77,12 +78,14 @@ type Artifact = { path: string; sha256: string; expiresAt: string; kind: string 
 type Event = { seq: number; kind: string; data: string; previous: string; mac: string };
 type Reservation = {
   attemptId: string;
+  recordedAt?: string;
   payloadHash: string;
   artifact: Artifact;
   reservedMicrousd: number;
 };
 type Receipt = {
   attemptId: string;
+  recordedAt?: string;
   outcomeHash: string;
   actualMicrousd: number | null;
   kind: WriterOutcome['kind'];
@@ -153,9 +156,14 @@ export function validatePermit(
     m.reservationMicrousd !== prepared.policy.reservationMicrousd ||
     p.contentHash !== m.contentHash ||
     p.corpusHash !== m.corpusHash ||
-    (p.purpose === 'source-diagnostic-fast-xhigh' || p.purpose === 'prompt-comparison-fast-xhigh'
+    (p.purpose === 'source-diagnostic-fast-xhigh' ||
+    p.purpose === 'prompt-comparison-fast-xhigh' ||
+    p.purpose === 'independent-context-fast-xhigh'
       ? !p.sourceBundlePath || !m.sourceDiagnostic || p.maxCalls > 12 || p.maxCostMicrousd > 1440000
       : p.sourceBundlePath !== undefined || m.sourceDiagnostic !== undefined) ||
+    (p.purpose === 'independent-context-fast-xhigh'
+      ? !m.independentContexts || p.maxCalls > 4 || p.maxCostMicrousd > 480000
+      : m.independentContexts !== undefined) ||
     (p.purpose === 'prompt-comparison-fast-xhigh'
       ? !m.promptComparison ||
         m.promptComparison.oldPolicyHash !== p.policyHash ||
@@ -382,6 +390,7 @@ export class EvaluationJournal {
         return null;
       const reservation = {
         attemptId,
+        recordedAt: new Date().toISOString(),
         payloadHash: request.payloadHash,
         reservedMicrousd: policy.reservationMicrousd,
         artifact: this.archive('request', attemptId, {
@@ -431,6 +440,7 @@ export class EvaluationJournal {
         (outcome.kind === 'rejected' && [400, 401, 403].includes(outcome.status));
       this.append('receipt', {
         attemptId,
+        recordedAt: new Date().toISOString(),
         outcomeHash,
         actualMicrousd: price?.actualMicrousd ?? null,
         kind: outcome.kind,

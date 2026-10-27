@@ -196,3 +196,65 @@ size, not proof of finished-reading quality. Costs and durations describe this s
 no general speed, cost or semantic reliability claim follows. Human review remains pending.
 The evidence packet retains all outputs unchanged, both full prompt texts, all source
 passages, exact wire requests, hashes, receipts and separately labeled AI review notes.
+
+## Concise uncertainty and new contexts
+
+The subsequent user-supplied AI editorial assessment prefers `tarot-writer-uncertainty.v1`
+as the development reference while asking for less repetitive qualification. It is not
+human acceptance. The six source passages remain unchanged. A separate evaluation-only
+`tarot-writer-concise-uncertainty.v1` distinguishes unsupplied personal circumstances from
+ordinary methods supported by the question, acknowledges supplied facts directly, and
+asks for a concrete optional action. The application prompt remains unchanged.
+
+The bounded follow-up used four new synthetic contexts, one attempt each: manageable
+creative work, an explicitly completed ending, a supportive writing environment, and
+explicitly stated discouragement. It reused the two source/draw bundles with unchanged
+schemas and fast/xhigh settings. Its fresh permit capped calls at four, concurrency at
+two and reservations at $0.48. This is a new-context probe, not a paired comparison or
+statistically independent sample.
+
+Run `a3e9d415-b031-4ba1-887f-26f75fa2f0ac` binds manifest
+`e024b7a937ee0b981cbfd4e0a46dd1c7e22d509c0c3f867bc2492170d44aa4be` and policy
+`5924d16119f95e3790416f09c82680f3b0dc1933afa8a2ce67489aafd1074369`.
+All four calls returned candidates and known usage, with no refusals or unknowns.
+Calculated cost was **$0.119424**; all four passed the mechanical screen. Local captures
+record exactly four fetch invocations, maximum observed overlap two, and requested and
+returned fast/xhigh. Resuming with a dispatch trap made zero calls.
+
+| New-context descriptive measure | Result |
+| --- | ---: |
+| Mean reading-body length | 178.75 words |
+| Mean recorded duration | 26.62 seconds |
+| Mean calculated cost | 2.9856 cents |
+| Mean reported reasoning tokens | 2,405.5 |
+
+The unblinded AI review found no clear unsupported personal circumstance asserted as fact
+in these four outputs. Supplied facts were acknowledged directly, useful arrangements
+were retained, and every closing offered a concrete optional action. Remaining weaknesses
+include layered conditional questions, applicability checks on ordinary comparison
+methods, an unnecessary contrast around encouragement, and repeated synthetic-source
+framing. The concise candidate remains provisional. These different contexts do not
+establish a causal length, latency or cost improvement, general reliability, finished
+reading acceptance, or parity with the Tarot quality target.
+
+## Evidence correction and execution provenance
+
+The original prompt-comparison packet exported A07's source-ID schema in a singular
+top-level `responseSchema`, although A08's actual requests used the correct A08 schema.
+A new `review-v2` supplement preserves the original packet and outputs and exports schemas
+by case, with each request's schema hash. Schema invariance means within-case across arms.
+
+Both the historical supplement and new probe include complete normalized outcomes and
+receipts, exact permit/policy hash inputs, original request bytes, journal events, and
+provider response projections retaining returned settings, IDs, usage and provider
+timestamps. Reasoning payload fields are omitted from those projections; exact captured
+bytes remain in the encrypted archive. HMAC and artifact authenticity were checked using
+the protected archive key, which is not exported. Hash consistency does not independently
+authenticate external execution or billing.
+
+The historical prompt-comparison run did not record local reservation/start/header/finish/
+receipt timestamps or `x-request-id`; the supplement leaves these unavailable. New runs
+record them without collecting bulk headers, and tests cover their persistence through
+normal execution and crash recovery. Direct tests also enforce the new four-call/$0.48
+permit limits and reject wrong-purpose/policy bindings. The protected review packet keeps
+all four outputs and twelve supplied source passages visible in print.

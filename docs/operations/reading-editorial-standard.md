@@ -35,6 +35,14 @@ outcome probabilities from symbols. Explicitly supplied facts remain available w
 their original scope. Specificity should come from supported ideas and useful methods,
 not from invented circumstances.
 
+Apply conditions to unsupplied personal circumstances without making ordinary methods
+sound doubtful. A request to compare choices already supports discussing criteria and
+evidence; it does not require repeated “if any” checks. State supplied facts directly,
+preserve their scope, and allow already supportive or manageable conditions to remain.
+Offer a concrete optional action linked to the goal. Keep its optional status in later
+questions and the closing; avoid replacing useful guidance with broad permission to do
+nothing. General source statements need no added hedge merely because they are general.
+
 For each case the reviewer records what changed because of the user's setting beyond
 mentioning its nouns. Review whether the reading adds something beyond restating the
 request. Semantic progression and usefulness require human judgment; a lexical check
@@ -71,6 +79,15 @@ provider-visible question/draw/source payloads and their hashes, source-to-posit
 orientation mappings, the full manifest, and unchanged outputs. Source text must remain
 visible in printed PDFs. Label reproduced local draw state separately from archived
 wire requests; do not describe reconstructed data as an original snapshot.
+
+Export response schemas by case, with hashes for each request. A source-ID enum may
+differ between cases even when the schema is held fixed across prompt arms within a
+case. Include full normalized outcomes/receipts, returned settings, provider IDs when
+captured, journal events, and the objects/definitions needed to reproduce semantic
+hashes. Distinguish exact response bytes from projections with reasoning fields omitted.
+Preserve missing historical timestamps as unavailable; do not infer client start/finish
+or concurrency from provider timestamps. Archive integrity and external execution or
+billing authentication are separate claims.
 
 Record mechanical screening, later editorial signals, and the human decision separately.
 Preserve historical results. Grounding may be `NV` (not verifiable); do not replace it
@@ -145,3 +162,12 @@ $1.44 limit and no-retry rule. A revised prompt is an evaluation candidate; it d
 replace the application prompt or confer approval on the outputs. Review every output
 against the exact inputs, including useful content that might be lost through excessive
 hedging. Report semantic findings separately from mechanical passes.
+
+The supplied follow-up review is an AI editorial assessment, not human acceptance.
+Retain revised repetitions A07-2.3 and A08-1.3 as positive references, old A07-2.2 as a
+concise conditional example, revised A07-2.2 for overqualification, and old A08-1.1/.3
+for presupposed unwelcoming expectations. The six passages remain unchanged. The
+concise-prompt follow-up uses four new synthetic contexts to probe supplied facts,
+supportive/manageable conditions and a useful optional action. One output per context
+cannot establish reliability, and changing contexts prevents a causal speed/cost or
+length comparison with the prior batch.

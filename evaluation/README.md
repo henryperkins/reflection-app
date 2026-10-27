@@ -57,6 +57,16 @@ maximum, two-call concurrency and no retries. Transport selects the strict sched
 prompt policy; both use the same pricing and accounting limits. This evaluation candidate
 does not replace the application prompt or rewrite historical evaluations.
 
+`--dry-run --profile independent-context-fast-xhigh --source-bundle /private/sources.json`
+prepares four new synthetic contexts under `tarot-writer-concise-uncertainty.v1`, one
+attempt each. They test supplied facts, explicitly manageable work, supportive creative
+conditions and stated discouragement. The six sources, their draws, per-case schema and
+fast/xhigh settings are retained. This profile requires its own permit and enforces at
+most four calls/$0.48. The contexts reuse two source/draw families: “independent” means
+new question text, not statistically independent evidence or a paired prompt comparison.
+The concise candidate remains provisional; `tarot-writer-uncertainty.v1` is the tested
+development reference. Neither replaces the application prompt.
+
 [Terra pricing](https://developers.openai.com/api/docs/models/gpt-6.1-terra) lists
 [Fast mode](https://developers.openai.com/api/docs/guides/fast-mode) at twice Standard:
 $2 input, $0.10 cached input, $2.50 cache writes (30 minutes), and $10 output per million
@@ -85,7 +95,7 @@ An operator executes only with `--execute --permit /absolute/protected/permit.js
 The permit is a mode-0600 regular file, not a web request. It binds:
 
 - `version: reflection-evaluation-permit.v1`, `scope: evaluation`, a unique `runId`,
-  `purpose: transport-smoke|synthetic-research|human-review|human-review-fast-xhigh|source-diagnostic-fast-xhigh|prompt-comparison-fast-xhigh`,
+  `purpose: transport-smoke|synthetic-research|human-review|human-review-fast-xhigh|source-diagnostic-fast-xhigh|prompt-comparison-fast-xhigh|independent-context-fast-xhigh`,
   authorizer and authorization/expiry times;
 - actual `projectId`, SHA-256 `credentialHash` of the selected key, model and
   policy/content/corpus/manifest hashes;
@@ -118,6 +128,17 @@ are encrypted with AES-256-GCM in mode-0600 files inside a mode-0700 external di
 Incomplete response captures are labeled as such. HMAC-chained journal events bind the
 artifact hashes and form their integrity manifest. The key, raw response IDs, prompts and
 prose never enter printed summaries. Missing or changed artifacts block resume.
+
+New reservation/receipt events record their UTC time. Encrypted response captures also
+record writer start/finish, fetch start, response-header time, fetch invocation count and
+the provider's `x-request-id` when present; bulk response headers are not retained.
+Historical events/captures lacking those fields remain unchanged. Review exporters use
+`reviewRequestContract` to retain schemas by case and reject schema drift within a case.
+Normalized outcomes, full receipt objects and exact policy/permit hash inputs can be
+included in protected review bundles without exposing API or archive keys. Provider
+response projections omit reasoning payload fields and are labeled as projections;
+their hashes cannot substitute for exact captured-body hashes. Local evidence consistency
+does not independently authenticate provider execution or reconcile an invoice.
 
 Private archives expire 90 days after authorization; reads and resume refuse expired
 material. Run `npm run provider:evaluate -- --purge-expired` from the same state directory

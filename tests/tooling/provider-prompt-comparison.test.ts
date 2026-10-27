@@ -1,4 +1,6 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createDecipheriv } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
@@ -206,7 +208,10 @@ test.each([false, true])(
             },
           ],
         }),
-        { status: 200, headers: { 'openai-project': 'proj_synthetic' } },
+        {
+          status: 200,
+          headers: { 'openai-project': 'proj_synthetic', 'x-request-id': 'req_synthetic' },
+        },
       );
     });
     const args = ['--execute', '--permit', f.permitPath];
@@ -220,6 +225,39 @@ test.each([false, true])(
     });
     expect(calls).toHaveLength(crash ? 11 : 12);
     expect(new Set(calls).size).toBe(2);
+    const db = new DatabaseSync(join(f.options.stateDirectory, 'journal.sqlite'), {
+      readOnly: true,
+    });
+    const events = db
+      .prepare('SELECT kind,data FROM events WHERE run_id=? ORDER BY seq')
+      .all(f.permit.runId);
+    db.close();
+    for (const event of events.filter((e) => e.kind === 'reserved' || e.kind === 'receipt'))
+      expect(JSON.parse(event.data as string).recordedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    const receipt = JSON.parse(events.find((e) => e.kind === 'receipt')!.data as string);
+    const encrypted = JSON.parse(readFileSync(receipt.rawArtifact.path, 'utf8'));
+    const decipher = createDecipheriv(
+      'aes-256-gcm',
+      f.options.key,
+      Buffer.from(encrypted.iv, 'base64'),
+    );
+    decipher.setAAD(Buffer.from(encrypted.aad));
+    decipher.setAuthTag(Buffer.from(encrypted.tag, 'base64'));
+    const capture = JSON.parse(
+      Buffer.concat([
+        decipher.update(Buffer.from(encrypted.data, 'base64')),
+        decipher.final(),
+      ]).toString('utf8'),
+    );
+    expect(capture).toMatchObject({ fetchInvocations: 1, providerRequestId: 'req_synthetic' });
+    const times = [
+      capture.startedAt,
+      capture.fetchStartedAt,
+      capture.responseHeadersAt,
+      capture.finishedAt,
+    ].map((t) => Date.parse(t));
+    expect(times.every(Number.isFinite)).toBe(true);
+    expect(times).toEqual([...times].sort((a, b) => a - b));
     calls.length = 0;
     expect(await runEvaluationCli([...args, '--resume'], f.env)).toEqual(result);
     expect(calls).toEqual([]);
