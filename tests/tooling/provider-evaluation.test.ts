@@ -34,6 +34,77 @@ const known: WriterOutcome = {
   kind: 'refusal',
   receipt: providerReceipt({ returnedModel: 'gpt-6.1-terra' }),
 };
+test('v2 context development profile freezes four exact bounded requests without calling the provider', async () => {
+  const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('No network'));
+  const result = await runEvaluationCli(
+    ['--dry-run', '--profile', 'reading-v2-development-fast-xhigh'],
+    {},
+  );
+  expect(result).toMatchObject({ calls: 0, qualificationEligible: false });
+  const prepared = await prepareEvaluation('reading-v2-development-fast-xhigh');
+  expect(prepared.requests).toHaveLength(4);
+  expect(prepared.manifest.maximumScheduledMicrousd).toBe(640000);
+  expect(prepared.manifest.humanApprovedExamples).toBe(0);
+  for (const r of prepared.requests) {
+    expect(r.plan.version).toBe('tarot-plan.v2');
+    const body = JSON.parse(new TextDecoder().decode(r.input.payload));
+    const data = JSON.parse(body.input[2].content);
+    expect(data.reader.text).toBe(r.plan.question);
+    expect(data.meanings).toHaveLength(3);
+    expect(data.spread.positions).toHaveLength(3);
+    expect(data.selected).toEqual([]);
+    expect(r.estimatedInputTokens).toBeLessThanOrEqual(16384);
+    expect(body).toMatchObject({ service_tier: 'fast', reasoning: { effort: 'xhigh' } });
+  }
+  expect(fetch).not.toHaveBeenCalled();
+});
+
+test('v2 permits enforce the four-call cap and retain a crashed attempt without resend', async () => {
+  const f = await fixture(
+    { purpose: 'reading-v2-development-fast-xhigh', maxCalls: 4, maxCostMicrousd: 640000 },
+    'reading-v2-development-fast-xhigh',
+  );
+  expect(() => validatePermit({ ...f.permit, maxCalls: 5 }, f.prepared)).toThrow();
+  expect(() => validatePermit({ ...f.permit, maxCostMicrousd: 640001 }, f.prepared)).toThrow();
+  expect(() =>
+    validatePermit({ ...f.permit, purpose: 'human-review-fast-xhigh' }, f.prepared),
+  ).toThrow();
+  const first = f.open();
+  first.reserve(f.prepared.requests[0]!.id);
+  first.close();
+  const ids: string[] = [];
+  const { composeTemplateV2 } = await import('../../src/domain/tarot/writer-v2.ts');
+  const summary = await runEvaluation(
+    f.permit,
+    {
+      async write(input) {
+        ids.push(input.dispatchId);
+        const request = f.prepared.requests.find((r) => r.id === input.dispatchId)!;
+        if (request.plan.version !== 'tarot-plan.v2') throw new Error('Wrong plan');
+        return {
+          kind: 'candidate',
+          candidate: await composeTemplateV2(request.plan),
+          receipt: providerReceipt({ returnedModel: 'gpt-6.1-terra', serviceTier: 'fast' }),
+        };
+      },
+    },
+    f.open(true),
+  );
+  expect(ids).toHaveLength(3);
+  expect(ids).not.toContain(f.prepared.requests[0]!.id);
+  expect(summary).toMatchObject({ status: 'complete', attempts: 4, accepted: 3, unknown: 1 });
+  expect(summary.chargedMicrousd).toBeGreaterThanOrEqual(160000);
+  const again = await runEvaluation(
+    f.permit,
+    {
+      write: async () => {
+        throw new Error('Must not resend');
+      },
+    },
+    f.open(true),
+  );
+  expect(again).toEqual(summary);
+});
 async function fixture(
   patch: Partial<EvaluationPermit> = {},
   profile: Parameters<typeof prepareEvaluation>[0] = 'smoke',

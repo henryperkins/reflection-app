@@ -88,6 +88,19 @@ test('unreviewed content fails standard admission and explicit diagnostic scope 
   expect(plan.sources[0]!.review.kind).toBe('agent_reviewed');
   expect(plan.sources[0]!.rights.status).toBe('unknown');
 });
+test('relationship thematic conditions must come from its cited supporting sources', async () => {
+  const input = await v2Input(),
+    note = await relationship(input, 'note:unsupported-theme');
+  for (const source of input.content.sources)
+    if (note.sourceIds.includes(source.id)) {
+      source.meaning.themes = [];
+      source.hash = await reviewHash(source);
+      source.review.reviewedHash = source.hash;
+    }
+  input.content.relationships = [note];
+  await rehashBundle(input.content);
+  expect((await buildPlanV2(input)).relationships).toEqual([]);
+});
 test.each(['coverage', 'source', 'frames', 'history'])(
   'v2 rejects malformed %s without altering required inputs',
   async (kind) => {

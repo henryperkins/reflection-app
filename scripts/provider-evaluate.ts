@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import type { WritingProvider, WriterOutcome } from '../src/contracts/index.ts';
 import { canonicalJson } from '../src/domain/json.ts';
 import { validateCandidate } from '../src/domain/tarot/safety.ts';
+import { validateCandidateV2 } from '../src/domain/tarot/safety-v2.ts';
 import { OpenAIResponsesTransport } from '../src/worker/provider/transport.ts';
 import { projectRoot } from './schemas.ts';
 import {
@@ -58,7 +59,13 @@ export async function runEvaluation(
         let assessment: string = outcome.kind;
         if (outcome.kind === 'candidate') {
           try {
-            validateCandidate(request.plan, outcome.candidate);
+            if (request.plan.version === 'tarot-plan.v2')
+              await validateCandidateV2(
+                request.plan,
+                outcome.candidate,
+                request.contextReceipt ?? null,
+              );
+            else validateCandidate(request.plan, outcome.candidate);
             assessment = 'accepted';
           } catch {
             assessment = 'validation-rejected';
@@ -208,6 +215,7 @@ export async function runEvaluationCli(
         'provider:evaluate -- --dry-run --profile source-diagnostic-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --dry-run --profile prompt-comparison-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --dry-run --profile independent-context-fast-xhigh --source-bundle /protected/sources.json',
+        'provider:evaluate -- --dry-run --profile reading-v2-development-fast-xhigh',
         'provider:evaluate -- --execute --permit /protected/permit.json [--resume]',
         'provider:evaluate -- --purge-expired',
       ],
@@ -233,7 +241,8 @@ export async function runEvaluationCli(
       profile !== 'human-review-fast-xhigh' &&
       profile !== 'source-diagnostic-fast-xhigh' &&
       profile !== 'prompt-comparison-fast-xhigh' &&
-      profile !== 'independent-context-fast-xhigh'
+      profile !== 'independent-context-fast-xhigh' &&
+      profile !== 'reading-v2-development-fast-xhigh'
     )
       throw new Error('Invalid evaluation profile');
     const diagnostic =

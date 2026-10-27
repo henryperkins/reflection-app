@@ -43,7 +43,9 @@ export function eligibleRelationship(
   plan: Pick<PreparedPlanV2, 'basis' | 'sources' | 'diagnosticOnly'>,
 ) {
   const selected = new Set(plan.sources.map((s) => s.id));
-  const themes = new Set(plan.sources.flatMap((s) => s.meaning.themes));
+  const themes = new Set(
+    plan.sources.filter((s) => record.sourceIds.includes(s.id)).flatMap((s) => s.meaning.themes),
+  );
   return (
     eligibleReview(record, plan.diagnosticOnly) &&
     record.deckEdition === plan.basis.deckEdition &&

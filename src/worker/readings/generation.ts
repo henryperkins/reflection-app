@@ -3,6 +3,7 @@ import { providerReceiptStatements } from '../provider/receipts.ts';
 import {
   READING_PROVIDER_POLICY,
   READING_V2_EVALUATION_POLICY,
+  INITIAL_READING_V2_EVALUATION_POLICY,
   type WriterProviderPolicy,
 } from '../../contracts/provider-policy.ts';
 import { providerPolicyHash } from '../../domain/provider-policy.ts';
@@ -76,6 +77,11 @@ export class LocalGeneration extends RequestState {
       'SELECT provider_policy_hash,active_content_hash FROM system_state WHERE id=1',
     ).first<{ provider_policy_hash: string; active_content_hash: string }>();
     const predecessors = await Promise.all([
+      sha256Json({
+        localOnly: true,
+        writer: 'simulation.v5',
+        providerPolicyHash: await providerPolicyHash(INITIAL_READING_V2_EVALUATION_POLICY),
+      }),
       sha256Json({
         localOnly: true,
         writer: 'simulation.v4',

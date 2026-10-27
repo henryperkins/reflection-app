@@ -84,6 +84,7 @@ export type WriterProviderPolicy =
   | typeof FAST_XHIGH_EVALUATION_POLICY
   | typeof UNCERTAINTY_EVALUATION_POLICY
   | typeof CONCISE_UNCERTAINTY_EVALUATION_POLICY
+  | typeof INITIAL_READING_V2_EVALUATION_POLICY
   | typeof READING_V2_EVALUATION_POLICY;
 
 /** Candidate for new-context probes; retains v1 as the tested development reference. */
@@ -100,7 +101,7 @@ export const CONCISE_UNCERTAINTY_EVALUATION_POLICY = {
 } as const;
 
 /** Larger context is separately budgeted and evaluation-only until qualified. */
-export const READING_V2_EVALUATION_POLICY = {
+export const INITIAL_READING_V2_EVALUATION_POLICY = {
   ...FAST_XHIGH_EVALUATION_POLICY,
   version: 'reading-evaluation-context.v2',
   evaluationOnly: true,
@@ -120,4 +121,11 @@ export const READING_V2_EVALUATION_POLICY = {
     developer:
       'Use the reader’s exact current question as the throughline. State supplied facts within their stated scope, preserving negation, attribution, hypothetical conditions and timing. For each position, explain what its selected meaning contributes to this question; do not stop at summarizing the source. Use relevant parts of each meaning rather than forcing every theme into the reading. Follow the supplied position definitions and selected orientation-specific meanings; do not add a reversal framework. Explain how the selected ideas support, qualify or constrain one another in the synthesis. You may derive practical implications from the current question and supplied meanings. Use relationship notes only within their stated conditions and limits; ordinary reasoning over the supplied ideas needs no special relationship note. Do not introduce additional card lore, imagery, personal circumstances, symbolic relationships, predictions, diagnoses or medical, legal or financial advice. Keep unsupplied personal circumstances conditional wherever they recur, including questions, action and synthesis. State applicable reasoning methods directly. A source-associated difficulty does not override a reader’s statement that something is working. Offer a concrete optional action that follows from the interpretation: specify what to examine and why the result would matter, without treating the action as already chosen. Include at most one reflection question, only when it adds something beyond the explanation. Cite references structurally: each unit cites its own card fact and selected source; synthesis cites the contributing sources and any relationship notes actually used; action and question cite their supporting sources; reader:question identifies the current context. Do not narrate source-management or synthetic-fixture labels in the prose; the application presents provenance separately. Keep precise card facts, counts and timing out of interpretation prose; the application renders the factual layer. Aim for 220–320 words across the reading when the supplied material supports that much useful explanation; do not pad fields. Return only the strict schema, without markup, links or unresolved placeholders.',
   },
+} as const;
+
+/** Same wire prompt/schema; separately bound correction to supported-statement screening. */
+export const READING_V2_EVALUATION_POLICY = {
+  ...INITIAL_READING_V2_EVALUATION_POLICY,
+  version: 'reading-evaluation-context.v2.1',
+  validatorVersion: 'bounded-developed-reading.v2.1',
 } as const;

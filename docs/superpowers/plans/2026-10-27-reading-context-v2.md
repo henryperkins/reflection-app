@@ -75,7 +75,7 @@
 
 **Interfaces:** Fixed new profile uses the four current diagnostic contexts/draws, richer content and v2 output in one change, same fast/xhigh. Maximum four calls, $0.64, no retries; fresh permit; zero-call dry-run and crash recovery required.
 
-- [ ] Add failing dry-run, permit, budget and crash/resume tests; implement schema-specific evaluation without changing old manifests.
-- [ ] Execute one bounded development probe with accurate agent-only content review status and full packet/receipt evidence; review every output against exact input.
-- [ ] Run `npm run verify`; expected all tests/checks PASS with no live access. Audit exported PDF/request/hash fidelity.
+- [x] Add failing dry-run, permit, budget and crash/resume tests; implement schema-specific evaluation without changing old manifests.
+- [x] Execute one bounded development probe with accurate agent-only content review status and full packet/receipt evidence; review every output against exact input.
+- [x] Run `npm run verify`; expected all tests/checks PASS with no live access. Audit exported PDF/request/hash fidelity.
 - [ ] Obtain the required independent whole-change review, fix actionable findings with failing regressions, verify final source identity and commit. Preserve the requested worktree; leave production/human approval pending.

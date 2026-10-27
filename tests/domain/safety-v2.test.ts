@@ -57,6 +57,14 @@ test.each([
   ['My friend is supportive.', 'Your friend is supportive.'],
   ['Compare formats. I am not discouraged.', 'You are not discouraged.'],
   ['I am not discouraged.', 'You said, “I am not discouraged.”'],
+  [
+    'My writing group is welcoming, my desk setup works, and I am not discouraged.',
+    'Since you are not discouraged, a small experiment may be useful.',
+  ],
+  [
+    'I feel discouraged after my sketches did not match what I imagined, but a drawing session with a friend helped.',
+    'The image you had in mind can offer direction without promising that the sketch will match it.',
+  ],
 ])('supported natural statement keeps current scope: %s', async (question, text) => {
   const { plan, receipt, candidate } = await fixture(question);
   candidate.units[0]!.interpretation = text;
@@ -70,6 +78,27 @@ test.each([
   ['I was discouraged last year.', 'You are discouraged.'],
   ['I am discouraged about writing, not work.', 'You are discouraged about work.'],
   ['I am not discouraged.', 'Your friend is supportive.'],
+  [
+    'If my writing group is welcoming and I am not discouraged, I could try again.',
+    'Since you are not discouraged, try an experiment.',
+  ],
+  ['My friend says I am ready and I am confident.', 'You are confident.'],
+  [
+    'My group is welcoming, and I am not discouraged about writing, only about work.',
+    'You are not discouraged.',
+  ],
+  [
+    'If my sketches did not match what I imagined, I would ask for help.',
+    'The image you had in mind can guide another attempt.',
+  ],
+  [
+    'A friend said, "My sketches did not match what I imagined."',
+    'The image you had in mind can guide another attempt.',
+  ],
+  [
+    'I did not imagine an image before drawing.',
+    'The image you had in mind can guide another attempt.',
+  ],
 ])('unsupported assertion does not borrow scope from %s', async (question, text) => {
   const { plan, receipt, candidate } = await fixture(question);
   candidate.units[0]!.interpretation = text;
@@ -86,6 +115,12 @@ test('conditional hypothesis remains conditional in its own clause, not the foll
   await expect(validateCandidateV2(plan, candidate, receipt)).rejects.toThrow(
     'BIOGRAPHY_UNSUPPORTED',
   );
+});
+test('the executable validator refuses a different validator identity even when receipt and plan agree', async () => {
+  const { plan, receipt, candidate } = await fixture();
+  plan.validatorHash = 'f'.repeat(64);
+  receipt.validatorHash = plan.validatorHash;
+  await expect(validateCandidateV2(plan, candidate, receipt)).rejects.toThrow('CONTENT_CHANGED');
 });
 test.each(['interpretation', 'synthesis', 'action', 'question'])(
   'all new prose fields screen predictions and unsupported facts: %s',

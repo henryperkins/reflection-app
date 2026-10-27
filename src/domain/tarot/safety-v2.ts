@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   ModelCandidateV2,
   Position,
@@ -9,7 +10,7 @@ import { validatePlanV2 } from './context-v2.ts';
 import { candidateSchemaV2 } from './writer-v2.ts';
 import { boundedCandidateJson, CandidateRejection, screenProse } from './safety.ts';
 
-export const SAFETY_V2_VERSION = 'bounded-developed-reading.v2';
+export const SAFETY_V2_VERSION = 'bounded-developed-reading.v2.1';
 const reject = (code: ConstructorParameters<typeof CandidateRejection>[0]): never => {
   throw new CandidateRejection(code);
 };
@@ -42,12 +43,25 @@ function supportedProse(text: string, question: string) {
     },
   );
   let result = normalize(protectedText);
-  const statements = normalize(question).matchAll(/([^.!?]+)([.!?]|$)/g);
-  for (const match of statements) {
-    const source = match[1]!.trim();
+  const sentences = [...normalize(question).matchAll(/([^.!?]+)([.!?]|$)/g)]
+    .filter((m) => m[2] !== '?' && !/["“”]/.test(m[1]!))
+    .map((m) => m[1]!.trim());
+  // Split only explicitly asserted first-person coordination. A conditional or reported
+  // sentence is never a pool of free-standing facts, even after an "and".
+  const scoped =
+    /\b(?:if|unless|when|whether|suppose|supposing|imagining|imagine|might|could|would|think|believe|wonder|says?|said|claims?|told|asked)\b|not sure/;
+  const statements = sentences.flatMap((s) =>
+    /^(?:i|my)\b/.test(s) && !scoped.test(s)
+      ? [
+          s,
+          ...s
+            .split(/(?:,\s*)?\band\s+(?=i (?:am|was|have been|have always|had|suffer|suffered)\b)/)
+            .slice(1),
+        ]
+      : [s],
+  );
+  for (const source of statements) {
     if (
-      match[2] === '?' ||
-      /["“”]/.test(source) ||
       !/^(?:i (?:am|was|have been|have always|had|suffer|suffered)|my (?:partner|family|parent|child|boss|friend) (?:is|was|has|caused))\b/.test(
         source,
       )
@@ -60,13 +74,25 @@ function supportedProse(text: string, question: string) {
       .replace(/\bmy\b/g, 'your')
       .replace(/\bmyself\b/g, 'yourself');
     // A full matched statement retains its negation, temporal qualifiers and attribution.
-    const pattern = new RegExp(`(^|[.!?;]\\s*)${escapePattern(statement)}(?=[.!?,;:]|$)`, 'g');
+    const pattern = new RegExp(
+      `(^|[.!?;]\\s*|\\b(?:since|because|given that)\\s+)${escapePattern(statement)}(?=[.!?,;:]|$)`,
+      'g',
+    );
     result = result.replace(
       pattern,
       (_whole, prefix: string) =>
         prefix + statement.replace(personal, 'the supplied current statement describes'),
     );
   }
+  // This possessive idiom refers back to an explicitly supplied imagined image;
+  // it does not authorize other "you had" biography or invented past events.
+  if (
+    sentences.some((s) => /^i\b/.test(s) && !scoped.test(s) && /\bwhat i imagined(?=,|$)/.test(s))
+  )
+    result = result.replace(
+      /\bthe image you had in mind\b/g,
+      'the reader-described imagined image',
+    );
   // Only the locally introduced hypothetical claim is exempt, not subsequent clauses.
   result = result.replace(
     /\b(if|whether)\s+(you (?:are|were|have been|had)|your (?:partner|family|parent|child|boss|friend) (?:is|was|has))\b/g,
@@ -82,6 +108,14 @@ export async function validateCandidateV2(
   template = false,
 ): Promise<ModelCandidateV2> {
   const plan = await validatePlanV2(value);
+  if (
+    plan.validatorHash !==
+    (await sha256Json({
+      version: SAFETY_V2_VERSION,
+      outputSchema: z.toJSONSchema(ModelCandidateV2),
+    }))
+  )
+    reject('CONTENT_CHANGED');
   boundedCandidateJson(candidate);
   const parsed = ModelCandidateV2.safeParse(candidate);
   if (!parsed.success) reject('SCHEMA');

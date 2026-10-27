@@ -84,7 +84,9 @@ test('mechanical validation uses the new supplied facts instead of the old spars
     })),
     closing: 'Choose the comparison method that fits the project.',
   };
-  expect(() => validateCandidate(request.plan, candidate)).not.toThrow();
+  if (request.plan.version !== 'tarot-plan.v1') throw new Error('Expected frozen v1 profile');
+  const legacyPlan = request.plan;
+  expect(() => validateCandidate(legacyPlan, candidate)).not.toThrow();
 });
 
 test('independent probe permit rejects extra spending and unrelated policy or purpose', async () => {

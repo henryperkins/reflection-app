@@ -18,6 +18,7 @@ import { z } from 'zod';
 import {
   Hash,
   ModelCandidate,
+  ModelCandidateV2,
   ProviderReceipt,
   type WriterOutcome,
 } from '../src/contracts/index.ts';
@@ -38,6 +39,7 @@ export const EvaluationPermit = z.strictObject({
     'source-diagnostic-fast-xhigh',
     'prompt-comparison-fast-xhigh',
     'independent-context-fast-xhigh',
+    'reading-v2-development-fast-xhigh',
   ]),
   runId: z.uuid(),
   authorizedBy: z.string().trim().min(1).max(200),
@@ -148,7 +150,14 @@ export function validatePermit(
     p.manifestHash !== prepared.manifestHash ||
     digest(canonicalJson(m)) !== p.manifestHash ||
     digest(
-      canonicalJson({ policy: prepared.policy, outputSchema: z.toJSONSchema(ModelCandidate) }),
+      canonicalJson({
+        policy: prepared.policy,
+        outputSchema: z.toJSONSchema(
+          prepared.policy.schemaVersion === 'tarot.interpretation.v2'
+            ? ModelCandidateV2
+            : ModelCandidate,
+        ),
+      }),
     ) !== p.policyHash ||
     p.policyHash !== m.policyHash ||
     p.model !== m.model ||
@@ -156,6 +165,13 @@ export function validatePermit(
     m.reservationMicrousd !== prepared.policy.reservationMicrousd ||
     p.contentHash !== m.contentHash ||
     p.corpusHash !== m.corpusHash ||
+    (p.purpose === 'reading-v2-development-fast-xhigh' &&
+      (p.maxCalls > 4 ||
+        p.maxCostMicrousd > 640000 ||
+        prepared.requests.length !== 4 ||
+        prepared.requests.some(
+          (r) => r.plan.version !== 'tarot-plan.v2' || !r.contextReceipt?.diagnosticOnly,
+        ))) ||
     (p.purpose === 'source-diagnostic-fast-xhigh' ||
     p.purpose === 'prompt-comparison-fast-xhigh' ||
     p.purpose === 'independent-context-fast-xhigh'
@@ -396,6 +412,7 @@ export class EvaluationJournal {
         artifact: this.archive('request', attemptId, {
           encoding: 'base64',
           bytes: Buffer.from(request.input.payload).toString('base64'),
+          ...(request.contextReceipt ? { contextReceipt: request.contextReceipt } : {}),
         }),
       };
       this.append('reserved', reservation);

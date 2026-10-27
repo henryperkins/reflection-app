@@ -2,7 +2,8 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
-import type { PreparedPlan, WritingProvider } from '../src/contracts/index.ts';
+import type { AnyPreparedPlan, WriterReceiptV2, WritingProvider } from '../src/contracts/index.ts';
+import { prepareReadingV2 } from './provider-evaluation-v2.ts';
 import {
   FAST_XHIGH_EVALUATION_POLICY,
   READING_PROVIDER_POLICY,
@@ -40,7 +41,8 @@ const Case = z.object({
 export type EvaluationRequest = {
   id: string;
   caseId: string;
-  plan: PreparedPlan;
+  plan: z.infer<typeof AnyPreparedPlan>;
+  contextReceipt?: WriterReceiptV2;
   input: Parameters<WritingProvider['write']>[0];
   payloadHash: string;
   estimatedInputTokens: number;
@@ -54,7 +56,8 @@ export type EvaluationManifest = {
     | 'human-review-fast-xhigh'
     | 'source-diagnostic-fast-xhigh'
     | 'prompt-comparison-fast-xhigh'
-    | 'independent-context-fast-xhigh';
+    | 'independent-context-fast-xhigh'
+    | 'reading-v2-development-fast-xhigh';
   independentContexts?: {
     parentManifestHash: string;
     contextsHash: string;
@@ -114,6 +117,10 @@ export async function prepareEvaluation(
   profile: EvaluationManifest['profile'] = 'baseline',
   sourceBundle?: unknown,
 ): Promise<PreparedEvaluation> {
+  if (profile === 'reading-v2-development-fast-xhigh') {
+    if (sourceBundle !== undefined) throw new Error('V2 uses the pinned local draft only');
+    return prepareReadingV2(INDEPENDENT_READING_CONTEXTS);
+  }
   if (profile === 'source-diagnostic-fast-xhigh') return prepareSourceDiagnostic(sourceBundle);
   if (profile === 'prompt-comparison-fast-xhigh') return preparePromptComparison(sourceBundle);
   if (profile === 'independent-context-fast-xhigh') return prepareIndependentContexts(sourceBundle);
