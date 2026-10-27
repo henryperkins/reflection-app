@@ -2,7 +2,7 @@
 // These fixtures are never editorial approval records or a deployment trust root.
 import draft from '../../content/launch-canon-draft.json';
 import { READING_PRODUCT_COPY } from '../../src/contracts/product-copy.ts';
-import { ContentBundle } from '../../src/contracts/index.ts';
+import { ContentBundle, AnyContentBundle } from '../../src/contracts/index.ts';
 import { bundleHash, sourceHash } from '../../src/domain/tarot/plan.ts';
 import { sha256Json, sha256Bytes, canonicalJson } from '../../src/domain/json.ts';
 import {
@@ -44,7 +44,7 @@ export async function signedApproval(bundle: unknown) {
   const rightsEvidence = new TextEncoder().encode(
     'Ephemeral rights evidence for validation tests only.',
   );
-  const document = await contentApprovalDocument(ContentBundle.parse(bundle), {
+  const document = await contentApprovalDocument(AnyContentBundle.parse(bundle), {
     reviewerId: 'editor-a',
     environmentId: 'test-environment',
     approvedAt: '2026-10-26T00:00:00Z',

@@ -1,7 +1,7 @@
 import { writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { ContentBundle } from '../src/contracts/index.ts';
+import { AnyContentBundle } from '../src/contracts/index.ts';
 import { bundleHash } from '../src/domain/tarot/plan.ts';
 import { canonicalJson, sha256Json } from '../src/domain/json.ts';
 import {
@@ -76,7 +76,7 @@ export async function contentReviewPacket(
       `- ${c.id}: ${c.name}; image ${c.imageHash ?? 'none'}; attribution: ${c.attribution}`,
     );
   lines.push('', '## Card sources', '');
-  for (const s of bundle.sources)
+  for (const s of bundle.sources) {
     lines.push(
       `### ${s.id}`,
       '',
@@ -91,10 +91,36 @@ export async function contentReviewPacket(
       `Rights: ${s.rights.status}; ${s.rights.evidence}; attribution ${s.rights.attribution}; territory ${s.rights.territory}`,
       '',
     );
+    if ('meaning' in s)
+      lines.push(
+        `Core: ${s.meaning.core}`,
+        ...s.meaning.distinctions.map((t) => `Distinction: ${t}`),
+        `Already-working application: ${s.meaning.positive}`,
+        ...s.meaning.limits.map((t) => `Limit: ${t}`),
+        `Themes: ${s.meaning.themes.join(', ') || 'none'}`,
+        `Verified catalog imagery: ${s.meaning.imagery ? JSON.stringify(s.meaning.imagery) : 'none'}`,
+        '',
+      );
+  }
+  if (bundle.schemaVersion === 2) {
+    lines.push(
+      '## V2 spread, fallback and relationships',
+      '',
+      `Spread version: ${bundle.spreadVersion}`,
+      `Synthesis fallback: ${bundle.fallbackV2.synthesis}`,
+      `Action fallback: ${bundle.fallbackV2.action}`,
+      `Question fallback: ${bundle.fallbackV2.question ?? 'none'}`,
+      '',
+      'Relationship records (complete conditions, prose, review and rights):',
+      '',
+      JSON.stringify(bundle.relationships, null, 2),
+      '',
+    );
+  }
   lines.push(
     '## Human decision still required',
     '',
-    'Record the named reviewer, exact reviewed hashes, rights evidence digest, attribution and territories in an externally signed content-approval.v1 document. A trusted public key must be configured independently. Agent and synthetic markers cannot satisfy activation. No approval record has been generated.',
+    `Record the named reviewer, exact reviewed hashes, rights evidence digest, attribution and territories in an externally signed content-approval.v${bundle.schemaVersion} document. A trusted public key must be configured independently. Agent and synthetic markers cannot satisfy activation. No approval record has been generated.`,
     '',
   );
   return lines.join('\n');
@@ -157,7 +183,7 @@ export async function runContentActivation(argv: string[]) {
       );
       return { withdrawn: true, generationActivated: false };
     });
-  const bundle = ContentBundle.parse(readOperatorJson(required(values, '--bundle')));
+  const bundle = AnyContentBundle.parse(readOperatorJson(required(values, '--bundle')));
   if (mode === '--review-packet') {
     const packet = await contentReviewPacket(
       bundle,

@@ -1,12 +1,12 @@
 import { z } from 'zod';
-import { ContentBundle, Hash, Instant } from '../../contracts/index.ts';
+import { AnyContentBundle, Hash, Instant } from '../../contracts/index.ts';
 import { READING_PRODUCT_COPY } from '../../contracts/product-copy.ts';
 import { bundleHash, sourceHash } from '../../domain/tarot/plan.ts';
 import { canonicalJson, sha256Bytes, sha256Json } from '../../domain/json.ts';
-export type Bundle = z.infer<typeof ContentBundle>;
+export type Bundle = z.infer<typeof AnyContentBundle>;
 export type ContentTrust = { publicKey: CryptoKey; environmentId: string; reviewerId: string };
 const Identity = z.string().trim().min(1).max(200);
-const Document = z.strictObject({
+const DocumentV1 = z.strictObject({
   version: z.literal('content-approval.v1'),
   scope: z.literal('editorial-content'),
   reviewerId: Identity,
@@ -22,6 +22,19 @@ const Document = z.strictObject({
   territoriesHash: Hash,
   rightsEvidenceHash: Hash,
 });
+const DocumentV2 = DocumentV1.extend({
+  version: z.literal('content-approval.v2'),
+  sources: z
+    .array(z.strictObject({ id: z.string(), hash: Hash }))
+    .min(156)
+    .max(1000),
+  spreadHash: Hash,
+  fallbackHash: Hash,
+  relationships: z
+    .array(z.strictObject({ id: z.string(), version: z.number().int().positive(), hash: Hash }))
+    .max(1000),
+});
+const Document = z.discriminatedUnion('version', [DocumentV1, DocumentV2]);
 const Signed = z.strictObject({
   document: Document,
   signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
@@ -42,13 +55,13 @@ export async function inspectReviewedBundle(
   requireCompiledCopy = true,
 ): Promise<Bundle> {
   try {
-    const b = ContentBundle.parse(value);
+    const b = AnyContentBundle.parse(value);
     if (
       b.editionHash !== (await bundleHash(b)) ||
       b.deckEdition !== (await sha256Json(b.deck)) ||
       (requireCompiledCopy &&
         canonicalJson(b.productCopy) !== canonicalJson(READING_PRODUCT_COPY)) ||
-      b.sources.length !== 156 ||
+      (b.schemaVersion === 1 && b.sources.length !== 156) ||
       !b.licenseNotice.trim() ||
       marker.test(b.licenseNotice)
     )
@@ -75,10 +88,10 @@ export async function inspectReviewedBundle(
     for (const s of b.sources) {
       if (
         ids.has(s.id) ||
-        bindings.has(`${s.cardId}:${s.orientation}`) ||
+        bindings.has(`${s.cardId}:${s.orientation}:${s.position ?? 'neutral'}`) ||
         !s.id.trim() ||
-        /^(synthetic|reflection-draft):/i.test(s.id) ||
-        s.position !== null ||
+        /^(synthetic|reflection(?:-v2)?-draft):/i.test(s.id) ||
+        (b.schemaVersion === 1 && s.position !== null) ||
         !b.deck.some((c) => c.id === s.cardId) ||
         s.hash !== (await sourceHash(s)) ||
         s.review.kind !== 'human_approved' ||
@@ -95,10 +108,48 @@ export async function inspectReviewedBundle(
       )
         denied();
       ids.add(s.id);
-      bindings.add(`${s.cardId}:${s.orientation}`);
+      bindings.add(`${s.cardId}:${s.orientation}:${s.position ?? 'neutral'}`);
     }
     for (const c of b.deck)
-      for (const o of ['upright', 'reversed']) if (!bindings.has(`${c.id}:${o}`)) denied();
+      for (const o of ['upright', 'reversed']) if (!bindings.has(`${c.id}:${o}:neutral`)) denied();
+    if (b.schemaVersion === 2) {
+      const relationshipIds = new Set<string>();
+      for (const s of b.sources)
+        if (
+          [s.meaning.core, ...s.meaning.distinctions, s.meaning.positive, ...s.meaning.limits].some(
+            (t) => !t.trim(),
+          )
+        )
+          denied();
+      for (const r of b.relationships) {
+        const supporting = b.sources.filter((s) => r.sourceIds.includes(s.id));
+        const themes = new Set(supporting.flatMap((s) => s.meaning.themes));
+        if (
+          relationshipIds.has(r.id) ||
+          !r.id.trim() ||
+          r.hash !== (await sourceHash(r)) ||
+          r.deckEdition !== b.deckEdition ||
+          r.review.kind !== 'human_approved' ||
+          !r.review.reviewer?.trim() ||
+          marker.test(r.review.reviewer) ||
+          (reviewerId !== undefined && r.review.reviewer !== reviewerId) ||
+          r.review.reviewedHash !== r.hash ||
+          r.review.reviewedAt === null ||
+          r.rights.status !== 'cleared' ||
+          [r.rights.evidence, r.rights.attribution, r.rights.territory, r.text, r.limits].some(
+            (t) => !t.trim() || marker.test(t),
+          ) ||
+          new Set(r.sourceIds).size !== r.sourceIds.length ||
+          supporting.length !== r.sourceIds.length ||
+          (r.cards.length === 0 && r.themes.length === 0) ||
+          new Set(r.cards.map((c) => c.cardId)).size !== r.cards.length ||
+          r.cards.some((c) => !b.deck.some((d) => d.id === c.cardId)) ||
+          r.themes.some((t) => !themes.has(t))
+        )
+          denied();
+        relationshipIds.add(r.id);
+      }
+    }
     return b;
   } catch {
     return denied();
@@ -116,7 +167,7 @@ export async function contentApprovalDocument(
 ) {
   const b = await inspectReviewedBundle(bundle, metadata.reviewerId, requireCompiledCopy);
   return Document.parse({
-    version: 'content-approval.v1',
+    version: b.schemaVersion === 1 ? 'content-approval.v1' : 'content-approval.v2',
     scope: 'editorial-content',
     ...metadata,
     bundleHash: b.editionHash,
@@ -130,6 +181,17 @@ export async function contentApprovalDocument(
       sources: b.sources.map((s) => s.rights.attribution),
     }),
     territoriesHash: await sha256Json(b.sources.map((s) => s.rights.territory)),
+    ...(b.schemaVersion === 2
+      ? {
+          spreadHash: await sha256Json({ version: b.spreadVersion, positions: b.positionFrames }),
+          fallbackHash: await sha256Json(b.fallbackV2),
+          relationships: b.relationships.map((r) => ({
+            id: r.id,
+            version: r.version,
+            hash: r.hash,
+          })),
+        }
+      : {}),
   });
 }
 export async function verifySignedContentApproval(
@@ -152,6 +214,8 @@ export async function verifySignedContentApproval(
       !Number.isSafeInteger(now) ||
       Date.parse(d.approvedAt) > now ||
       b.sources.some((s) => Date.parse(s.review.reviewedAt!) > Date.parse(d.approvedAt)) ||
+      (b.schemaVersion === 2 &&
+        b.relationships.some((r) => Date.parse(r.review.reviewedAt!) > Date.parse(d.approvedAt))) ||
       Date.parse(b.createdAt) > Date.parse(d.approvedAt)
     )
       denied();

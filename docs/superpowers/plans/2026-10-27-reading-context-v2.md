@@ -55,9 +55,9 @@
 
 **Interfaces:** Complete 78x2 neutral meaning coverage, source/package hashes and review export; `AnyContentBundle` supports existing v1 and new v2 without upgrading old bytes. Approval documents bind all optional relationships and spread definitions through exact bundle hashes.
 
-- [ ] Write coverage, substantive-field, unchanged-review-status, draft-rejection, approval-tampering and position-specific-source tests; observe RED.
-- [ ] Develop original bounded orientation packages from inventoried local editorial inputs; imagery and production relationships default empty until verified/reviewed. Export exact review packet.
-- [ ] Run content tooling and activation suites; expected PASS. Commit draft separately from any approval (none manufactured).
+- [x] Write coverage, substantive-field, unchanged-review-status, draft-rejection, approval-tampering and position-specific-source tests; observe RED.
+- [x] Develop original bounded orientation packages from inventoried local editorial inputs; imagery and production relationships default empty until verified/reviewed. Export exact review packet.
+- [x] Run content tooling and activation suites; expected PASS. Commit draft separately from any approval (none manufactured).
 
 ### Task 4: Generation, persistence and presentation
 
