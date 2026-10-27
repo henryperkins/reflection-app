@@ -45,7 +45,19 @@ export type EvaluationRequest = {
 };
 export type EvaluationManifest = {
   version: 'reflection-evaluation-manifest.v1';
-  profile: 'baseline' | 'smoke' | 'human-review' | 'human-review-fast-xhigh';
+  profile:
+    | 'baseline'
+    | 'smoke'
+    | 'human-review'
+    | 'human-review-fast-xhigh'
+    | 'source-diagnostic-fast-xhigh';
+  sourceDiagnostic?: {
+    sourceBundleHash: string;
+    parentManifestHash: string;
+    supersedesProposalHash: string;
+    reviewKind: 'ai-editorial-recommendation';
+    humanApproval: false;
+  };
   model: string;
   policyHash: string;
   contentHash: string;
@@ -85,7 +97,10 @@ export type PreparedEvaluation = {
 /** Synthetic-only evaluator. These fixtures cannot pass production content activation. */
 export async function prepareEvaluation(
   profile: EvaluationManifest['profile'] = 'baseline',
+  sourceBundle?: unknown,
 ): Promise<PreparedEvaluation> {
+  if (profile === 'source-diagnostic-fast-xhigh') return prepareSourceDiagnostic(sourceBundle);
+  if (sourceBundle !== undefined) throw new Error('Source bundle requires a diagnostic profile');
   const policy =
     profile === 'human-review-fast-xhigh' ? FAST_XHIGH_EVALUATION_POLICY : READING_PROVIDER_POLICY;
   const bytes = readFileSync(resolve(projectRoot, 'evaluation/corpus.json'));
@@ -221,4 +236,127 @@ export async function prepareEvaluation(
   }
   manifest.maximumScheduledMicrousd = requests.length * policy.reservationMicrousd;
   return { policy, manifest, manifestHash: digest(canonicalJson(manifest)), requests };
+}
+
+const SourceDiagnosticBundle = z.strictObject({
+  version: z.literal('reflection-source-diagnostic-bundle.v1'),
+  parentManifestHash: z.string().regex(/^[a-f0-9]{64}$/),
+  supersedesProposalHash: z.string().regex(/^[a-f0-9]{64}$/),
+  review: z.strictObject({
+    kind: z.literal('ai-editorial-recommendation'),
+    humanApproval: z.literal(false),
+    productionApproval: z.literal(false),
+  }),
+  sources: z
+    .array(
+      z.strictObject({
+        caseId: z.enum(['A07-2', 'A08-1']),
+        position: z.enum(['situation', 'tension', 'possibility']),
+        factId: z.string(),
+        sourceId: z.string(),
+        cardId: z.string(),
+        orientation: z.enum(['upright', 'reversed']),
+        text: z
+          .string()
+          .min(1)
+          .max(2000)
+          .startsWith('SYNTHETIC LOCAL SIMULATION — never production editorial approval. '),
+      }),
+    )
+    .length(6),
+});
+
+/** Evaluation-only wire substitution. No human-approved canon or application plan is created. */
+async function prepareSourceDiagnostic(value: unknown): Promise<PreparedEvaluation> {
+  const bundle = SourceDiagnosticBundle.parse(value);
+  const parent = await prepareEvaluation('human-review-fast-xhigh');
+  if (bundle.parentManifestHash !== parent.manifestHash) throw new Error('Diagnostic parent drift');
+  const sourceBundleHash = digest(canonicalJson(bundle));
+  const manifest: EvaluationManifest = {
+    ...parent.manifest,
+    profile: 'source-diagnostic-fast-xhigh',
+    sourceDiagnostic: {
+      sourceBundleHash,
+      parentManifestHash: parent.manifestHash,
+      supersedesProposalHash: bundle.supersedesProposalHash,
+      reviewKind: bundle.review.kind,
+      humanApproval: false,
+    },
+    contentHash: digest(
+      canonicalJson({ originalContentHash: parent.manifest.contentHash, sourceBundleHash }),
+    ),
+    counts: { mustAccept: 2, adversarial: 0, nonReading: 0, lifecycle: 0 },
+    splits: { development: 2, calibration: 0, holdout: 0 },
+    humanReviewRequired: 2,
+    maximumScheduledMicrousd: 1440000,
+    schedule: [],
+    lifecycle: [],
+    blockers: [
+      'AI editorial recommendation only; no human or production approval',
+      'Source bundles vary in length, content and differentiation; this is not model qualification',
+    ],
+  };
+  const requests: EvaluationRequest[] = [];
+  for (const caseId of ['A07-2', 'A08-1']) {
+    const original = parent.requests.find((r) => r.caseId === caseId)!;
+    const replacements = original.plan.basis.cards.map((card, index) => {
+      const matches = bundle.sources.filter(
+        (s) => s.caseId === caseId && s.position === card.position,
+      );
+      const source = matches[0];
+      if (
+        matches.length !== 1 ||
+        !source ||
+        source.cardId !== card.cardId ||
+        source.orientation !== card.orientation ||
+        source.factId !== card.id ||
+        source.sourceId !== original.plan.sources[index]!.id
+      )
+        throw new Error('Diagnostic source binding mismatch');
+      return source;
+    });
+    if (
+      new Set(replacements.map((s) => s.text.normalize('NFKC').replace(/\s+/gu, ' ').trim()))
+        .size !== 3
+    )
+      throw new Error('Duplicate diagnostic source text');
+    for (const variant of ['original-fixture', 'distinct-source']) {
+      let payload = new Uint8Array(original.input.payload);
+      if (variant === 'distinct-source') {
+        const body = JSON.parse(new TextDecoder().decode(payload));
+        const data = JSON.parse(body.input[2].content);
+        for (const [index, source] of data.sources.entries())
+          source.text = replacements[index]!.text;
+        body.input[2].content = JSON.stringify(data);
+        payload = new TextEncoder().encode(JSON.stringify(body));
+      }
+      const estimatedInputTokens = payload.length + parent.policy.estimator.framingTokens;
+      if (
+        payload.length > parent.policy.estimator.maxPayloadBytes ||
+        estimatedInputTokens > parent.policy.estimator.maxInputTokens
+      )
+        throw new Error('INPUT_TOO_LARGE: diagnostic source payload');
+      const payloadHash = digest(payload);
+      for (let repeat = 1; repeat <= 3; repeat++) {
+        const id = `${caseId}.${variant}.${repeat}`;
+        // The unmodified fixture plan is for mechanical fact/source-ID checks only.
+        // Exact source evidence is the manifest-bound, archived wire request above.
+        requests.push({
+          ...original,
+          id,
+          payloadHash,
+          estimatedInputTokens,
+          input: { ...original.input, dispatchId: id, payload: new Uint8Array(payload) },
+        });
+        const slot = parent.manifest.schedule.find((s) => s.caseId === caseId)!;
+        manifest.schedule.push({ ...slot, id, variant, repeat, payloadHash });
+      }
+    }
+  }
+  return {
+    policy: parent.policy,
+    manifest,
+    manifestHash: digest(canonicalJson(manifest)),
+    requests,
+  };
 }

@@ -1,7 +1,8 @@
 # Tarot reference quality and grounding regression cases
 
-Status: owner-directed editorial target and diagnostic design. No new generation,
-content approval, branch merge, model selection, or production verification is recorded.
+Status: owner-directed editorial target and diagnostic design. The source diagnostic
+has since run; see [its execution results](../L5_EVALUATION_RESULTS.md#source-diagnostic-follow-up).
+No human content approval, branch merge, model selection, or production verification is recorded.
 The reflection app's frozen requests and stored readings retain their original identities.
 
 ## Inspected reference scope
@@ -93,9 +94,11 @@ including selected reflections and any retained context, not merely card identit
 
 ## Sequence of controlled work
 
-1. Finish human review of the six source passages proposed for the 12-call source-only
-   diagnostic. Preserve the old instructions and settings in both conditions. This
-   measures a narrow input change, not the final reading standard or a model winner.
+1. Use the six passages selected by the owner for the 12-call source-only diagnostic,
+   with the exact `if present` revision and AI editorial review provenance. A fresh
+   bound permit authorizes execution independently of that review. Preserve the old
+   instructions and settings in both conditions. This measures a narrow input change,
+   not the final reading standard or a model winner.
 2. Freeze a new evaluation-only reading contract with enough room for supported
    interpretation, cross-position synthesis, and a usable optional method. Use a common
    500–700-word target for the later three-card comparison, without padding inadequate
@@ -107,6 +110,7 @@ including selected reflections and any retained context, not merely card identit
 4. Apply G01–G08 and their supplied-fact controls with exact evidence. Keep mechanical
    screening separate from human acceptance and use fresh examples for qualification.
 
-The six diagnostic drafts and their 12 planned payloads remain outside the checkout in
-the original run archive, under its expiry. Their status is pending human source review;
-they are not production content approval and no new API calls have been made.
+The original six-passage proposal and planned payloads remain immutable outside the checkout
+under their archive expiry. Revised sources, request hashes and actual outputs are retained
+with the new diagnostic evidence. The source recommendation is explicitly AI editorial review;
+no human source or output approval is inferred from the owner's instruction to run it.

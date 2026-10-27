@@ -29,6 +29,23 @@ the new policy/manifest hashes. The existing Standard profiles and application p
 retain their previous hashes. Returned reasoning metadata is excluded from reading
 content; a returned service tier other than `fast` halts the run.
 
+`--dry-run --profile source-diagnostic-fast-xhigh --source-bundle /private/sources.json`
+freezes A07-2 and A08-1 under two source conditions, three repetitions each (12 calls,
+$1.44 maximum). The external mode-0600 bundle supplies six exact position/card/orientation/
+source bindings, the parent manifest hash and superseded proposal hash. Its review status
+is explicitly an AI editorial recommendation, with no human or production approval.
+The distinct condition must supply different text for each position. Only source text
+changes on the wire; prompts, schema, draws, IDs and fast/xhigh settings stay fixed.
+The original fixture plan is retained solely for mechanical binding checks; archived
+wire requests are the authority for the source passages actually supplied to generation.
+
+Execution requires a fresh `source-diagnostic-fast-xhigh` permit containing the absolute
+`sourceBundlePath`, new content/manifest hashes, at most 12 calls and $1.44. A source edit
+changes the bundle/content/manifest hashes and affected request hashes; old proposals and
+permits cannot authorize it. Resume retains the same source bundle and skips reserved
+attempts. Source-only results concern the replacement bundles, which jointly change
+length, content and differentiation; they do not isolate those properties or compare models.
+
 [Terra pricing](https://developers.openai.com/api/docs/models/gpt-6.1-terra) lists
 [Fast mode](https://developers.openai.com/api/docs/guides/fast-mode) at twice Standard:
 $2 input, $0.10 cached input, $2.50 cache writes (30 minutes), and $10 output per million
@@ -57,7 +74,7 @@ An operator executes only with `--execute --permit /absolute/protected/permit.js
 The permit is a mode-0600 regular file, not a web request. It binds:
 
 - `version: reflection-evaluation-permit.v1`, `scope: evaluation`, a unique `runId`,
-  `purpose: transport-smoke|synthetic-research|human-review|human-review-fast-xhigh`,
+  `purpose: transport-smoke|synthetic-research|human-review|human-review-fast-xhigh|source-diagnostic-fast-xhigh`,
   authorizer and authorization/expiry times;
 - actual `projectId`, SHA-256 `credentialHash` of the selected key, model and
   policy/content/corpus/manifest hashes;

@@ -34,6 +34,7 @@ export const EvaluationPermit = z.strictObject({
     'synthetic-research',
     'human-review',
     'human-review-fast-xhigh',
+    'source-diagnostic-fast-xhigh',
   ]),
   runId: z.uuid(),
   authorizedBy: z.string().trim().min(1).max(200),
@@ -51,6 +52,7 @@ export const EvaluationPermit = z.strictObject({
   maxConcurrency: z.number().int().min(1).max(2),
   maxCostMicrousd: z.number().int().min(1).max(40000000),
   outputDirectory: z.string().min(1),
+  sourceBundlePath: z.string().min(1).optional(),
 });
 export type EvaluationPermit = z.infer<typeof EvaluationPermit>;
 export type EvaluationSummary = {
@@ -149,6 +151,9 @@ export function validatePermit(
     m.reservationMicrousd !== prepared.policy.reservationMicrousd ||
     p.contentHash !== m.contentHash ||
     p.corpusHash !== m.corpusHash ||
+    (p.purpose === 'source-diagnostic-fast-xhigh'
+      ? !p.sourceBundlePath || !m.sourceDiagnostic || p.maxCalls > 12 || p.maxCostMicrousd > 1440000
+      : p.sourceBundlePath !== undefined || m.sourceDiagnostic !== undefined) ||
     m.profile !==
       (p.purpose === 'transport-smoke'
         ? 'smoke'

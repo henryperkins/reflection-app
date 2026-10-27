@@ -108,6 +108,12 @@ schema, model, reasoning effort, tier, and other request settings. Change only t
 text. Review the exact proposed passages before execution. Keep the existing xhigh/fast
 limits: two concurrent calls, no retries, $0.12 reserved per call, $1.44 maximum liability.
 
+Record review provenance accurately. For the owner's authorized source diagnostic, the
+six-passage review is an AI editorial recommendation with one exact clause revision;
+it is not human approval. A fresh run permit separately binds execution to the revised
+source bundle and full request schedule. This experimental exception does not satisfy
+human content approval or finished-reading qualification requirements.
+
 The diagnostic is exploratory, with no inference of statistical certainty. If richer
 sources still collapse into the same framing, hold those sources fixed in a separately
 budgeted prompt comparison. Do not change sources, prompt, and model together.

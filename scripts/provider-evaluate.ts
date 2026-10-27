@@ -1,6 +1,6 @@
 import { readFileSync, lstatSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { WritingProvider, WriterOutcome } from '../src/contracts/index.ts';
 import type { WriterProviderPolicy } from '../src/contracts/provider-policy.ts';
@@ -172,6 +172,12 @@ function protectedJson(file: string) {
     throw new Error('Permit must be a protected regular file');
   return JSON.parse(readFileSync(path, 'utf8')) as unknown;
 }
+function diagnosticBundle(file: string) {
+  const within = relative(projectRoot, resolve(file));
+  if (!within.startsWith(`..${sep}`) && within !== '..')
+    throw new Error('Diagnostic sources must remain outside checkout');
+  return protectedJson(file);
+}
 export async function runEvaluationCli(
   argv: string[],
   env: NodeJS.ProcessEnv = process.env,
@@ -180,6 +186,7 @@ export async function runEvaluationCli(
     return {
       usage: [
         'provider:evaluate -- --dry-run [--profile baseline|smoke|human-review|human-review-fast-xhigh]',
+        'provider:evaluate -- --dry-run --profile source-diagnostic-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --execute --permit /protected/permit.json [--resume]',
         'provider:evaluate -- --purge-expired',
       ],
@@ -195,17 +202,24 @@ export async function runEvaluationCli(
     const profile =
       argv.length === 1
         ? 'baseline'
-        : argv.length === 3 && argv[1] === '--profile'
+        : (argv.length === 3 || argv.length === 5) && argv[1] === '--profile'
           ? argv[2]
           : null;
     if (
       profile !== 'baseline' &&
       profile !== 'smoke' &&
       profile !== 'human-review' &&
-      profile !== 'human-review-fast-xhigh'
+      profile !== 'human-review-fast-xhigh' &&
+      profile !== 'source-diagnostic-fast-xhigh'
     )
       throw new Error('Invalid evaluation profile');
-    const prepared = await prepareEvaluation(profile);
+    const diagnostic = profile === 'source-diagnostic-fast-xhigh';
+    if (diagnostic ? argv.length !== 5 || argv[3] !== '--source-bundle' : argv.length > 3)
+      throw new Error('Diagnostic source bundle required only for diagnostic profile');
+    const prepared = await prepareEvaluation(
+      profile,
+      diagnostic ? diagnosticBundle(argv[4]!) : undefined,
+    );
     const frozen = JSON.parse(
       readFileSync(resolve(projectRoot, 'evaluation/manifest.json'), 'utf8'),
     ) as unknown;
@@ -241,6 +255,9 @@ export async function runEvaluationCli(
       : permit.purpose === 'synthetic-research'
         ? 'baseline'
         : permit.purpose,
+    permit.purpose === 'source-diagnostic-fast-xhigh' && permit.sourceBundlePath
+      ? diagnosticBundle(permit.sourceBundlePath)
+      : undefined,
   );
   validatePermit(permit, prepared);
   // No transport exists until authorization, identity, archive protection and journal all validate.

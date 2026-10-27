@@ -110,3 +110,45 @@ three repetitions per case, 12 new calls with a $1.44 reservation ceiling. Quest
 draws, source IDs, instructions and fast/xhigh settings are frozen. Six new experimental
 source passages require human review before execution. They are explicitly AI-authored
 drafts and confer no production content approval. No new calls were made during the audit.
+
+## Source diagnostic follow-up
+
+The owner subsequently instructed execution with five passages unchanged and one exact
+edit to A08-1 tension: `uncertainty or discouragement, if present, to remain`. The supplied
+review explicitly identifies itself as an **AI editorial recommendation**, not human or
+production approval. That provenance is retained; a separate fresh run permit binds the
+owner's execution instruction to the actual project, credential, manifest and budget.
+
+The original proposal hash `fc51390bd27e9d8536532a32560376205365bb8905848e8a6f3cb695f560e070`
+remains unchanged. The revised proposal is
+`5cdd608abf1e2a7c862e0d8b2c458d1613f4a956396263ef835bf915d9b685f6`, the executable source
+bundle is `455f2f85c326b6ade717738b74fcd8017420ce87c605b1ccd48efbef8dd9b4e7`, and the frozen
+run manifest is `a74408fc3e5c986a9716638d1f98705b1e4b1073324d1d52dc1df495e6c6d4ba`.
+Byte comparisons confirmed the control requests match the original archive and the
+replacement requests differ from the earlier proposal only by the requested clause.
+
+Run `076a039a-f4d8-4943-9feb-fc29dbcfe649` completed all 12 scheduled calls: A07-2 and
+A08-1, original versus distinct sources, three repetitions per condition. The same
+gpt-6.1-terra / xhigh / fast policy, instructions, schema, draws and source IDs were used.
+Concurrency was capped at two, no retries occurred, and the $1.44 maximum was preserved.
+All 12 returned candidates and known usage receipts; calculated cost was **$0.118590**.
+There were no uncertain calls or refusals. All 12 passed the frozen mechanical screen.
+Resuming with a dispatch trap made zero transport calls and left the accounting unchanged.
+
+An unblinded AI editorial review of the exact inputs and outputs found all six replacement
+outputs reflected the three different source contributions. The six control outputs still
+centered on pausing. The replacement outputs were more specific but largely paraphrased
+the sources; the experiment does not establish finished-reading quality.
+
+Two replacement outputs demonstrate remaining grounding concerns despite mechanical passes:
+A08-1 repetition 1 asks which expectations make it harder to feel welcome without leaving
+room for none, and repetition 3 refers to the reader's uncertainty even though the source
+only permits uncertainty if present. The source wording alone did not prevent an emotional
+hypothesis becoming an assumed circumstance. These are agent review findings, not recorded
+human decisions. No human output approval or provider qualification is issued.
+
+The protected report includes unchanged prose, all 36 supplied passages, source/card/
+orientation bindings, exact instructions, schema, original wire requests, frozen manifests,
+costs, the source-review record and the subsequent AI editorial observations. Bundles vary
+in length, content and differentiation together; this evidence does not isolate those
+properties, compare model settings, or predict wider performance.
