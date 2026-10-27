@@ -198,6 +198,11 @@ export function ReadingWorkspace({
       setStance(note?.stance ?? 'unspecified');
       setConflict(false);
     }
+    if (note) setRevisionChoice(note.revision);
+    else {
+      setRevisionNote(null);
+      setEraseRevisionChecked(false);
+    }
     setConfirmDelete(false);
     setDeleteChecked(false);
   };
@@ -845,7 +850,7 @@ export function ReadingWorkspace({
               );
             })}
             {reading.kind === 'tarot.accepted.v2' ? (
-              <div className="reading-closing">
+              <div className="card reading-closing">
                 <section>
                   <h3>Putting it together</h3>
                   <p>{reading.synthesis.text}</p>
@@ -855,7 +860,7 @@ export function ReadingWorkspace({
                   <p>{reading.action.text}</p>
                 </section>
                 {reading.reflectionQuestion && (
-                  <section>
+                  <section className="reflection-prompt">
                     <h3>A question to consider</h3>
                     <p>{reading.reflectionQuestion.text}</p>
                   </section>
