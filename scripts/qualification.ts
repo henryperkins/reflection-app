@@ -7,12 +7,12 @@ import { sourceDigest } from './verification-state.ts';
 export const qualificationGates = {
   identity: ['production identity and real-device recovery', 'hosted-synthetic'],
   keys: ['production key rotation and retained-key receipts', 'hosted-synthetic'],
-  content: ['human-reviewed launch content and rights', 'human-review'],
+  content: ['verified launch content and attribution', 'automated-review'],
   provider: ['provider qualification and billing reconciliation', 'provider-evaluation'],
   release: ['hosted release isolation and failing-test proof', 'hosted-synthetic'],
   database: ['hosted D1 concurrency and scheduled recovery', 'hosted-synthetic'],
   restore: ['hosted erasure/security restore and independent backups', 'hosted-synthetic'],
-  accessibility: ['manual browser and accessibility acceptance', 'human-review'],
+  accessibility: ['automated browser and accessibility acceptance', 'automated-review'],
   operations: ['operational monitoring and runbooks', 'hosted-synthetic'],
   owner: ['owner decisions', 'owner-decision'],
 } as const;
@@ -41,7 +41,7 @@ const manifestSchema = z.strictObject({
           reviewedAt: z.iso.datetime(),
           scope: z.enum([
             'hosted-synthetic',
-            'human-review',
+            'automated-review',
             'provider-evaluation',
             'owner-decision',
           ]),

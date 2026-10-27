@@ -14,12 +14,12 @@
     {
       "id": "content",
       "status": "pending",
-      "reason": "The current v2 catalog, product copy and rights require named human review and signed approval. See docs/content-review/2026-10-27-reading-canon-v2.md; all 156 draft sources remain agent-reviewed with unknown rights."
+      "reason": "Automated validation of the final catalog, attribution, source provenance, product copy and signed content artifact is not recorded. No human sign-off is required by owner instruction."
     },
     {
       "id": "provider",
       "status": "pending",
-      "reason": "L6 integration and the owner-revised four-case L7 development check are complete. Production qualification for reading-provider-policy.v2 remains deferred: signed content, reviewed corpus, project privacy/access evidence, human output scoring and billing reconciliation are still required. The small check does not complete this production gate; see docs/superpowers/evidence/2026-10-27-four-case-live-check.md."
+      "reason": "Production qualification for reading-provider-policy.v2 remains open: content integrity, frozen-corpus automated evaluation, project privacy/access evidence and billing reconciliation. The four-case development check and hosted smoke establish development behavior only."
     },
     {
       "id": "release",
@@ -39,7 +39,7 @@
     {
       "id": "accessibility",
       "status": "pending",
-      "reason": "Human keyboard/screen-reader/zoom/device checks and supported-browser matrix remain open."
+      "reason": "Automated keyboard, focus, zoom, viewport, accessibility-tree and browser checks against the final hosted candidate remain open. Physical devices and screen-reader experience are unverified limitations, not human approval gates."
     },
     {
       "id": "operations",
@@ -49,7 +49,7 @@
     {
       "id": "owner",
       "status": "pending",
-      "reason": "Public domain, countries, minimum age, spend caps and operational ownership await owner decisions."
+      "reason": "Production domain, spend caps and operational ownership await owner decisions. Launch geography, minimum-age policy and human-review sign-offs are excluded by owner instruction."
     }
   ]
 }
