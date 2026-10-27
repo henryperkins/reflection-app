@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   ModelCandidate,
+  ModelCandidateV2,
   ProviderReceipt,
   type WriterOutcome,
   type WritingProvider,
@@ -277,7 +278,9 @@ export class OpenAIResponsesTransport implements WritingProvider {
         try {
           const candidate: unknown = JSON.parse(part.text);
           boundedCandidateJson(candidate);
-          return { kind: 'candidate', candidate: ModelCandidate.parse(candidate), receipt: known };
+          const schema =
+            policy.schemaVersion === 'tarot.interpretation.v2' ? ModelCandidateV2 : ModelCandidate;
+          return { kind: 'candidate', candidate: schema.parse(candidate), receipt: known };
         } catch {
           return { kind: 'invalid', reason: 'malformed', receipt: known };
         }

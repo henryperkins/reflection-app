@@ -45,9 +45,9 @@
 
 **Interfaces:** `prepareWriterV2(plan, policy)` returns exact `payload` plus `receipt`; `composeTemplateV2(plan)` returns deterministic v2 output. `validateCandidateV2(plan, value, receipt, template=false)` checks schema, all references and prose. Policy schema hashing selects v1/v2 by explicit schema identity.
 
-- [ ] Write privacy, complete packet, budget-omission/rejection, reference, bounds, natural supported-fact and negative-scope tests; run for RED.
-- [ ] Implement the user's full writing contract, response-specific schema, receipt and safe fallback; keep v1 functions frozen.
-- [ ] Run both new suites plus transport/provider-policy tests and typecheck; expected PASS. Commit.
+- [x] Write privacy, complete packet, budget-omission/rejection, reference, bounds, natural supported-fact and negative-scope tests; run for RED.
+- [x] Implement the user's full writing contract, response-specific schema, receipt and safe fallback; keep v1 functions frozen.
+- [x] Run both new suites plus transport/provider-policy tests and typecheck; expected PASS. Commit.
 
 ### Task 3: Substantive editorial draft and approval tooling
 
