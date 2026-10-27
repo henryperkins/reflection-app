@@ -1,7 +1,7 @@
 import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
-import { apiSchemas, type AcceptedReading, type Reflection } from '../contracts/index.ts';
+import { apiSchemas, type AnyAcceptedReading, type Reflection } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
 import { signIn } from './passkeys.ts';
 import {
@@ -47,7 +47,7 @@ export function ReadingWorkspace({
   const focusResultOnCommit = useRef(false);
   const [history, setHistory] = useState<History>({ items: [], nextCursor: null });
   const [record, setRecord] = useState<RecordView | null>(null);
-  const [reading, setReading] = useState<z.infer<typeof AcceptedReading> | null>(null);
+  const [reading, setReading] = useState<z.infer<typeof AnyAcceptedReading> | null>(null);
   useLayoutEffect(() => {
     if (mode === 'reading' && reading && focusResultOnCommit.current) {
       focusResultOnCommit.current = false;
@@ -162,7 +162,7 @@ export function ReadingWorkspace({
         : Promise.resolve(null),
     ]);
     if (!current()) return;
-    if (content.kind !== 'tarot.accepted.v1')
+    if (content.kind !== 'tarot.accepted.v1' && content.kind !== 'tarot.accepted.v2')
       throw new Error('This reading format is not available in the local build.');
     setRecord(session);
     setReading(content);
@@ -644,7 +644,7 @@ export function ReadingWorkspace({
             event.preventDefault();
             if (inFlight.current || requestPending) return;
             const values = {
-              question: question.trim(),
+              question,
               languageConfirmed: 'en' as const,
               reversals,
               permissionRevision: currentUser.current.permission.revision,
@@ -666,8 +666,13 @@ export function ReadingWorkspace({
         >
           <h2>A new reading</h2>
           <label htmlFor="reading-question">Your question</label>
+          <p id="reading-question-help">
+            Include what you are considering, what already works, and anything you want the reading
+            to take into account.
+          </p>
           <textarea
             id="reading-question"
+            aria-describedby="reading-question-help"
             rows={3}
             maxLength={500}
             required
@@ -711,37 +716,85 @@ export function ReadingWorkspace({
       )}
       {mode === 'reading' && record && reading && (
         <section aria-label="Reading detail">
-          <p className="eyebrow">Local simulated reading</p>
+          <p className="eyebrow">
+            Local simulated reading
+            {reading.mode === 'template' ? ' · Prepared reflection template' : ''}
+          </p>
           <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
           <article data-testid="accepted-reading" className="accepted-reading">
             <h2 ref={resultHeading} tabIndex={-1}>
               {reading.question}
             </h2>
-            {reading.units.map((unit) => (
+            {reading.units.map((unit, index) => (
               <section key={unit.position}>
                 <h3>{unit.position}</h3>
                 <h4>Drawn card</h4>
+                {reading.kind === 'tarot.accepted.v2' && <p>{reading.draw[index]!.name}</p>}
                 <p className="basis-text">{unit.basisText}</p>
                 <h4>Interpretation</h4>
                 <p>{unit.interpretation}</p>
-                <h4>Reflection prompt</h4>
-                <p>{unit.reflectionQuestion}</p>
+                {'reflectionQuestion' in unit && (
+                  <>
+                    <h4>Reflection prompt</h4>
+                    <p>{unit.reflectionQuestion}</p>
+                  </>
+                )}
               </section>
             ))}
-            <p>{reading.closing}</p>
+            {reading.kind === 'tarot.accepted.v2' ? (
+              <>
+                <section>
+                  <h3>Putting it together</h3>
+                  <p>{reading.synthesis.text}</p>
+                </section>
+                <section>
+                  <h3>An optional next step</h3>
+                  <p>{reading.action.text}</p>
+                </section>
+                {reading.reflectionQuestion && (
+                  <section>
+                    <h3>A question to consider</h3>
+                    <p>{reading.reflectionQuestion.text}</p>
+                  </section>
+                )}
+              </>
+            ) : (
+              <p>{reading.closing}</p>
+            )}
             <details>
               <summary>Cards and sources</summary>
               <h3>Traditional source material</h3>
               <p>
                 These source snapshots are separate from the generated interpretation and your own
-                reflection. This local build uses synthetic source text.
+                reflection. This local build uses unapproved development source material.
               </p>
               {reading.basis.cards.map((card, index) => (
                 <div key={card.id} className="source">
                   <h3>
-                    {card.position}: {card.cardId} · {card.orientation}
+                    {card.position}:{' '}
+                    {reading.kind === 'tarot.accepted.v2' ? reading.draw[index]!.name : card.cardId}{' '}
+                    · {card.orientation}
                   </h3>
-                  <p>{reading.sources[index]!.text}</p>
+                  {reading.kind === 'tarot.accepted.v2' ? (
+                    <>
+                      <p>{reading.sources[index]!.meaning.core}</p>
+                      <ul>
+                        {reading.sources[index]!.meaning.distinctions.map((text) => (
+                          <li key={text}>{text}</li>
+                        ))}
+                      </ul>
+                      <p>{reading.sources[index]!.meaning.positive}</p>
+                      <p>{reading.sources[index]!.meaning.limits.join(' ')}</p>
+                      {reading.sources[index]!.meaning.imagery && (
+                        <p>
+                          {reading.sources[index]!.meaning.imagery!.text} —{' '}
+                          {reading.sources[index]!.meaning.imagery!.reference}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p>{reading.sources[index]!.text}</p>
+                  )}
                   <p>{reading.sources[index]!.rights.attribution}</p>
                   <p className="muted">
                     Source {reading.sources[index]!.id} · version {reading.sources[index]!.version}

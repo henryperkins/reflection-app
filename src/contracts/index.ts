@@ -623,6 +623,7 @@ export const UnavailableReading = z.strictObject({
 });
 export const Reading = z.discriminatedUnion('kind', [
   AcceptedReading,
+  AcceptedReadingV2,
   ImportedReading,
   UnavailableReading,
 ]);
@@ -664,7 +665,11 @@ export const RequestStatus = z.strictObject({
 });
 export const StartRequest = z.strictObject({
   clientIntentId: Id,
-  question: z.string().trim().min(1).max(500),
+  question: z
+    .string()
+    .min(1)
+    .max(500)
+    .refine((value) => value.trim().length > 0),
   languageConfirmed: z.literal('en'),
   reversals: z.boolean(),
   permissionRevision: Revision,
@@ -803,6 +808,7 @@ export const GenerationReceipt = z.strictObject({
   actualCostMicroUsd: z.number().int().nullable(),
   costState: z.enum(['none', 'reserved', 'actual', 'unknown', 'expired']),
   transmission: JsonText.nullable(),
+  contextReceipt: WriterReceiptV2.optional(),
   reproduction: z.enum(['complete', 'redacted', 'legacy_unknown']),
 });
 export const PortableRecord = z.discriminatedUnion('kind', [
@@ -1266,7 +1272,7 @@ export interface RecoveryLedger {
   }>; // At most 100 objects/page; validate the complete per-job chain before replay/purge.
 }
 export interface ContentService {
-  stage(bundle: z.infer<typeof ContentBundle>): Promise<{ hash: string }>;
+  stage(bundle: z.infer<typeof AnyContentBundle>): Promise<{ hash: string }>;
   activate(hash: string, expectedSystemRevision: number): Promise<{ revision: number }>;
   withdraw(
     hash: string,

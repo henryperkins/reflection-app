@@ -7687,6 +7687,986 @@ components:
           properties:
             kind:
               type: string
+              const: tarot.accepted.v2
+            editionId:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            sessionId:
+              type: string
+              format: uuid
+              pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+            editionNumber:
+              type: integer
+              minimum: 1
+              maximum: 9007199254740991
+            parentEditionId:
+              anyOf:
+                - type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                - type: "null"
+            question:
+              type: string
+              maxLength: 500
+            basis:
+              type: object
+              properties:
+                kind:
+                  type: string
+                  const: tarot.v1
+                schemaVersion:
+                  type: number
+                  const: 1
+                basisId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                deckEdition:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                spread:
+                  type: string
+                  const: situation-tension-possibility.v1
+                drawAlgorithm:
+                  type: string
+                  const: hmac-sha256-fisher-yates-reject.v1
+                seed:
+                  type: string
+                  maxLength: 65536
+                  pattern: ^[A-Za-z0-9_-]+$
+                reversals:
+                  type: boolean
+                cards:
+                  minItems: 3
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                        const: tarot.card
+                      id:
+                        type: string
+                        pattern: ^card:(situation|tension|possibility)$
+                      position:
+                        type: string
+                        enum:
+                          - situation
+                          - tension
+                          - possibility
+                      cardId:
+                        type: string
+                        pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                      orientation:
+                        type: string
+                        enum:
+                          - upright
+                          - reversed
+                    required:
+                      - kind
+                      - id
+                      - position
+                      - cardId
+                      - orientation
+                    additionalProperties: false
+                counts:
+                  minItems: 4
+                  maxItems: 4
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                        const: tarot.suit_count
+                      id:
+                        type: string
+                        pattern: ^count:(wands|cups|swords|pentacles)$
+                      suit:
+                        type: string
+                        enum:
+                          - wands
+                          - cups
+                          - swords
+                          - pentacles
+                      count:
+                        type: integer
+                        minimum: 0
+                        maximum: 3
+                    required:
+                      - kind
+                      - id
+                      - suit
+                      - count
+                    additionalProperties: false
+                drawnAt:
+                  type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+              required:
+                - kind
+                - schemaVersion
+                - basisId
+                - deckEdition
+                - spread
+                - drawAlgorithm
+                - seed
+                - reversals
+                - cards
+                - counts
+                - drawnAt
+              additionalProperties: false
+            mode:
+              type: string
+              enum:
+                - model
+                - template
+            contentHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            planHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            sources:
+              minItems: 3
+              maxItems: 3
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    maxLength: 100
+                  version:
+                    type: integer
+                    minimum: 1
+                    maximum: 9007199254740991
+                  hash:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  kind:
+                    type: string
+                    const: traditional_interpretation
+                  cardId:
+                    type: string
+                    pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                  orientation:
+                    type: string
+                    enum:
+                      - upright
+                      - reversed
+                  position:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - situation
+                          - tension
+                          - possibility
+                      - type: "null"
+                  text:
+                    type: string
+                    minLength: 1
+                    maxLength: 1200
+                  fallbackText:
+                    type: string
+                    minLength: 1
+                    maxLength: 400
+                  reflectionQuestion:
+                    type: string
+                    minLength: 1
+                    maxLength: 180
+                  rights:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - cleared
+                          - unknown
+                          - disallowed
+                      evidence:
+                        type: string
+                        maxLength: 1000
+                      attribution:
+                        type: string
+                        maxLength: 500
+                      territory:
+                        type: string
+                        maxLength: 200
+                    required:
+                      - status
+                      - evidence
+                      - attribution
+                      - territory
+                    additionalProperties: false
+                  review:
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - unreviewed
+                          - agent_reviewed
+                          - human_approved
+                      reviewer:
+                        type:
+                          - string
+                          - "null"
+                      reviewedHash:
+                        anyOf:
+                          - type: string
+                            pattern: ^[a-f0-9]{64}$
+                          - type: "null"
+                      reviewedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                    required:
+                      - kind
+                      - reviewer
+                      - reviewedHash
+                      - reviewedAt
+                    additionalProperties: false
+                  meaning:
+                    type: object
+                    properties:
+                      core:
+                        type: string
+                        minLength: 1
+                        maxLength: 700
+                      distinctions:
+                        minItems: 2
+                        maxItems: 3
+                        type: array
+                        items:
+                          type: string
+                          minLength: 1
+                          maxLength: 300
+                      positive:
+                        type: string
+                        minLength: 1
+                        maxLength: 350
+                      limits:
+                        minItems: 1
+                        maxItems: 3
+                        type: array
+                        items:
+                          type: string
+                          minLength: 1
+                          maxLength: 220
+                      themes:
+                        maxItems: 6
+                        type: array
+                        items:
+                          type: string
+                          pattern: ^[a-z][a-z0-9-]{0,59}$
+                      imagery:
+                        anyOf:
+                          - type: object
+                            properties:
+                              text:
+                                type: string
+                                minLength: 1
+                                maxLength: 250
+                              reference:
+                                type: string
+                                minLength: 1
+                                maxLength: 200
+                              verified:
+                                type: boolean
+                                const: true
+                            required:
+                              - text
+                              - reference
+                              - verified
+                            additionalProperties: false
+                          - type: "null"
+                    required:
+                      - core
+                      - distinctions
+                      - positive
+                      - limits
+                      - themes
+                      - imagery
+                    additionalProperties: false
+                required:
+                  - id
+                  - version
+                  - hash
+                  - kind
+                  - cardId
+                  - orientation
+                  - position
+                  - text
+                  - fallbackText
+                  - reflectionQuestion
+                  - rights
+                  - review
+                  - meaning
+                additionalProperties: false
+            acceptedAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+            provenance:
+              type: object
+              properties:
+                requestId:
+                  type: string
+                  format: uuid
+                  pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                dispatchId:
+                  anyOf:
+                    - type: string
+                      format: uuid
+                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                    - type: "null"
+                provider:
+                  anyOf:
+                    - type: string
+                      const: openai
+                    - type: "null"
+                requestedModel:
+                  type:
+                    - string
+                    - "null"
+                returnedModel:
+                  type:
+                    - string
+                    - "null"
+                promptHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                validatorHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                policyHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                contentHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                selected:
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      ordinal:
+                        type: integer
+                        minimum: 0
+                        maximum: 2
+                      grantId:
+                        type: string
+                        format: uuid
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      grantRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                      sourceKind:
+                        type: string
+                        enum:
+                          - edition
+                          - reflection_revision
+                      sourceId:
+                        type: string
+                        format: uuid
+                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                      sourceRevision:
+                        type: integer
+                        minimum: 1
+                        maximum: 9007199254740991
+                      start:
+                        type: integer
+                        minimum: 0
+                        maximum: 9007199254740991
+                      end:
+                        type: integer
+                        exclusiveMinimum: 0
+                        maximum: 9007199254740991
+                      text:
+                        anyOf:
+                          - type: string
+                            maxLength: 1200
+                          - type: "null"
+                      textHash:
+                        anyOf:
+                          - type: string
+                            pattern: ^[a-f0-9]{64}$
+                          - type: "null"
+                      availability:
+                        type: string
+                        enum:
+                          - retained
+                          - erased
+                      authorship:
+                        type: string
+                        enum:
+                          - generated
+                          - user
+                          - legacy_unknown
+                    required:
+                      - ordinal
+                      - grantId
+                      - grantRevision
+                      - sourceKind
+                      - sourceId
+                      - sourceRevision
+                      - start
+                      - end
+                      - text
+                      - textHash
+                      - availability
+                      - authorship
+                    additionalProperties: false
+                transmissionHash:
+                  anyOf:
+                    - type: string
+                      pattern: ^[a-f0-9]{64}$
+                    - type: "null"
+                fallbackReason:
+                  anyOf:
+                    - type: string
+                      enum:
+                        - OUTAGE
+                        - MALFORMED
+                        - VALIDATION
+                        - TIMEOUT_UNKNOWN
+                    - type: "null"
+                schemaHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+                contextHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+              required:
+                - requestId
+                - dispatchId
+                - provider
+                - requestedModel
+                - returnedModel
+                - promptHash
+                - validatorHash
+                - policyHash
+                - contentHash
+                - selected
+                - transmissionHash
+                - fallbackReason
+                - schemaHash
+                - contextHash
+              additionalProperties: false
+            draw:
+              minItems: 3
+              maxItems: 3
+              type: array
+              items:
+                type: object
+                properties:
+                  cardId:
+                    type: string
+                    pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                  name:
+                    type: string
+                    minLength: 1
+                    maxLength: 80
+                  orientation:
+                    type: string
+                    enum:
+                      - upright
+                      - reversed
+                  position:
+                    type: string
+                    enum:
+                      - situation
+                      - tension
+                      - possibility
+                  factId:
+                    type: string
+                    enum:
+                      - card:situation
+                      - card:tension
+                      - card:possibility
+                      - count:wands
+                      - count:cups
+                      - count:swords
+                      - count:pentacles
+                  deckEdition:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                required:
+                  - cardId
+                  - name
+                  - orientation
+                  - position
+                  - factId
+                  - deckEdition
+                additionalProperties: false
+            spread:
+              type: object
+              properties:
+                version:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                positions:
+                  minItems: 3
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      position:
+                        type: string
+                        enum:
+                          - situation
+                          - tension
+                          - possibility
+                      text:
+                        type: string
+                        maxLength: 300
+                    required:
+                      - position
+                      - text
+                    additionalProperties: false
+              required:
+                - version
+                - positions
+              additionalProperties: false
+            relationships:
+              maxItems: 2
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                  version:
+                    type: integer
+                    minimum: 1
+                    maximum: 9007199254740991
+                  hash:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  deckEdition:
+                    type: string
+                    pattern: ^[a-f0-9]{64}$
+                  priority:
+                    type: integer
+                    minimum: 0
+                    maximum: 1000
+                  cards:
+                    maxItems: 3
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        cardId:
+                          type: string
+                          pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                        orientations:
+                          minItems: 1
+                          maxItems: 2
+                          type: array
+                          items:
+                            type: string
+                            enum:
+                              - upright
+                              - reversed
+                      required:
+                        - cardId
+                        - orientations
+                      additionalProperties: false
+                  themes:
+                    maxItems: 6
+                    type: array
+                    items:
+                      type: string
+                      pattern: ^[a-z][a-z0-9-]{0,59}$
+                  sourceIds:
+                    minItems: 2
+                    maxItems: 3
+                    type: array
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                  text:
+                    type: string
+                    minLength: 1
+                    maxLength: 500
+                  limits:
+                    type: string
+                    minLength: 1
+                    maxLength: 300
+                  rights:
+                    type: object
+                    properties:
+                      status:
+                        type: string
+                        enum:
+                          - cleared
+                          - unknown
+                          - disallowed
+                      evidence:
+                        type: string
+                        maxLength: 1000
+                      attribution:
+                        type: string
+                        maxLength: 500
+                      territory:
+                        type: string
+                        maxLength: 200
+                    required:
+                      - status
+                      - evidence
+                      - attribution
+                      - territory
+                    additionalProperties: false
+                  review:
+                    type: object
+                    properties:
+                      kind:
+                        type: string
+                        enum:
+                          - unreviewed
+                          - agent_reviewed
+                          - human_approved
+                      reviewer:
+                        type:
+                          - string
+                          - "null"
+                      reviewedHash:
+                        anyOf:
+                          - type: string
+                            pattern: ^[a-f0-9]{64}$
+                          - type: "null"
+                      reviewedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                    required:
+                      - kind
+                      - reviewer
+                      - reviewedHash
+                      - reviewedAt
+                    additionalProperties: false
+                required:
+                  - id
+                  - version
+                  - hash
+                  - deckEdition
+                  - priority
+                  - cards
+                  - themes
+                  - sourceIds
+                  - text
+                  - limits
+                  - rights
+                  - review
+                additionalProperties: false
+            units:
+              minItems: 3
+              maxItems: 3
+              type: array
+              items:
+                type: object
+                properties:
+                  position:
+                    type: string
+                    enum:
+                      - situation
+                      - tension
+                      - possibility
+                  factIds:
+                    minItems: 1
+                    maxItems: 3
+                    type: array
+                    items:
+                      type: string
+                      enum:
+                        - card:situation
+                        - card:tension
+                        - card:possibility
+                        - count:wands
+                        - count:cups
+                        - count:swords
+                        - count:pentacles
+                  sourceIds:
+                    minItems: 1
+                    maxItems: 1
+                    type: array
+                    items:
+                      type: string
+                  interpretation:
+                    type: string
+                    minLength: 1
+                    maxLength: 650
+                  contextRefs:
+                    minItems: 1
+                    maxItems: 1
+                    type: array
+                    items:
+                      type: string
+                      const: reader:question
+                  basisText:
+                    type: string
+                    maxLength: 350
+                required:
+                  - position
+                  - factIds
+                  - sourceIds
+                  - interpretation
+                  - contextRefs
+                  - basisText
+                additionalProperties: false
+            synthesis:
+              type: object
+              properties:
+                sourceIds:
+                  minItems: 2
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                contextRefs:
+                  minItems: 1
+                  maxItems: 1
+                  type: array
+                  items:
+                    type: string
+                    const: reader:question
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 650
+                relationshipIds:
+                  maxItems: 2
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+              required:
+                - sourceIds
+                - contextRefs
+                - text
+                - relationshipIds
+              additionalProperties: false
+            action:
+              type: object
+              properties:
+                sourceIds:
+                  minItems: 1
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                contextRefs:
+                  minItems: 1
+                  maxItems: 1
+                  type: array
+                  items:
+                    type: string
+                    const: reader:question
+                text:
+                  type: string
+                  minLength: 1
+                  maxLength: 500
+              required:
+                - sourceIds
+                - contextRefs
+                - text
+              additionalProperties: false
+            reflectionQuestion:
+              anyOf:
+                - type: object
+                  properties:
+                    sourceIds:
+                      minItems: 1
+                      maxItems: 3
+                      type: array
+                      items:
+                        type: string
+                        minLength: 1
+                        maxLength: 100
+                    contextRefs:
+                      minItems: 1
+                      maxItems: 1
+                      type: array
+                      items:
+                        type: string
+                        const: reader:question
+                    text:
+                      type: string
+                      minLength: 1
+                      maxLength: 200
+                  required:
+                    - sourceIds
+                    - contextRefs
+                    - text
+                  additionalProperties: false
+                - type: "null"
+            contextReceipt:
+              anyOf:
+                - type: object
+                  properties:
+                    version:
+                      type: string
+                      const: writer-packet.v2
+                    diagnosticOnly:
+                      type: boolean
+                    contextHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    contentHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    deckEdition:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    spreadVersion:
+                      type: string
+                      maxLength: 100
+                    sources:
+                      minItems: 3
+                      maxItems: 3
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          version:
+                            type: integer
+                            minimum: 1
+                            maximum: 9007199254740991
+                          hash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                        required:
+                          - id
+                          - version
+                          - hash
+                        additionalProperties: false
+                    relationships:
+                      maxItems: 2
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          version:
+                            type: integer
+                            minimum: 1
+                            maximum: 9007199254740991
+                          hash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                        required:
+                          - id
+                          - version
+                          - hash
+                        additionalProperties: false
+                    omissions:
+                      maxItems: 5
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          kind:
+                            type: string
+                            enum:
+                              - relationship
+                              - imagery
+                          id:
+                            type: string
+                        required:
+                          - kind
+                          - id
+                        additionalProperties: false
+                    promptHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    schemaHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    validatorHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    policyHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    transmissionHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    estimatedInputTokens:
+                      type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
+                    payloadBytes:
+                      type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
+                  required:
+                    - version
+                    - diagnosticOnly
+                    - contextHash
+                    - contentHash
+                    - deckEdition
+                    - spreadVersion
+                    - sources
+                    - relationships
+                    - omissions
+                    - promptHash
+                    - schemaHash
+                    - validatorHash
+                    - policyHash
+                    - transmissionHash
+                    - estimatedInputTokens
+                    - payloadBytes
+                  additionalProperties: false
+                - type: "null"
+          required:
+            - kind
+            - editionId
+            - sessionId
+            - editionNumber
+            - parentEditionId
+            - question
+            - basis
+            - mode
+            - contentHash
+            - planHash
+            - sources
+            - acceptedAt
+            - provenance
+            - draw
+            - spread
+            - relationships
+            - units
+            - synthesis
+            - action
+            - reflectionQuestion
+            - contextReceipt
+          additionalProperties: false
+        - type: object
+          properties:
+            kind:
+              type: string
               const: legacy.imported.v1
             editionId:
               type: string
@@ -8860,6 +9840,986 @@ components:
                         properties:
                           kind:
                             type: string
+                            const: tarot.accepted.v2
+                          editionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          sessionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          editionNumber:
+                            type: integer
+                            minimum: 1
+                            maximum: 9007199254740991
+                          parentEditionId:
+                            anyOf:
+                              - type: string
+                                format: uuid
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              - type: "null"
+                          question:
+                            type: string
+                            maxLength: 500
+                          basis:
+                            type: object
+                            properties:
+                              kind:
+                                type: string
+                                const: tarot.v1
+                              schemaVersion:
+                                type: number
+                                const: 1
+                              basisId:
+                                type: string
+                                format: uuid
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              deckEdition:
+                                type: string
+                                pattern: ^[a-f0-9]{64}$
+                              spread:
+                                type: string
+                                const: situation-tension-possibility.v1
+                              drawAlgorithm:
+                                type: string
+                                const: hmac-sha256-fisher-yates-reject.v1
+                              seed:
+                                type: string
+                                maxLength: 65536
+                                pattern: ^[A-Za-z0-9_-]+$
+                              reversals:
+                                type: boolean
+                              cards:
+                                minItems: 3
+                                maxItems: 3
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    kind:
+                                      type: string
+                                      const: tarot.card
+                                    id:
+                                      type: string
+                                      pattern: ^card:(situation|tension|possibility)$
+                                    position:
+                                      type: string
+                                      enum:
+                                        - situation
+                                        - tension
+                                        - possibility
+                                    cardId:
+                                      type: string
+                                      pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                                    orientation:
+                                      type: string
+                                      enum:
+                                        - upright
+                                        - reversed
+                                  required:
+                                    - kind
+                                    - id
+                                    - position
+                                    - cardId
+                                    - orientation
+                                  additionalProperties: false
+                              counts:
+                                minItems: 4
+                                maxItems: 4
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    kind:
+                                      type: string
+                                      const: tarot.suit_count
+                                    id:
+                                      type: string
+                                      pattern: ^count:(wands|cups|swords|pentacles)$
+                                    suit:
+                                      type: string
+                                      enum:
+                                        - wands
+                                        - cups
+                                        - swords
+                                        - pentacles
+                                    count:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 3
+                                  required:
+                                    - kind
+                                    - id
+                                    - suit
+                                    - count
+                                  additionalProperties: false
+                              drawnAt:
+                                type: string
+                                format: date-time
+                                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                            required:
+                              - kind
+                              - schemaVersion
+                              - basisId
+                              - deckEdition
+                              - spread
+                              - drawAlgorithm
+                              - seed
+                              - reversals
+                              - cards
+                              - counts
+                              - drawnAt
+                            additionalProperties: false
+                          mode:
+                            type: string
+                            enum:
+                              - model
+                              - template
+                          contentHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          planHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          sources:
+                            minItems: 3
+                            maxItems: 3
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  maxLength: 100
+                                version:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 9007199254740991
+                                hash:
+                                  type: string
+                                  pattern: ^[a-f0-9]{64}$
+                                kind:
+                                  type: string
+                                  const: traditional_interpretation
+                                cardId:
+                                  type: string
+                                  pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                                orientation:
+                                  type: string
+                                  enum:
+                                    - upright
+                                    - reversed
+                                position:
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - situation
+                                        - tension
+                                        - possibility
+                                    - type: "null"
+                                text:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 1200
+                                fallbackText:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 400
+                                reflectionQuestion:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 180
+                                rights:
+                                  type: object
+                                  properties:
+                                    status:
+                                      type: string
+                                      enum:
+                                        - cleared
+                                        - unknown
+                                        - disallowed
+                                    evidence:
+                                      type: string
+                                      maxLength: 1000
+                                    attribution:
+                                      type: string
+                                      maxLength: 500
+                                    territory:
+                                      type: string
+                                      maxLength: 200
+                                  required:
+                                    - status
+                                    - evidence
+                                    - attribution
+                                    - territory
+                                  additionalProperties: false
+                                review:
+                                  type: object
+                                  properties:
+                                    kind:
+                                      type: string
+                                      enum:
+                                        - unreviewed
+                                        - agent_reviewed
+                                        - human_approved
+                                    reviewer:
+                                      type:
+                                        - string
+                                        - "null"
+                                    reviewedHash:
+                                      anyOf:
+                                        - type: string
+                                          pattern: ^[a-f0-9]{64}$
+                                        - type: "null"
+                                    reviewedAt:
+                                      anyOf:
+                                        - type: string
+                                          format: date-time
+                                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                        - type: "null"
+                                  required:
+                                    - kind
+                                    - reviewer
+                                    - reviewedHash
+                                    - reviewedAt
+                                  additionalProperties: false
+                                meaning:
+                                  type: object
+                                  properties:
+                                    core:
+                                      type: string
+                                      minLength: 1
+                                      maxLength: 700
+                                    distinctions:
+                                      minItems: 2
+                                      maxItems: 3
+                                      type: array
+                                      items:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 300
+                                    positive:
+                                      type: string
+                                      minLength: 1
+                                      maxLength: 350
+                                    limits:
+                                      minItems: 1
+                                      maxItems: 3
+                                      type: array
+                                      items:
+                                        type: string
+                                        minLength: 1
+                                        maxLength: 220
+                                    themes:
+                                      maxItems: 6
+                                      type: array
+                                      items:
+                                        type: string
+                                        pattern: ^[a-z][a-z0-9-]{0,59}$
+                                    imagery:
+                                      anyOf:
+                                        - type: object
+                                          properties:
+                                            text:
+                                              type: string
+                                              minLength: 1
+                                              maxLength: 250
+                                            reference:
+                                              type: string
+                                              minLength: 1
+                                              maxLength: 200
+                                            verified:
+                                              type: boolean
+                                              const: true
+                                          required:
+                                            - text
+                                            - reference
+                                            - verified
+                                          additionalProperties: false
+                                        - type: "null"
+                                  required:
+                                    - core
+                                    - distinctions
+                                    - positive
+                                    - limits
+                                    - themes
+                                    - imagery
+                                  additionalProperties: false
+                              required:
+                                - id
+                                - version
+                                - hash
+                                - kind
+                                - cardId
+                                - orientation
+                                - position
+                                - text
+                                - fallbackText
+                                - reflectionQuestion
+                                - rights
+                                - review
+                                - meaning
+                              additionalProperties: false
+                          acceptedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          provenance:
+                            type: object
+                            properties:
+                              requestId:
+                                type: string
+                                format: uuid
+                                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                              dispatchId:
+                                anyOf:
+                                  - type: string
+                                    format: uuid
+                                    pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                  - type: "null"
+                              provider:
+                                anyOf:
+                                  - type: string
+                                    const: openai
+                                  - type: "null"
+                              requestedModel:
+                                type:
+                                  - string
+                                  - "null"
+                              returnedModel:
+                                type:
+                                  - string
+                                  - "null"
+                              promptHash:
+                                type: string
+                                pattern: ^[a-f0-9]{64}$
+                              validatorHash:
+                                type: string
+                                pattern: ^[a-f0-9]{64}$
+                              policyHash:
+                                type: string
+                                pattern: ^[a-f0-9]{64}$
+                              contentHash:
+                                type: string
+                                pattern: ^[a-f0-9]{64}$
+                              selected:
+                                maxItems: 3
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    ordinal:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 2
+                                    grantId:
+                                      type: string
+                                      format: uuid
+                                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                    grantRevision:
+                                      type: integer
+                                      minimum: 1
+                                      maximum: 9007199254740991
+                                    sourceKind:
+                                      type: string
+                                      enum:
+                                        - edition
+                                        - reflection_revision
+                                    sourceId:
+                                      type: string
+                                      format: uuid
+                                      pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                                    sourceRevision:
+                                      type: integer
+                                      minimum: 1
+                                      maximum: 9007199254740991
+                                    start:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 9007199254740991
+                                    end:
+                                      type: integer
+                                      exclusiveMinimum: 0
+                                      maximum: 9007199254740991
+                                    text:
+                                      anyOf:
+                                        - type: string
+                                          maxLength: 1200
+                                        - type: "null"
+                                    textHash:
+                                      anyOf:
+                                        - type: string
+                                          pattern: ^[a-f0-9]{64}$
+                                        - type: "null"
+                                    availability:
+                                      type: string
+                                      enum:
+                                        - retained
+                                        - erased
+                                    authorship:
+                                      type: string
+                                      enum:
+                                        - generated
+                                        - user
+                                        - legacy_unknown
+                                  required:
+                                    - ordinal
+                                    - grantId
+                                    - grantRevision
+                                    - sourceKind
+                                    - sourceId
+                                    - sourceRevision
+                                    - start
+                                    - end
+                                    - text
+                                    - textHash
+                                    - availability
+                                    - authorship
+                                  additionalProperties: false
+                              transmissionHash:
+                                anyOf:
+                                  - type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  - type: "null"
+                              fallbackReason:
+                                anyOf:
+                                  - type: string
+                                    enum:
+                                      - OUTAGE
+                                      - MALFORMED
+                                      - VALIDATION
+                                      - TIMEOUT_UNKNOWN
+                                  - type: "null"
+                              schemaHash:
+                                type: string
+                                pattern: ^[a-f0-9]{64}$
+                              contextHash:
+                                type: string
+                                pattern: ^[a-f0-9]{64}$
+                            required:
+                              - requestId
+                              - dispatchId
+                              - provider
+                              - requestedModel
+                              - returnedModel
+                              - promptHash
+                              - validatorHash
+                              - policyHash
+                              - contentHash
+                              - selected
+                              - transmissionHash
+                              - fallbackReason
+                              - schemaHash
+                              - contextHash
+                            additionalProperties: false
+                          draw:
+                            minItems: 3
+                            maxItems: 3
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                cardId:
+                                  type: string
+                                  pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                                name:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 80
+                                orientation:
+                                  type: string
+                                  enum:
+                                    - upright
+                                    - reversed
+                                position:
+                                  type: string
+                                  enum:
+                                    - situation
+                                    - tension
+                                    - possibility
+                                factId:
+                                  type: string
+                                  enum:
+                                    - card:situation
+                                    - card:tension
+                                    - card:possibility
+                                    - count:wands
+                                    - count:cups
+                                    - count:swords
+                                    - count:pentacles
+                                deckEdition:
+                                  type: string
+                                  pattern: ^[a-f0-9]{64}$
+                              required:
+                                - cardId
+                                - name
+                                - orientation
+                                - position
+                                - factId
+                                - deckEdition
+                              additionalProperties: false
+                          spread:
+                            type: object
+                            properties:
+                              version:
+                                type: string
+                                minLength: 1
+                                maxLength: 100
+                              positions:
+                                minItems: 3
+                                maxItems: 3
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    position:
+                                      type: string
+                                      enum:
+                                        - situation
+                                        - tension
+                                        - possibility
+                                    text:
+                                      type: string
+                                      maxLength: 300
+                                  required:
+                                    - position
+                                    - text
+                                  additionalProperties: false
+                            required:
+                              - version
+                              - positions
+                            additionalProperties: false
+                          relationships:
+                            maxItems: 2
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 100
+                                version:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 9007199254740991
+                                hash:
+                                  type: string
+                                  pattern: ^[a-f0-9]{64}$
+                                deckEdition:
+                                  type: string
+                                  pattern: ^[a-f0-9]{64}$
+                                priority:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 1000
+                                cards:
+                                  maxItems: 3
+                                  type: array
+                                  items:
+                                    type: object
+                                    properties:
+                                      cardId:
+                                        type: string
+                                        pattern: ^(major-(0[0-9]|1[0-9]|2[01])|(wands|cups|swords|pentacles)-(0[1-9]|1[0-4]))$
+                                      orientations:
+                                        minItems: 1
+                                        maxItems: 2
+                                        type: array
+                                        items:
+                                          type: string
+                                          enum:
+                                            - upright
+                                            - reversed
+                                    required:
+                                      - cardId
+                                      - orientations
+                                    additionalProperties: false
+                                themes:
+                                  maxItems: 6
+                                  type: array
+                                  items:
+                                    type: string
+                                    pattern: ^[a-z][a-z0-9-]{0,59}$
+                                sourceIds:
+                                  minItems: 2
+                                  maxItems: 3
+                                  type: array
+                                  items:
+                                    type: string
+                                    minLength: 1
+                                    maxLength: 100
+                                text:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 500
+                                limits:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 300
+                                rights:
+                                  type: object
+                                  properties:
+                                    status:
+                                      type: string
+                                      enum:
+                                        - cleared
+                                        - unknown
+                                        - disallowed
+                                    evidence:
+                                      type: string
+                                      maxLength: 1000
+                                    attribution:
+                                      type: string
+                                      maxLength: 500
+                                    territory:
+                                      type: string
+                                      maxLength: 200
+                                  required:
+                                    - status
+                                    - evidence
+                                    - attribution
+                                    - territory
+                                  additionalProperties: false
+                                review:
+                                  type: object
+                                  properties:
+                                    kind:
+                                      type: string
+                                      enum:
+                                        - unreviewed
+                                        - agent_reviewed
+                                        - human_approved
+                                    reviewer:
+                                      type:
+                                        - string
+                                        - "null"
+                                    reviewedHash:
+                                      anyOf:
+                                        - type: string
+                                          pattern: ^[a-f0-9]{64}$
+                                        - type: "null"
+                                    reviewedAt:
+                                      anyOf:
+                                        - type: string
+                                          format: date-time
+                                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                                        - type: "null"
+                                  required:
+                                    - kind
+                                    - reviewer
+                                    - reviewedHash
+                                    - reviewedAt
+                                  additionalProperties: false
+                              required:
+                                - id
+                                - version
+                                - hash
+                                - deckEdition
+                                - priority
+                                - cards
+                                - themes
+                                - sourceIds
+                                - text
+                                - limits
+                                - rights
+                                - review
+                              additionalProperties: false
+                          units:
+                            minItems: 3
+                            maxItems: 3
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                position:
+                                  type: string
+                                  enum:
+                                    - situation
+                                    - tension
+                                    - possibility
+                                factIds:
+                                  minItems: 1
+                                  maxItems: 3
+                                  type: array
+                                  items:
+                                    type: string
+                                    enum:
+                                      - card:situation
+                                      - card:tension
+                                      - card:possibility
+                                      - count:wands
+                                      - count:cups
+                                      - count:swords
+                                      - count:pentacles
+                                sourceIds:
+                                  minItems: 1
+                                  maxItems: 1
+                                  type: array
+                                  items:
+                                    type: string
+                                interpretation:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 650
+                                contextRefs:
+                                  minItems: 1
+                                  maxItems: 1
+                                  type: array
+                                  items:
+                                    type: string
+                                    const: reader:question
+                                basisText:
+                                  type: string
+                                  maxLength: 350
+                              required:
+                                - position
+                                - factIds
+                                - sourceIds
+                                - interpretation
+                                - contextRefs
+                                - basisText
+                              additionalProperties: false
+                          synthesis:
+                            type: object
+                            properties:
+                              sourceIds:
+                                minItems: 2
+                                maxItems: 3
+                                type: array
+                                items:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 100
+                              contextRefs:
+                                minItems: 1
+                                maxItems: 1
+                                type: array
+                                items:
+                                  type: string
+                                  const: reader:question
+                              text:
+                                type: string
+                                minLength: 1
+                                maxLength: 650
+                              relationshipIds:
+                                maxItems: 2
+                                type: array
+                                items:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 100
+                            required:
+                              - sourceIds
+                              - contextRefs
+                              - text
+                              - relationshipIds
+                            additionalProperties: false
+                          action:
+                            type: object
+                            properties:
+                              sourceIds:
+                                minItems: 1
+                                maxItems: 3
+                                type: array
+                                items:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 100
+                              contextRefs:
+                                minItems: 1
+                                maxItems: 1
+                                type: array
+                                items:
+                                  type: string
+                                  const: reader:question
+                              text:
+                                type: string
+                                minLength: 1
+                                maxLength: 500
+                            required:
+                              - sourceIds
+                              - contextRefs
+                              - text
+                            additionalProperties: false
+                          reflectionQuestion:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  sourceIds:
+                                    minItems: 1
+                                    maxItems: 3
+                                    type: array
+                                    items:
+                                      type: string
+                                      minLength: 1
+                                      maxLength: 100
+                                  contextRefs:
+                                    minItems: 1
+                                    maxItems: 1
+                                    type: array
+                                    items:
+                                      type: string
+                                      const: reader:question
+                                  text:
+                                    type: string
+                                    minLength: 1
+                                    maxLength: 200
+                                required:
+                                  - sourceIds
+                                  - contextRefs
+                                  - text
+                                additionalProperties: false
+                              - type: "null"
+                          contextReceipt:
+                            anyOf:
+                              - type: object
+                                properties:
+                                  version:
+                                    type: string
+                                    const: writer-packet.v2
+                                  diagnosticOnly:
+                                    type: boolean
+                                  contextHash:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  contentHash:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  deckEdition:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  spreadVersion:
+                                    type: string
+                                    maxLength: 100
+                                  sources:
+                                    minItems: 3
+                                    maxItems: 3
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        id:
+                                          type: string
+                                        version:
+                                          type: integer
+                                          minimum: 1
+                                          maximum: 9007199254740991
+                                        hash:
+                                          type: string
+                                          pattern: ^[a-f0-9]{64}$
+                                      required:
+                                        - id
+                                        - version
+                                        - hash
+                                      additionalProperties: false
+                                  relationships:
+                                    maxItems: 2
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        id:
+                                          type: string
+                                        version:
+                                          type: integer
+                                          minimum: 1
+                                          maximum: 9007199254740991
+                                        hash:
+                                          type: string
+                                          pattern: ^[a-f0-9]{64}$
+                                      required:
+                                        - id
+                                        - version
+                                        - hash
+                                      additionalProperties: false
+                                  omissions:
+                                    maxItems: 5
+                                    type: array
+                                    items:
+                                      type: object
+                                      properties:
+                                        kind:
+                                          type: string
+                                          enum:
+                                            - relationship
+                                            - imagery
+                                        id:
+                                          type: string
+                                      required:
+                                        - kind
+                                        - id
+                                      additionalProperties: false
+                                  promptHash:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  schemaHash:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  validatorHash:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  policyHash:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  transmissionHash:
+                                    type: string
+                                    pattern: ^[a-f0-9]{64}$
+                                  estimatedInputTokens:
+                                    type: integer
+                                    exclusiveMinimum: 0
+                                    maximum: 9007199254740991
+                                  payloadBytes:
+                                    type: integer
+                                    exclusiveMinimum: 0
+                                    maximum: 9007199254740991
+                                required:
+                                  - version
+                                  - diagnosticOnly
+                                  - contextHash
+                                  - contentHash
+                                  - deckEdition
+                                  - spreadVersion
+                                  - sources
+                                  - relationships
+                                  - omissions
+                                  - promptHash
+                                  - schemaHash
+                                  - validatorHash
+                                  - policyHash
+                                  - transmissionHash
+                                  - estimatedInputTokens
+                                  - payloadBytes
+                                additionalProperties: false
+                              - type: "null"
+                        required:
+                          - kind
+                          - editionId
+                          - sessionId
+                          - editionNumber
+                          - parentEditionId
+                          - question
+                          - basis
+                          - mode
+                          - contentHash
+                          - planHash
+                          - sources
+                          - acceptedAt
+                          - provenance
+                          - draw
+                          - spread
+                          - relationships
+                          - units
+                          - synthesis
+                          - action
+                          - reflectionQuestion
+                          - contextReceipt
+                        additionalProperties: false
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
                             const: legacy.imported.v1
                           editionId:
                             type: string
@@ -9498,6 +11458,125 @@ components:
                           - type: string
                             maxLength: 200000
                           - type: "null"
+                      contextReceipt:
+                        type: object
+                        properties:
+                          version:
+                            type: string
+                            const: writer-packet.v2
+                          diagnosticOnly:
+                            type: boolean
+                          contextHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          contentHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          deckEdition:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          spreadVersion:
+                            type: string
+                            maxLength: 100
+                          sources:
+                            minItems: 3
+                            maxItems: 3
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                version:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 9007199254740991
+                                hash:
+                                  type: string
+                                  pattern: ^[a-f0-9]{64}$
+                              required:
+                                - id
+                                - version
+                                - hash
+                              additionalProperties: false
+                          relationships:
+                            maxItems: 2
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                id:
+                                  type: string
+                                version:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 9007199254740991
+                                hash:
+                                  type: string
+                                  pattern: ^[a-f0-9]{64}$
+                              required:
+                                - id
+                                - version
+                                - hash
+                              additionalProperties: false
+                          omissions:
+                            maxItems: 5
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                kind:
+                                  type: string
+                                  enum:
+                                    - relationship
+                                    - imagery
+                                id:
+                                  type: string
+                              required:
+                                - kind
+                                - id
+                              additionalProperties: false
+                          promptHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          schemaHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          validatorHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          policyHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          transmissionHash:
+                            type: string
+                            pattern: ^[a-f0-9]{64}$
+                          estimatedInputTokens:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                          payloadBytes:
+                            type: integer
+                            exclusiveMinimum: 0
+                            maximum: 9007199254740991
+                        required:
+                          - version
+                          - diagnosticOnly
+                          - contextHash
+                          - contentHash
+                          - deckEdition
+                          - spreadVersion
+                          - sources
+                          - relationships
+                          - omissions
+                          - promptHash
+                          - schemaHash
+                          - validatorHash
+                          - policyHash
+                          - transmissionHash
+                          - estimatedInputTokens
+                          - payloadBytes
+                        additionalProperties: false
                       reproduction:
                         type: string
                         enum:

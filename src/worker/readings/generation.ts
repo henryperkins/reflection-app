@@ -1,30 +1,27 @@
 import { costReservationStatement, reconcileProviderCost } from '../provider/costs.ts';
 import { providerReceiptStatements } from '../provider/receipts.ts';
-import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
+import {
+  READING_PROVIDER_POLICY,
+  READING_V2_EVALUATION_POLICY,
+  type WriterProviderPolicy,
+} from '../../contracts/provider-policy.ts';
 import { providerPolicyHash } from '../../domain/provider-policy.ts';
 import type { z } from 'zod';
 import {
-  AcceptedReading,
+  AnyAcceptedReading,
   apiSchemas,
-  ModelCandidate,
+  AnyModelCandidate,
   StartRequest,
-  PreparedPlan,
-  ContentBundle,
+  AnyPreparedPlan,
+  AnyContentBundle,
   TarotBasis,
   ProviderReceipt,
   type WriterOutcome,
   type WritingProvider,
   type ErrorCode,
 } from '../../contracts/index.ts';
-import {
-  inputAdmission,
-  validateCandidate,
-  boundedCandidateJson,
-  SAFETY_VERSION,
-} from '../../domain/tarot/safety.ts';
+import { inputAdmission, boundedCandidateJson, SAFETY_VERSION } from '../../domain/tarot/safety.ts';
 import { drawTarot } from '../../domain/tarot/draw.ts';
-import { buildPlan, validatePlanIntegrity } from '../../domain/tarot/plan.ts';
-import { composeTemplate, projectWriterPayload } from '../../domain/tarot/render.ts';
 import { sha256Json } from '../../domain/json.ts';
 import { InterceptedWritingProvider } from '../provider/intercepted.ts';
 import { currentGuard } from '../db/statements.ts';
@@ -33,7 +30,16 @@ import { assertion, onlineGuard } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
 import { statement as q, DB_NOW, DAY, MONTH } from '../db/core.ts';
 import { iso, type RecordBase, RecordError, terminalStates } from './base.ts';
-import { syntheticBundle } from './local-content.ts';
+import { syntheticBundle, localDevelopmentBundle } from './local-content.ts';
+import {
+  buildLocalPlan,
+  validateLocalPlan,
+  prepareLocalWriter,
+  localTemplate,
+  checkLocalCandidate,
+  planPolicy,
+  type VersionedPlan,
+} from './writer-versions.ts';
 import { RequestState, requestEvent } from './request-state.ts';
 
 /** Only instantiated behind the explicit localhost simulation switch. No fetch transport. */
@@ -56,20 +62,25 @@ export class LocalGeneration extends RequestState {
   private async localPolicyHash() {
     return sha256Json({
       localOnly: true,
-      writer: 'simulation.v4',
-      providerPolicyHash: await providerPolicyHash(READING_PROVIDER_POLICY),
+      writer: 'simulation.v5',
+      providerPolicyHash: await providerPolicyHash(READING_V2_EVALUATION_POLICY),
     });
   }
   private async refreshLocalPolicy() {
-    await this.upgradeLocalPolicy(await syntheticBundle(), await this.localPolicyHash());
+    await this.upgradeLocalPolicy(localDevelopmentBundle(), await this.localPolicyHash());
   }
   /** Upgrade only known localhost predecessors. Operator and financial switches are untouched. */
-  private async upgradeLocalPolicy(bundle: z.infer<typeof ContentBundle>, next: string) {
+  private async upgradeLocalPolicy(bundle: z.infer<typeof AnyContentBundle>, next: string) {
     const installed = await q(
       this.base.db,
       'SELECT provider_policy_hash,active_content_hash FROM system_state WHERE id=1',
     ).first<{ provider_policy_hash: string; active_content_hash: string }>();
     const predecessors = await Promise.all([
+      sha256Json({
+        localOnly: true,
+        writer: 'simulation.v4',
+        providerPolicyHash: await providerPolicyHash(READING_PROVIDER_POLICY),
+      }),
       sha256Json({ localOnly: true, writer: 'simulation.v1' }),
       sha256Json({ localOnly: true, writer: 'simulation.v2', validator: SAFETY_VERSION }),
       Promise.resolve('f2d365842b853e8998b3d466c768d4bf4c026c4563f2daa4763d9dfddcfa8df7'),
@@ -78,9 +89,11 @@ export class LocalGeneration extends RequestState {
     if (
       !installed ||
       !predecessors.includes(installed.provider_policy_hash) ||
-      ![content, '5c8573a9c66dd25a781067244bc124cb8b558b8cf33ea3d7981c9088c0771d5d'].includes(
-        installed.active_content_hash,
-      )
+      ![
+        content,
+        (await syntheticBundle()).editionHash,
+        '5c8573a9c66dd25a781067244bc124cb8b558b8cf33ea3d7981c9088c0771d5d',
+      ].includes(installed.active_content_hash)
     )
       return;
     const previous = installed.provider_policy_hash;
@@ -226,8 +239,11 @@ export class LocalGeneration extends RequestState {
     if (!account.recovery_ack_at) throw new RecordError(403, 'FORBIDDEN');
     if (account.permission_revision !== input.permissionRevision)
       throw new RecordError(409, 'CONFLICT', account.permission_revision);
-    const content = await syntheticBundle(),
+    const content = localDevelopmentBundle(),
       policyHash = await this.localPolicyHash();
+    // The legacy localhost D1 barrier uses explicitly marked fixture rows. The bundle
+    // itself retains agent_reviewed/unknown rights; approval_json remains null, so
+    // the signed production repository cannot admit this development content.
     await this.base.db.batch([
       onlineGuard(this.base.db),
       q(
@@ -255,7 +271,7 @@ export class LocalGeneration extends RequestState {
       drawnAt: iso(Date.now()),
       reversals: input.reversals,
     });
-    const plan = await buildPlan({
+    const plan = await buildLocalPlan({
       requestId,
       basis,
       content,
@@ -270,6 +286,13 @@ export class LocalGeneration extends RequestState {
       validatorHash: policyHash,
       generationPolicyHash: policyHash,
     });
+    try {
+      await prepareLocalWriter(plan);
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('INPUT_TOO_LARGE'))
+        throw new RecordError(422, 'INPUT_TOO_LARGE');
+      throw error;
+    }
     const seal = (table: string, column: string, id: string, value: unknown) =>
       this.base.crypt.seal(session.subjectId, table, column, id, value);
     const question = await seal('reading_sessions', 'question_enc', sessionId, {
@@ -468,7 +491,7 @@ export class LocalGeneration extends RequestState {
         onlineGuard(this.base.db),
         q(
           this.base.db,
-          `UPDATE generation_requests SET run_epoch=run_epoch+1,revision=revision+1,lease_token=?,lease_expires_at=${DB_NOW}+30000 WHERE id=? AND run_epoch=? AND run_epoch<3 AND state NOT IN (${terminalStates}) AND (lease_expires_at IS NULL OR lease_expires_at<=${DB_NOW}) AND expires_at>${DB_NOW} AND next_run_at<=${DB_NOW}`,
+          `UPDATE generation_requests SET run_epoch=run_epoch+1,revision=revision+1,lease_token=?,lease_expires_at=${DB_NOW}+75000 WHERE id=? AND run_epoch=? AND run_epoch<3 AND state NOT IN (${terminalStates}) AND (lease_expires_at IS NULL OR lease_expires_at<=${DB_NOW}) AND expires_at>${DB_NOW} AND next_run_at<=${DB_NOW}`,
           token,
           row.id,
           row.run_epoch,
@@ -576,9 +599,9 @@ export class LocalGeneration extends RequestState {
       // Concurrent terminalization/publication owns the final outcome.
     }
   }
-  private async plan(h: Lease): Promise<PreparedPlan> {
+  private async plan(h: Lease): Promise<VersionedPlan> {
     try {
-      let plan: PreparedPlan;
+      let plan: VersionedPlan;
       if (h.plan_enc) {
         plan = await this.base.crypt.open(
           h.owner_id,
@@ -586,7 +609,7 @@ export class LocalGeneration extends RequestState {
           'plan_enc',
           h.id,
           h.plan_enc,
-          PreparedPlan,
+          AnyPreparedPlan,
           1,
           h.key_version,
         );
@@ -625,10 +648,10 @@ export class LocalGeneration extends RequestState {
           'SELECT bundle_json FROM content_editions WHERE hash=?',
           h.content_hash,
         ).first<string>('bundle_json');
-        plan = await buildPlan({
+        plan = await buildLocalPlan({
           requestId: h.id,
           basis,
-          content: ContentBundle.parse(JSON.parse(content!)),
+          content: AnyContentBundle.parse(JSON.parse(content!)),
           question: input.question,
           language: 'en',
           operation: 'initial',
@@ -664,7 +687,7 @@ export class LocalGeneration extends RequestState {
         ]);
         h.plan_enc = enc;
       }
-      await validatePlanIntegrity(plan);
+      await validateLocalPlan(plan);
       const denied = inputAdmission(plan.question, plan.language);
       if (denied) throw new GenerationFailure(denied);
       if (
@@ -713,17 +736,22 @@ export class LocalGeneration extends RequestState {
     h.state = state;
     h.fallback_reason = reason;
   }
-  private async settle(dispatch: DispatchRow, receipt?: ProviderReceipt) {
+  private async settle(
+    dispatch: DispatchRow,
+    policy: WriterProviderPolicy,
+    receipt?: ProviderReceipt,
+  ) {
     await reconcileProviderCost(this.base.db, {
       dispatchId: dispatch.id,
       receiptId: `${dispatch.id}:usage`,
       receipt: receipt ?? null,
-      policy: READING_PROVIDER_POLICY,
+      policy,
     });
   }
 
-  private async dispatch(h: Lease, plan: PreparedPlan): Promise<DispatchRow> {
-    const payload = await projectWriterPayload(plan, READING_PROVIDER_POLICY),
+  private async dispatch(h: Lease, plan: VersionedPlan): Promise<DispatchRow> {
+    const { payload, receipt: contextReceipt } = await prepareLocalWriter(plan),
+      policy = planPolicy(plan),
       text = new TextDecoder().decode(payload),
       id = crypto.randomUUID();
     const transmission = await this.base.crypt.seal(
@@ -731,7 +759,7 @@ export class LocalGeneration extends RequestState {
       'provider_dispatches',
       'transmission_enc',
       id,
-      { v: 1, syntheticOnly: true, payload: text },
+      { v: 1, syntheticOnly: true, payload: text, contextReceipt },
       1,
       h.key_version,
     );
@@ -744,7 +772,7 @@ export class LocalGeneration extends RequestState {
       ),
       q(
         this.base.db,
-        `UPDATE spend_buckets SET committed_microusd=committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd} WHERE period IN (${DAY},${MONTH}) AND committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd}<=ceiling_microusd`,
+        `UPDATE spend_buckets SET committed_microusd=committed_microusd+${policy.reservationMicrousd} WHERE period IN (${DAY},${MONTH}) AND committed_microusd+${policy.reservationMicrousd}<=ceiling_microusd`,
       ),
       assertion(this.base.db, 'changes()=2'),
       assertion(
@@ -758,7 +786,7 @@ export class LocalGeneration extends RequestState {
         h.owner_id,
         h.id,
         h.attempt_id,
-        READING_PROVIDER_POLICY.model,
+        policy.model,
         transmission,
         hash,
         h.key_version,
@@ -768,7 +796,7 @@ export class LocalGeneration extends RequestState {
         JSON.stringify({
           syntheticOnly: true,
           externalCall: false,
-          ...READING_PROVIDER_POLICY.request,
+          ...policy.request,
         }),
       ),
       await costReservationStatement(this.base.db, {
@@ -776,12 +804,12 @@ export class LocalGeneration extends RequestState {
         ownerId: h.owner_id,
         dispatchId: id,
         applicationPolicyHash: plan.generationPolicyHash,
-        policy: READING_PROVIDER_POLICY,
+        policy,
       }),
       this.guardCurrent(h, 'prepared', 'dispatch'),
       q(
         this.base.db,
-        `UPDATE generation_requests SET state='dispatching',revision=revision+1 WHERE id=? AND run_epoch=? AND lease_token=? AND state='prepared' AND lease_expires_at>=${DB_NOW}+21000 AND expires_at>=${DB_NOW}+21000`,
+        `UPDATE generation_requests SET state='dispatching',revision=revision+1 WHERE id=? AND run_epoch=? AND lease_token=? AND state='prepared' AND lease_expires_at>=${DB_NOW}+${policy.timeoutMs + 3000} AND expires_at>=${DB_NOW}+${policy.timeoutMs + 3000}`,
         h.id,
         h.run_epoch,
         h.lease_token,
@@ -794,34 +822,17 @@ export class LocalGeneration extends RequestState {
     const dispatch = (await this.dispatchRow(h.id))!;
     let outcome: WriterOutcome;
     try {
-      const template = await composeTemplate(plan);
+      const candidate = await localTemplate(plan);
       const supplied =
         this.writer ??
         new InterceptedWritingProvider({
           outcome: {
             kind: 'candidate',
-            candidate: ModelCandidate.parse({
-              schemaVersion: 1,
-              kind: 'tarot.interpretation.v1',
-              units: template.units.map(({ basisText: _text, ...unit }, i) => ({
-                ...unit,
-                interpretation: [
-                  'Consider what feels available to explore.',
-                  'Notice which assumptions feel useful to examine.',
-                  'A gentle pause may offer space for a choice.',
-                ][i],
-                reflectionQuestion: [
-                  'What feels open?',
-                  'Where could you pause?',
-                  'What would you explore?',
-                ][i],
-              })),
-              closing: template.closing,
-            }),
+            candidate,
             receipt: {
               responseId: null,
-              returnedModel: READING_PROVIDER_POLICY.model,
-              serviceTier: 'default',
+              returnedModel: policy.model,
+              serviceTier: policy.request.service_tier,
               durationMs: 0,
               usage: {
                 inputTokens: 0,
@@ -835,13 +846,13 @@ export class LocalGeneration extends RequestState {
         });
       outcome = await supplied.write({
         dispatchId: id,
-        model: READING_PROVIDER_POLICY.model,
+        model: policy.model,
         payload,
-        timeoutMs: 18000,
-        maxOutputTokens: 1600,
+        timeoutMs: policy.timeoutMs,
+        maxOutputTokens: policy.request.max_output_tokens,
         store: false,
-        reasoning: 'none',
-        signal: AbortSignal.timeout(18000),
+        reasoning: policy.request.reasoning.effort,
+        signal: AbortSignal.timeout(policy.timeoutMs),
       });
     } catch {
       outcome = { kind: 'uncertain', reason: 'network', receipt: null };
@@ -861,7 +872,7 @@ export class LocalGeneration extends RequestState {
           ]
         : []),
     ]);
-    await this.settle(dispatch, receipt ?? undefined);
+    await this.settle(dispatch, policy, receipt ?? undefined);
     if (halt) throw new GenerationFailure('DEPENDENCY_UNAVAILABLE');
     const responseId =
       receipt?.responseId == null
@@ -958,46 +969,47 @@ export class LocalGeneration extends RequestState {
     h.state = 'received';
     return (await this.dispatchRow(h.id))!;
   }
-  private async publish(h: Lease, plan: PreparedPlan, dispatch: DispatchRow | null) {
-    let candidate: z.infer<typeof ModelCandidate>;
+  private async publish(h: Lease, plan: VersionedPlan, dispatch: DispatchRow | null) {
+    let candidate: z.infer<typeof AnyModelCandidate>;
     let template = h.state === 'fallback_pending';
+    const prepared = await prepareLocalWriter(plan);
+    if (
+      dispatch &&
+      (await this.base.crypt.hash(
+        h.owner_id,
+        'transmission',
+        new TextDecoder().decode(prepared.payload),
+      )) !== dispatch.transmission_hmac
+    )
+      throw new GenerationFailure('CONTENT_UNAVAILABLE');
+    const receipt = dispatch ? prepared.receipt : null;
     if (!template) {
       if (!dispatch?.candidate_enc) throw new GenerationFailure('INVALID_CANDIDATE');
       try {
-        candidate = await this.base.crypt.open(
+        const stored = await this.base.crypt.open(
           h.owner_id,
           'provider_dispatches',
           'candidate_enc',
           dispatch.id,
           dispatch.candidate_enc,
-          ModelCandidate,
+          AnyModelCandidate,
           1,
           h.key_version,
         );
-        candidate = validateCandidate(plan, candidate);
+        candidate = await checkLocalCandidate(plan, stored, receipt);
       } catch {
         await this.transition(h, 'fallback_pending', 'USING_TEMPLATE', 'VALIDATION');
         template = true;
       }
     }
-    if (template) {
-      const body = await composeTemplate(plan);
-      candidate = validateCandidate(
-        plan,
-        {
-          schemaVersion: 1,
-          kind: 'tarot.interpretation.v1',
-          units: body.units.map(({ basisText: _text, ...unit }) => unit),
-          closing: body.closing,
-        },
-        true,
-      );
-    } else if (h.state !== 'validating') await this.transition(h, 'validating');
+    if (template)
+      candidate = await checkLocalCandidate(plan, await localTemplate(plan), receipt, true);
+    else if (h.state !== 'validating') await this.transition(h, 'validating');
     const facts = renderFacts(plan.basis),
       editionId = crypto.randomUUID(),
       acceptedAt = Date.now();
-    const reading = AcceptedReading.parse({
-      kind: 'tarot.accepted.v1',
+    const reading = AnyAcceptedReading.parse({
+      kind: plan.version === 'tarot-plan.v2' ? 'tarot.accepted.v2' : 'tarot.accepted.v1',
       editionId,
       sessionId: h.session_id,
       editionNumber: 1,
@@ -1012,9 +1024,24 @@ export class LocalGeneration extends RequestState {
         ...candidate!.units.find((unit) => unit.position === card.position)!,
         basisText: facts[i]!.text,
       })),
-      closing: candidate!.closing,
+      ...(candidate!.schemaVersion === 2 && plan.version === 'tarot-plan.v2'
+        ? {
+            draw: plan.draw,
+            spread: plan.spread,
+            relationships: plan.relationships,
+            synthesis: candidate!.synthesis,
+            action: candidate!.action,
+            reflectionQuestion: candidate!.reflectionQuestion,
+            contextReceipt: receipt,
+          }
+        : candidate!.schemaVersion === 1
+          ? { closing: candidate!.closing }
+          : {}),
       acceptedAt: iso(acceptedAt),
       provenance: {
+        ...(plan.version === 'tarot-plan.v2'
+          ? { schemaHash: prepared.receipt!.schemaHash, contextHash: plan.contextHash }
+          : {}),
         requestId: h.id,
         dispatchId: dispatch?.id ?? null,
         provider: null,
@@ -1142,7 +1169,7 @@ export class LocalGeneration extends RequestState {
           await this.transition(h, 'fallback_pending', 'USING_TEMPLATE', 'OUTAGE');
         else dispatch = await this.dispatch(h, plan);
       } else if (!dispatch.candidate_enc && h.state !== 'fallback_pending') {
-        await this.settle(dispatch);
+        await this.settle(dispatch, planPolicy(plan));
         await this.base.db.batch([
           onlineGuard(this.base.db),
           this.fence(h),

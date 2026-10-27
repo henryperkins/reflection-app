@@ -1,5 +1,5 @@
 import { ProviderReceipt } from '../../contracts/index.ts';
-import type { ReadingProviderPolicy } from '../../contracts/provider-policy.ts';
+import type { WriterProviderPolicy } from '../../contracts/provider-policy.ts';
 import { canonicalJson, sha256Json } from '../../domain/json.ts';
 import { providerPolicyHash } from '../../domain/provider-policy.ts';
 import { priceReceipt } from '../../domain/provider-cost.ts';
@@ -13,7 +13,7 @@ export async function costReservationStatement(
     ownerId: string;
     dispatchId: string;
     applicationPolicyHash: string;
-    policy: ReadingProviderPolicy;
+    policy: WriterProviderPolicy;
   },
 ): Promise<D1PreparedStatement> {
   const { policy } = input;
@@ -92,7 +92,7 @@ export async function reconcileProviderCost(
     dispatchId: string;
     receiptId: string;
     receipt: ProviderReceipt | null;
-    policy: ReadingProviderPolicy;
+    policy: WriterProviderPolicy;
   },
 ): Promise<Result> {
   if (

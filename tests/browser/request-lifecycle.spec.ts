@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { apiSchemas, AcceptedReading } from '../../src/contracts/index.ts';
+import { apiSchemas, AcceptedReadingV2 } from '../../src/contracts/index.ts';
 import { account, reading, savedSnapshot } from '../fixtures/browser-reading.ts';
 
 async function form(page: Page, question = 'Synthetic request interruption') {
@@ -227,7 +227,7 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
   const status = apiSchemas.RequestStatus.parse(
     await (await page.request.get(`/api/v1/requests/${id}`)).json(),
   );
-  const artifact = AcceptedReading.parse(
+  const artifact = AcceptedReadingV2.parse(
     await (await page.request.get(`/api/v1/readings/${status.editionId}`)).json(),
   );
   for (let i = 0; i < 3; i++) {
@@ -235,7 +235,7 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
       source = artifact.sources[i]!;
     await expect(
       accepted.getByRole('heading', {
-        name: `${card.position}: ${card.cardId} · ${card.orientation}`,
+        name: `${card.position}: ${artifact.draw[i]!.name} · ${card.orientation}`,
       }),
     ).toBeVisible();
     await expect(

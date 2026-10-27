@@ -4,8 +4,8 @@ import { beforeAll, beforeEach, expect, test } from 'vitest';
 import {
   AcceptedReading,
   apiSchemas,
-  ModelCandidate,
-  PreparedPlan,
+  ModelCandidateV2,
+  AnyPreparedPlan,
   type WritingProvider,
 } from '../../src/contracts/index.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
@@ -15,7 +15,7 @@ import { clearDatabase } from '../fixtures/database.ts';
 import { readingAccount } from '../fixtures/reading-client.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
 import { OpenAIResponsesTransport } from '../../src/worker/provider/transport.ts';
-import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
+import { READING_V2_EVALUATION_POLICY as READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
 import { reconcileProviderCost } from '../../src/worker/provider/costs.ts';
 
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
@@ -69,6 +69,7 @@ test('late reconciliation updates an available consent-off export without recrea
     receiptId: 'late-bill',
     policy: READING_PROVIDER_POLICY,
     receipt: providerReceipt({
+      serviceTier: 'fast',
       returnedModel: READING_PROVIDER_POLICY.model,
       usage: {
         inputTokens: 1000,
@@ -91,7 +92,7 @@ test('late reconciliation updates an available consent-off export without recrea
     cacheWriteTokens: 300,
     outputTokens: 100,
     reasoningTokens: 10,
-    serviceTier: 'default',
+    serviceTier: 'fast',
   });
 });
 
@@ -107,7 +108,7 @@ test.each(['completed', 'incomplete'])(
         return Response.json({
           id: 'synthetic-response',
           model: 'gpt-6.1-terra',
-          service_tier: 'default',
+          service_tier: 'fast',
           status,
           usage: {
             input_tokens: 100,
@@ -151,6 +152,7 @@ test.each(['refusal', 'malformed', 'legacy'])(
   'consent-off export includes complete %s receipt metadata with explicit unknowns',
   async (kind) => {
     const receipt = providerReceipt({
+      serviceTier: 'fast',
       usage: {
         inputTokens: 1000,
         cachedInputTokens: 200,
@@ -184,7 +186,7 @@ test.each(['refusal', 'malformed', 'legacy'])(
       cachedInputTokens: kind === 'legacy' ? null : 200,
       cacheWriteTokens: kind === 'legacy' ? null : 300,
       reasoningTokens: kind === 'legacy' ? null : 10,
-      serviceTier: kind === 'legacy' ? null : 'default',
+      serviceTier: kind === 'legacy' ? null : 'fast',
     });
   },
 );
@@ -193,6 +195,7 @@ test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as con
   'verified receipt usage survives %s output and maintenance independently of prose',
   async (kind) => {
     const receipt = providerReceipt({
+      serviceTier: 'fast',
       responseId: 'synthetic-billable-response',
       returnedModel: READING_PROVIDER_POLICY.model,
       usage: {
@@ -235,7 +238,7 @@ test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as con
       cached_input_tokens: 200,
       cache_write_tokens: 300,
       reasoning_tokens: 10,
-      service_tier: 'default',
+      service_tier: 'fast',
     });
     if (kind === 'refusal' || kind === 'rejected') {
       expect(status.state).toBe('blocked');
@@ -251,7 +254,7 @@ test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as con
     expect((await f.client.me()).remainingDay).toBe(3);
     expect(
       await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
-    ).toEqual({ state: 'actual', actual_microusd: 1385 });
+    ).toEqual({ state: 'actual', actual_microusd: 2770 });
   },
 );
 
@@ -264,7 +267,7 @@ test('provider contract drift durably disables dispatch and retains the full unc
         kind: 'uncertain',
         reason: 'lost_response',
         haltGeneration: true,
-        receipt: providerReceipt({ returnedModel: 'unexpected-model' }),
+        receipt: providerReceipt({ serviceTier: 'fast', returnedModel: 'unexpected-model' }),
       };
     },
   };
@@ -281,14 +284,17 @@ test('provider contract drift durably disables dispatch and retains the full unc
     await env.DB.prepare(
       'SELECT state,actual_microusd,reserved_microusd FROM cost_reservations',
     ).first(),
-  ).toEqual({ state: 'unknown', actual_microusd: null, reserved_microusd: 40000 });
+  ).toEqual({ state: 'unknown', actual_microusd: null, reserved_microusd: 160000 });
   await recover(f.client, supplied);
   expect((await f.client.start()).status).not.toBe(202);
   expect(calls).toBe(1);
 });
 
 test('a refusal receipt is encrypted before terminalization and usage survives subsequent cleanup', async () => {
-  const receipt = providerReceipt({ responseId: 'SYNTHETIC_PRIVATE_RESPONSE_ID' });
+  const receipt = providerReceipt({
+    serviceTier: 'fast',
+    responseId: 'SYNTHETIC_PRIVATE_RESPONSE_ID',
+  });
   const supplied: WritingProvider = { write: async () => ({ kind: 'refusal', receipt }) };
   const f = await setup(failingDatabase('after-outcome'), supplied);
   await f.generation.start(f.session, f.input, crypto.randomUUID());
@@ -372,40 +378,48 @@ function failingDatabase(
 }
 function writer(
   counter: { calls: number },
-  patch?: (candidate: typeof ModelCandidate._output) => void,
+  patch?: (candidate: typeof ModelCandidateV2._output) => void,
 ): WritingProvider {
   return {
     async write(input) {
       counter.calls++;
       const payload = JSON.parse(new TextDecoder().decode(input.payload));
       const data = JSON.parse(payload.input[2].content) as {
-        positions: Array<{ position: string; factId: string; sourceId: string }>;
+        meanings: Array<{ position: string; factId: string; sourceId: string }>;
       };
-      const candidate = ModelCandidate.parse({
-        schemaVersion: 1,
-        kind: 'tarot.interpretation.v1',
-        units: data.positions.map((position, i) => ({
+      const candidate = ModelCandidateV2.parse({
+        schemaVersion: 2,
+        kind: 'tarot.interpretation.v2',
+        units: data.meanings.map((position, i) => ({
           position: position.position,
           factIds: [position.factId],
           sourceIds: [position.sourceId],
+          contextRefs: ['reader:question'],
           interpretation: [
             'Curiosity can make room for another perspective.',
             'Consider which assumptions feel useful to examine.',
             'A gentle pause may offer space for a choice.',
           ][i],
-          reflectionQuestion: [
-            'What feels open?',
-            'Where could you pause?',
-            'What would you explore?',
-          ][i],
         })),
-        closing: 'Keep what feels useful for your reflection.',
+        synthesis: {
+          sourceIds: data.meanings.map((m) => m.sourceId),
+          relationshipIds: [],
+          contextRefs: ['reader:question'],
+          text: 'Keep what feels useful for your reflection.',
+        },
+        action: {
+          sourceIds: data.meanings.map((m) => m.sourceId),
+          contextRefs: ['reader:question'],
+          text: 'One optional exercise is to compare the available approaches against the goal described.',
+        },
+        reflectionQuestion: null,
       });
       patch?.(candidate);
       return {
         kind: 'candidate',
         candidate,
         receipt: providerReceipt({
+          serviceTier: 'fast',
           responseId: 'synthetic-response-id',
           returnedModel: 'synthetic-distinct-writer.v2',
           durationMs: 4,
@@ -470,7 +484,7 @@ test('publishes the validated writer text with its recorded provenance', async (
       { interpretation: 'Consider which assumptions feel useful to examine.' },
       { interpretation: 'A gentle pause may offer space for a choice.' },
     ],
-    closing: 'Keep what feels useful for your reflection.',
+    synthesis: { text: 'Keep what feels useful for your reflection.' },
     provenance: { returnedModel: 'synthetic-distinct-writer.v2' },
   });
   expect(
@@ -485,7 +499,7 @@ test('publishes the validated writer text with its recorded provenance', async (
   });
 });
 
-test('new dispatches persist the exact Standard and cache policy sent to the writer', async () => {
+test('new dispatches persist the exact fast/xhigh and cache policy sent to the writer', async () => {
   const calls = { calls: 0 },
     f = await setup(env.DB, writer(calls));
   await f.generation.start(f.session, f.input, crypto.randomUUID());
@@ -497,9 +511,9 @@ test('new dispatches persist the exact Standard and cache policy sent to the wri
     syntheticOnly: true,
     externalCall: false,
     store: false,
-    reasoning: { effort: 'none' },
-    max_output_tokens: 1600,
-    service_tier: 'default',
+    reasoning: { effort: 'xhigh' },
+    max_output_tokens: 8192,
+    service_tier: 'fast',
     prompt_cache_options: { mode: 'implicit', ttl: '30m' },
   });
 });
@@ -508,7 +522,33 @@ test('a policy upgrade preserves exact saved 5.6 content and provenance without 
   const calls = { calls: 0 },
     f = await setup(env.DB, writer(calls));
   await f.generation.start(f.session, f.input, crypto.randomUUID());
-  const historical = AcceptedReading.parse((await latest(f.client)).reading);
+  const current = (await latest(f.client)).reading!;
+  const { syntheticPlanInput } = await import('../fixtures/canon.ts');
+  const { buildPlan } = await import('../../src/domain/tarot/plan.ts');
+  const { composeTemplate } = await import('../../src/domain/tarot/render.ts');
+  const legacy = await buildPlan(await syntheticPlanInput());
+  const body = await composeTemplate(legacy);
+  if (current.kind !== 'tarot.accepted.v2') throw new Error('Expected v2 current output');
+  const {
+    draw: _draw,
+    spread: _spread,
+    relationships: _relationships,
+    contextReceipt: _receipt,
+    synthesis: _synthesis,
+    action: _action,
+    reflectionQuestion: _question,
+    ...common
+  } = current;
+  const { schemaHash: _schemaHash, contextHash: _contextHash, ...provenance } = current.provenance;
+  const historical = AcceptedReading.parse({
+    ...common,
+    kind: 'tarot.accepted.v1',
+    basis: legacy.basis,
+    sources: legacy.sources,
+    units: body.units,
+    closing: body.closing,
+    provenance,
+  });
   const { sha256Json } = await import('../../src/domain/json.ts');
   const previous = await sha256Json({
     localOnly: true,
@@ -570,7 +610,7 @@ test('recovery rejects a prepared plan under an unrecognized policy without repl
     'plan_enc',
     old.requestId,
     encrypted,
-    PreparedPlan,
+    AnyPreparedPlan,
   );
   const unknown = '9'.repeat(64);
   plan.generationPolicyHash = unknown;

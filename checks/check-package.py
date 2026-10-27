@@ -41,6 +41,7 @@ def closed_objects(node):
             closed_objects(value)
 
 closed_objects(json.loads((docs / 'model-output.schema.json').read_text()))
+closed_objects(json.loads((docs / 'model-output-v2.schema.json').read_text()))
 assert objects > 0
 print(json.dumps({'required_files': len(required), 'local_markdown_links': links,
                   'json_files': len(json_files), 'closed_model_objects': objects,

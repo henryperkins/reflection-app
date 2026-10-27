@@ -1,5 +1,12 @@
 import { z } from 'zod';
-import { apiSchemas, Reading, Reflection, Id, type PortableRecord } from '../../contracts/index.ts';
+import {
+  apiSchemas,
+  Reading,
+  Reflection,
+  Id,
+  WriterReceiptV2,
+  type PortableRecord,
+} from '../../contracts/index.ts';
 import { statement as q, DB_NOW } from '../db/core.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
@@ -323,7 +330,12 @@ export class ReadingExports {
       return value;
     }
     const transmission = row.value_enc
-      ? await this.base.opened<{ v: 1; syntheticOnly: true; payload: string }>(
+      ? await this.base.opened<{
+          v: 1;
+          syntheticOnly: true;
+          payload: string;
+          contextReceipt?: z.infer<typeof WriterReceiptV2> | null;
+        }>(
           owner,
           'provider_dispatches',
           'transmission_enc',
@@ -333,6 +345,7 @@ export class ReadingExports {
             v: z.literal(1),
             syntheticOnly: z.literal(true),
             payload: z.string().max(200000),
+            contextReceipt: WriterReceiptV2.nullable().optional(),
           }),
           1,
           row.key_version,
@@ -351,6 +364,7 @@ export class ReadingExports {
       actualCostMicroUsd: metadata.actualCost ?? null,
       costState: metadata.costState,
       transmission: transmission?.payload ?? null,
+      ...(transmission?.contextReceipt ? { contextReceipt: transmission.contextReceipt } : {}),
       reproduction: transmission ? 'complete' : 'redacted',
     };
   }

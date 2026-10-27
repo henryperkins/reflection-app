@@ -65,9 +65,9 @@
 
 **Interfaces:** New local starts freeze v2 plans and transmission receipts; recovery decodes stored versions explicitly. `Reading` accepts v1/v2; client renders synthesis/action/single optional question and public attribution. Existing saved v1 JSON is unchanged.
 
-- [ ] Add failing lifecycle tests for new v2 output, exact input, distinct hashes, fallback, saved v1 reopen, omitted-note rejection, cancellation/withdrawal and quota/cost behavior.
-- [ ] Implement version-aware generation and UI without enabling history or external production dispatch. Separate actual prompt/schema/validator hashes from simulation policy identity.
-- [ ] Regenerate schemas/registries and run relevant domain/D1/browser suites; expected PASS. Commit.
+- [x] Add failing lifecycle tests for new v2 output, exact input, distinct hashes, fallback, saved v1 reopen, omitted-note rejection, cancellation/withdrawal and quota/cost behavior.
+- [x] Implement version-aware generation and UI without enabling history or external production dispatch. Separate actual prompt/schema/validator hashes from simulation policy identity.
+- [x] Regenerate schemas/registries and run relevant domain/D1/browser suites; expected PASS. Commit.
 
 ### Task 5: Bounded development acceptance and final review
 
