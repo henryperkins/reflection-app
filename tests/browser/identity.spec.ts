@@ -58,7 +58,7 @@ test('complete downloaded kit recovers the same account in a new browser without
     databases: await indexedDB.databases(),
   }));
   expect(storage).toEqual({ local: {}, session: {}, databases: [] });
-  await page.getByRole('button', { name: 'Sign out' }).click();
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
   await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
   await original.cdp.send('WebAuthn.removeVirtualAuthenticator', {

@@ -10,6 +10,63 @@ import {
   savedSnapshot,
 } from '../fixtures/browser-reading.ts';
 
+test('card names match the deck edition beside unchanged facts and unknown decks fall back to codes', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.175');
+  const question = 'Synthetic edition-bound card names';
+  await reading(page, question);
+  await page.getByRole('button', { name: 'Save reading', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Reading saved.' })).toBeVisible();
+  const saved = await savedSnapshot(page);
+  if (saved.reading.kind !== 'tarot.accepted.v1') throw new Error('Expected accepted tarot');
+  const accepted = page.getByTestId('accepted-reading');
+  for (const card of saved.reading.basis.cards) {
+    await expect(
+      accepted.getByRole('heading', { name: `Drawn card: Synthetic ${card.cardId}`, exact: true }),
+    ).toBeVisible();
+  }
+  for (const unit of saved.reading.units) {
+    await expect(accepted.getByText(unit.basisText, { exact: true })).toBeVisible();
+  }
+  await page.route('**/api/v1/readings/*', async (route) => {
+    const response = await route.fetch();
+    const value = await response.json();
+    value.basis.deckEdition = 'f'.repeat(64);
+    await route.fulfill({ response, json: value });
+  });
+  await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+  await page.getByRole('button', { name: question, exact: true }).click();
+  await expect(accepted.getByRole('heading', { name: 'Drawn card', exact: true })).toHaveCount(3);
+  await expect(accepted.getByRole('heading', { name: /^Drawn card: / })).toHaveCount(0);
+  for (const unit of saved.reading.units) {
+    await expect(accepted.getByText(unit.basisText, { exact: true })).toBeVisible();
+  }
+});
+
+test('a failed workspace action announces an error and keeps the reading draft', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.176');
+  await reading(page, 'Synthetic failed save');
+  await page
+    .getByLabel('Your reflection', { exact: true })
+    .fill('Synthetic draft kept after failure');
+  await page.route('**/api/v1/sessions/*/reflections', (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: 'application/json',
+      body: '{}',
+    }),
+  );
+  await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
+  await expect(page.getByRole('alert')).toBeVisible();
+  await expect(page.getByLabel('Your reflection', { exact: true })).toHaveValue(
+    'Synthetic draft kept after failure',
+  );
+  await expect(page.getByRole('button', { name: 'Save reflection', exact: true })).toBeEnabled();
+});
+
 test('save, sign in, recover from the downloaded kit, and manage the same reading with AI consent off', async ({
   browser,
   page,
@@ -283,6 +340,7 @@ test('focus refresh keeps a dirty reflection at its original revision until expl
   await focused;
   await expect(page.getByText(/Your draft has been kept/)).toBeVisible();
   await expect(page.getByText('Other tab latest text', { exact: true })).toBeVisible();
+  await expect(page.getByText('Saved stance: Disagree', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Your reflection', { exact: true })).toHaveValue(
     'Local draft to reconcile',
   );
