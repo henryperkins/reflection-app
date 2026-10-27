@@ -681,6 +681,7 @@ export function ReadingWorkspace({
       )}
       {mode === 'new' && (
         <form
+          className="card new-reading"
           onSubmit={(event) => {
             event.preventDefault();
             if (inFlight.current || requestPending) return;
@@ -705,52 +706,61 @@ export function ReadingWorkspace({
             setMessage(null);
           }}
         >
-          <h2>A new reading</h2>
-          <label htmlFor="reading-question">Your question</label>
-          <textarea
-            id="reading-question"
-            rows={3}
-            maxLength={500}
-            required
-            value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            disabled={busy}
-          />
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={english}
-              onChange={(event) => setEnglish(event.target.checked)}
+          <Art name="hero-rose" className="new-reading-art" />
+          <div className="new-reading-content">
+            <h2 className="title-section">A new reading</h2>
+            <label htmlFor="reading-question">Your question</label>
+            <textarea
+              id="reading-question"
+              rows={3}
+              maxLength={500}
+              required
+              value={question}
+              onChange={(event) => setQuestion(event.target.value)}
               disabled={busy}
             />
-            Use English for this reading
-          </label>
-          <label className="check">
-            <input
-              type="checkbox"
-              checked={reversals}
-              onChange={(event) => setReversals(event.target.checked)}
-              disabled={busy}
-            />
-            Include reversed cards
-          </label>
-          <p className="storage-notice">
-            Start temporarily stores your question and processing/recovery records for 24 hours from
-            creation. Save reading keeps the result until you delete it.
-          </p>
-          <p className="muted">
-            Drafts stay in memory until submitted. This build uses a local simulated writer. Use
-            synthetic text only.
-          </p>
-          <button
-            type="submit"
-            disabled={busy || !english || !question.trim() || !user.permission.modelAllowed}
-          >
-            Start reading
-          </button>
-          <p className="muted">
-            Local allowance: {user.remainingDay} today · {user.remainingMonth} this month.
-          </p>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={english}
+                onChange={(event) => setEnglish(event.target.checked)}
+                disabled={busy}
+              />
+              Use English for this reading
+            </label>
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={reversals}
+                onChange={(event) => setReversals(event.target.checked)}
+                disabled={busy}
+              />
+              Include reversed cards
+            </label>
+            <p className="storage-notice">
+              <Icon name="clock" />
+              <span>
+                Start temporarily stores your question and processing/recovery records for 24 hours
+                from creation. Save reading keeps the result until you delete it.
+              </span>
+            </p>
+            <p className="test-notice">
+              Drafts stay in memory until submitted. This build uses a local simulated writer. Use
+              synthetic text only.
+            </p>
+            <div className="new-reading-footer">
+              <button
+                type="submit"
+                className="large"
+                disabled={busy || !english || !question.trim() || !user.permission.modelAllowed}
+              >
+                Start reading
+              </button>
+              <p className="muted">
+                Local allowance: {user.remainingDay} today · {user.remainingMonth} this month.
+              </p>
+            </div>
+          </div>
         </form>
       )}
       {mode === 'reading' && record && reading && (

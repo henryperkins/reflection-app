@@ -941,3 +941,81 @@ button.history-link:hover:enabled {
 .account-storage .icon {
   margin-top: 2px;
 }
+
+/* New readings and request progress. */
+.new-reading,
+.request-progress {
+  overflow: hidden;
+}
+.new-reading-art {
+  width: 100%;
+  height: 112px;
+  object-position: 50% 46%;
+  mask-image: linear-gradient(to bottom, var(--foreground) 55%, transparent);
+}
+.new-reading-content {
+  padding: 20px;
+}
+.new-reading-content h2 {
+  margin-bottom: 20px;
+}
+.new-reading-content > label:not(.check) {
+  display: block;
+}
+.new-reading-content .check {
+  margin: 0;
+}
+.new-reading-content .storage-notice {
+  margin-top: 20px;
+}
+.new-reading-content .test-notice {
+  margin-block: 12px 20px;
+}
+.new-reading-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.new-reading-footer .muted {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.progress-art {
+  width: 100%;
+  height: 72px;
+}
+.progress-content {
+  padding: 20px;
+}
+.progress-content h2 {
+  margin-bottom: 16px;
+}
+.progress-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  font-size: 18px;
+  line-height: 28px;
+  font-weight: 500;
+}
+.progress-status > .icon,
+.progress-status > .spinner {
+  flex-basis: 20px;
+  width: 20px;
+  height: 20px;
+  margin-top: 4px;
+  color: var(--muted-foreground);
+}
+.progress-status.check > .icon {
+  color: var(--primary);
+}
+.progress-status.warning > .icon {
+  color: var(--destructive);
+}
+.progress-actions {
+  margin: 20px 0 0;
+}
+.progress-actions:empty {
+  display: none;
+}
