@@ -1,11 +1,13 @@
 import { z } from 'zod';
 import type { WritingProvider, WriterOutcome } from '../../contracts/index.ts';
+import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
+import { providerPolicyHash } from '../../domain/provider-policy.ts';
 import { boundedCandidateJson } from '../../domain/tarot/safety.ts';
 
 /** Evidence hashes are operator-reviewed receipts, never inferred from a key or model listing. */
 export interface ProviderQualification {
   version: 'openai-responses.qualification.v1';
-  model: 'gpt-5.6-terra';
+  model: 'gpt-6.1-terra';
   policyHash: string;
   expiresAt: string;
   evidence: {
@@ -27,7 +29,7 @@ export interface OpenAIProviderOptions {
 }
 const Qualification = z.strictObject({
   version: z.literal('openai-responses.qualification.v1'),
-  model: z.literal('gpt-5.6-terra'),
+  model: z.literal('gpt-6.1-terra'),
   policyHash: z.string().regex(/^[a-f0-9]{64}$/),
   expiresAt: z.iso.datetime(),
   evidence: z
@@ -42,10 +44,12 @@ const Qualification = z.strictObject({
     .refine((v) => Object.values(v).every((hash) => /^[a-f0-9]{64}$/.test(hash))),
 });
 const Payload = z.strictObject({
-  model: z.literal('gpt-5.6-terra'),
+  model: z.literal('gpt-6.1-terra'),
   reasoning: z.strictObject({ effort: z.literal('none') }),
   max_output_tokens: z.literal(1600),
   store: z.literal(false),
+  service_tier: z.literal('default'),
+  prompt_cache_options: z.strictObject({ mode: z.literal('implicit'), ttl: z.literal('30m') }),
   input: z.tuple([
     z.strictObject({ role: z.literal('system'), content: z.string() }),
     z.strictObject({ role: z.literal('developer'), content: z.string() }),
@@ -134,13 +138,14 @@ export class OpenAIWritingProvider implements WritingProvider {
       !config.fetch ||
       !config.apiKey ||
       !qualification.success ||
+      config.expectedPolicyHash !== (await providerPolicyHash(READING_PROVIDER_POLICY)) ||
       qualification.data.policyHash !== config.expectedPolicyHash ||
       Date.parse(qualification.data.expiresAt) <= Date.now()
     )
       return { kind: 'rejected', status: 503 };
     try {
       if (
-        input.model !== 'gpt-5.6-terra' ||
+        input.model !== 'gpt-6.1-terra' ||
         input.store !== false ||
         input.reasoning !== 'none' ||
         input.timeoutMs !== 18000 ||
@@ -173,7 +178,7 @@ export class OpenAIWritingProvider implements WritingProvider {
       const request = async (): Promise<WriterOutcome> => {
         let response: Response;
         try {
-          response = await config.fetch!('https://api.openai.com/v1/responses', {
+          response = await config.fetch!(READING_PROVIDER_POLICY.endpoint, {
             method: 'POST',
             redirect: 'error',
             headers: {

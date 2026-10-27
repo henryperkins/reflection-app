@@ -1752,7 +1752,7 @@
           "sqlType": "TEXT",
           "nullable": false,
           "default": null,
-          "export": "accepted transmission and numeric usage, no raw rejected candidate"
+          "export": "accepted requested model; historical gpt-5.6-terra or gpt-6.1-terra, never rewritten"
         },
         "returned_model": {
           "aadRule": null,

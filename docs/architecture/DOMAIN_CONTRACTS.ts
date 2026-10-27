@@ -873,7 +873,7 @@ export type WriterOutcome =
 export interface WritingProvider {
   write(input: {
     dispatchId: string;
-    model: 'gpt-5.6-terra';
+    model: 'gpt-6.1-terra';
     payload: Uint8Array;
     timeoutMs: 18000;
     maxOutputTokens: 1600;

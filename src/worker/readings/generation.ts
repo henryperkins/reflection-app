@@ -1,3 +1,5 @@
+import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
+import { providerPolicyHash } from '../../domain/provider-policy.ts';
 import type { z } from 'zod';
 import {
   AcceptedReading,
@@ -48,14 +50,31 @@ export class LocalGeneration extends RequestState {
       content,
     );
   }
-  /** Upgrade only the predecessor shipped by this localhost simulator. Operator switches are untouched. */
+  private async localPolicyHash() {
+    return sha256Json({
+      localOnly: true,
+      writer: 'simulation.v3',
+      providerPolicyHash: await providerPolicyHash(READING_PROVIDER_POLICY),
+    });
+  }
+  private async refreshLocalPolicy() {
+    await this.upgradeLocalPolicy(
+      (await syntheticBundle()).editionHash,
+      await this.localPolicyHash(),
+    );
+  }
+  /** Upgrade only known localhost predecessors. Operator and financial switches are untouched. */
   private async upgradeLocalPolicy(content: string, next: string) {
-    const previous = await sha256Json({ localOnly: true, writer: 'simulation.v1' });
     const installed = await q(
       this.base.db,
       'SELECT provider_policy_hash FROM system_state WHERE id=1',
     ).first<string>('provider_policy_hash');
-    if (installed !== previous) return;
+    const predecessors = await Promise.all([
+      sha256Json({ localOnly: true, writer: 'simulation.v1' }),
+      sha256Json({ localOnly: true, writer: 'simulation.v2', validator: SAFETY_VERSION }),
+    ]);
+    if (!installed || !predecessors.includes(installed)) return;
+    const previous = installed;
     const ids = `SELECT id FROM generation_requests WHERE policy_hash=? AND content_hash=? AND state NOT IN (${terminalStates})`;
     const identity = [previous, content];
     try {
@@ -185,11 +204,7 @@ export class LocalGeneration extends RequestState {
     if (account.permission_revision !== input.permissionRevision)
       throw new RecordError(409, 'CONFLICT', account.permission_revision);
     const content = await syntheticBundle(),
-      policyHash = await sha256Json({
-        localOnly: true,
-        writer: 'simulation.v2',
-        validator: SAFETY_VERSION,
-      });
+      policyHash = await this.localPolicyHash();
     await this.base.db.batch([
       onlineGuard(this.base.db),
       q(
@@ -335,6 +350,7 @@ export class LocalGeneration extends RequestState {
   /** Durable D1 work is authoritative; waitUntil only reduces latency. */
   async maintenance() {
     await this.base.db.batch([onlineGuard(this.base.db)]);
+    await this.refreshLocalPolicy();
     await this.reconcileStopped();
     const due = await q(
       this.base.db,
@@ -748,7 +764,7 @@ export class LocalGeneration extends RequestState {
     }
   }
   private async dispatch(h: Lease, plan: PreparedPlan): Promise<DispatchRow> {
-    const payload = await projectWriterPayload(plan),
+    const payload = await projectWriterPayload(plan, READING_PROVIDER_POLICY),
       text = new TextDecoder().decode(payload),
       id = crypto.randomUUID();
     const transmission = await this.base.crypt.seal(
@@ -778,17 +794,23 @@ export class LocalGeneration extends RequestState {
       ),
       q(
         this.base.db,
-        `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai','gpt-5.6-terra',?,?,?,?,?,?,'{"syntheticOnly":true,"externalCall":false,"store":false,"reasoning":"none","max_output_tokens":1600}',${DB_NOW})`,
+        `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai',?,?,?,?,?,?,?,?,${DB_NOW})`,
         id,
         h.owner_id,
         h.id,
         h.attempt_id,
+        READING_PROVIDER_POLICY.model,
         transmission,
         hash,
         h.key_version,
         plan.promptHash,
         plan.validatorHash,
         plan.contentHash,
+        JSON.stringify({
+          syntheticOnly: true,
+          externalCall: false,
+          ...READING_PROVIDER_POLICY.request,
+        }),
       ),
       q(
         this.base.db,
@@ -846,7 +868,7 @@ export class LocalGeneration extends RequestState {
         });
       outcome = await supplied.write({
         dispatchId: id,
-        model: 'gpt-5.6-terra',
+        model: READING_PROVIDER_POLICY.model,
         payload,
         timeoutMs: 18000,
         maxOutputTokens: 1600,
@@ -1110,11 +1132,16 @@ export class LocalGeneration extends RequestState {
     ]);
   }
   async drive(id: string): Promise<void> {
+    await this.refreshLocalPolicy();
     const row = await this.row(id);
     if (!row || ['published', 'blocked', 'failed', 'expired', 'cancelled'].includes(row.state))
       return;
     if (row.expired) {
       await this.stop(row, 'EXPIRED');
+      return;
+    }
+    if (row.policy_hash !== (await this.localPolicyHash())) {
+      await this.stop(row, 'DEPENDENCY_UNAVAILABLE');
       return;
     }
     if (row.run_epoch >= 3) {

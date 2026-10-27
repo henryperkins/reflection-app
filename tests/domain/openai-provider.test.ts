@@ -1,4 +1,6 @@
+import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
 import { afterEach, beforeAll, expect, test, vi } from 'vitest';
+import { providerPolicyHash } from '../../src/domain/provider-policy.ts';
 import { buildPlan } from '../../src/domain/tarot/plan.ts';
 import { projectWriterPayload } from '../../src/domain/tarot/render.ts';
 import type { WritingProvider } from '../../src/contracts/index.ts';
@@ -10,12 +12,16 @@ import { syntheticPlanInput } from '../fixtures/canon.ts';
 
 let payload: Uint8Array;
 beforeAll(async () => {
-  payload = await projectWriterPayload(await buildPlan(await syntheticPlanInput()));
+  qualification.policyHash = await providerPolicyHash(READING_PROVIDER_POLICY);
+  payload = await projectWriterPayload(
+    await buildPlan(await syntheticPlanInput()),
+    READING_PROVIDER_POLICY,
+  );
 });
 afterEach(() => vi.useRealTimers());
 const qualification: ProviderQualification = {
   version: 'openai-responses.qualification.v1',
-  model: 'gpt-5.6-terra',
+  model: 'gpt-6.1-terra',
   policyHash: 'a'.repeat(64),
   expiresAt: '2099-01-01T00:00:00Z',
   evidence: {
@@ -29,7 +35,7 @@ const qualification: ProviderQualification = {
 };
 const input = (): Parameters<WritingProvider['write']>[0] => ({
   dispatchId: crypto.randomUUID(),
-  model: 'gpt-5.6-terra',
+  model: 'gpt-6.1-terra',
   payload,
   timeoutMs: 18000,
   maxOutputTokens: 1600,
@@ -41,7 +47,7 @@ const envelope = () => ({
   id: 'resp_synthetic_only',
   object: 'response',
   status: 'completed',
-  model: 'gpt-5.6-terra',
+  model: 'gpt-6.1-terra',
   usage: { input_tokens: 31, output_tokens: 47, total_tokens: 78 },
   output: [
     {
@@ -68,6 +74,11 @@ test('disabled and unqualified provider never enters its transport', async () =>
     { ...options(fetcher), enabled: false },
     { ...options(fetcher), qualification: undefined },
     { ...options(fetcher), expectedPolicyHash: '2'.repeat(64) },
+    {
+      ...options(fetcher),
+      qualification: { ...qualification, policyHash: '3'.repeat(64) },
+      expectedPolicyHash: '3'.repeat(64),
+    },
   ]) {
     expect(await new OpenAIWritingProvider(config).write(input())).toEqual({
       kind: 'rejected',
@@ -89,7 +100,7 @@ test('qualified injected transport sends exact persisted bytes once with redirec
   expect(await new OpenAIWritingProvider(options(fetcher)).write(supplied)).toMatchObject({
     kind: 'candidate',
     candidate: { synthetic: 'candidate' },
-    returnedModel: 'gpt-5.6-terra',
+    returnedModel: 'gpt-6.1-terra',
     providerResponseId: 'resp_synthetic_only',
     inputTokens: 31,
     outputTokens: 47,
@@ -105,6 +116,9 @@ test('an unauthorized payload cannot add tools, prior response state, or enable 
     { previous_response_id: 'private' },
     { store: true },
     { reasoning: { effort: 'high' } },
+    { model: 'gpt-5.6-terra' },
+    { service_tier: 'flex' },
+    { prompt_cache_options: { mode: 'implicit', ttl: '12h' } },
   ]) {
     const supplied = input();
     supplied.payload = new TextEncoder().encode(
@@ -173,13 +187,19 @@ test('18-second timeout aborts a transport that ignores cancellation and never r
   vi.useFakeTimers();
   let calls = 0;
   let signal: AbortSignal | undefined;
+  let enter!: () => void;
+  const entered = new Promise<void>((resolve) => {
+    enter = resolve;
+  });
   const promise = new OpenAIWritingProvider(
     options(async (_url, init) => {
       calls++;
       signal = init?.signal ?? undefined;
+      enter();
       return new Promise<Response>(() => {});
     }),
   ).write(input());
+  await entered;
   await vi.advanceTimersByTimeAsync(18000);
   expect(await promise).toEqual({ kind: 'uncertain', reason: 'timeout' });
   expect(signal?.aborted).toBe(true);

@@ -3,7 +3,7 @@ import type { WritingProvider, WriterOutcome } from '../../src/contracts/index.t
 import { InterceptedWritingProvider } from '../../src/worker/provider/intercepted.ts';
 const input = (signal = new AbortController().signal): Parameters<WritingProvider['write']>[0] => ({
   dispatchId: '00000000-0000-4000-8000-000000000001',
-  model: 'gpt-5.6-terra',
+  model: 'gpt-6.1-terra',
   payload: new TextEncoder().encode('{"synthetic":"test-only"}'),
   timeoutMs: 18000,
   maxOutputTokens: 1600,

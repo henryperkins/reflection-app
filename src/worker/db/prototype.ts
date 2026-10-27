@@ -1,3 +1,4 @@
+import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
 import type { WritingProvider, WriterOutcome } from '../../contracts/index.ts';
 import {
   assertChanges,
@@ -304,11 +305,12 @@ export class SyntheticGenerationPrototype {
         ...this.fragments(h),
         q(
           this.db,
-          `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai','gpt-5.6-terra',?,?,?,?,?,?,?,${DB_NOW})`,
+          `INSERT INTO provider_dispatches(id,owner_id,request_id,attempt_id,state,provider,requested_model,transmission_enc,transmission_hmac,key_version,prompt_hash,validator_hash,content_hash,parameters_json,authorized_at) VALUES (?,?,?,?,'authorized','openai',?,?,?,?,?,?,?,?,${DB_NOW})`,
           dispatchId,
           h.ownerId,
           h.requestId,
           h.attemptId,
+          READING_PROVIDER_POLICY.model,
           PLACEHOLDER,
           h.plan.planHmac,
           h.plan.keyVersion,
@@ -317,9 +319,8 @@ export class SyntheticGenerationPrototype {
           h.plan.contentHash,
           JSON.stringify({
             syntheticOnly: true,
-            store: false,
-            max_output_tokens: 1600,
-            reasoning: 'none',
+            externalCall: false,
+            ...READING_PROVIDER_POLICY.request,
           }),
         ),
         q(
@@ -358,7 +359,7 @@ export class SyntheticGenerationPrototype {
     try {
       outcome = await this.writer.write({
         dispatchId,
-        model: 'gpt-5.6-terra',
+        model: READING_PROVIDER_POLICY.model,
         payload,
         timeoutMs: 18000,
         maxOutputTokens: 1600,

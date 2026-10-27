@@ -1,7 +1,13 @@
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
-import { apiSchemas, ModelCandidate, type WritingProvider } from '../../src/contracts/index.ts';
+import {
+  AcceptedReading,
+  apiSchemas,
+  ModelCandidate,
+  PreparedPlan,
+  type WritingProvider,
+} from '../../src/contracts/index.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
 import { RecordBase } from '../../src/worker/readings/base.ts';
 import { LocalGeneration } from '../../src/worker/readings/generation.ts';
@@ -166,6 +172,153 @@ test('publishes the validated writer text with its recorded provenance', async (
     duration_ms: 4,
   });
 });
+
+test('new dispatches persist the exact Standard and cache policy sent to the writer', async () => {
+  const calls = { calls: 0 },
+    f = await setup(env.DB, writer(calls));
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const dispatch = await env.DB.prepare(
+    'SELECT requested_model,parameters_json FROM provider_dispatches',
+  ).first<{ requested_model: string; parameters_json: string }>();
+  expect(dispatch!.requested_model).toBe('gpt-6.1-terra');
+  expect(JSON.parse(dispatch!.parameters_json)).toMatchObject({
+    syntheticOnly: true,
+    externalCall: false,
+    store: false,
+    reasoning: { effort: 'none' },
+    max_output_tokens: 1600,
+    service_tier: 'default',
+    prompt_cache_options: { mode: 'implicit', ttl: '30m' },
+  });
+});
+
+test('a policy upgrade preserves exact saved 5.6 content and provenance without generation', async () => {
+  const calls = { calls: 0 },
+    f = await setup(env.DB, writer(calls));
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const historical = AcceptedReading.parse((await latest(f.client)).reading);
+  const { sha256Json } = await import('../../src/domain/json.ts');
+  const previous = await sha256Json({
+    localOnly: true,
+    writer: 'simulation.v2',
+    validator: 'bounded-english-reflection.v1',
+  });
+  historical.provenance.requestedModel = 'gpt-5.6-terra';
+  historical.provenance.returnedModel = 'gpt-5.6-terra';
+  historical.provenance.policyHash = previous;
+  const ciphertext = await f.generation.base.crypt.seal(
+    f.session.subjectId,
+    'reading_editions',
+    'body_enc',
+    historical.editionId,
+    historical,
+  );
+  await env.DB.batch([
+    env.DB.prepare('UPDATE reading_editions SET body_enc=?').bind(ciphertext),
+    env.DB.prepare(
+      "UPDATE provider_dispatches SET requested_model='gpt-5.6-terra',returned_model='gpt-5.6-terra'",
+    ),
+    env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(previous),
+    env.DB.prepare('UPDATE generation_requests SET policy_hash=?').bind(previous),
+  ]);
+  expect(
+    (
+      await f.client.request(
+        `/sessions/${historical.sessionId}/save`,
+        { saved: true },
+        { method: 'PUT', revision: 1 },
+      )
+    ).status,
+  ).toBe(200);
+  const allowance = (await f.client.me()).remainingDay;
+  await f.generation.maintenance();
+  await f.client.permission(false);
+  expect(await (await f.client.request(`/readings/${historical.editionId}`)).json()).toEqual(
+    historical,
+  );
+  expect(await env.DB.prepare('SELECT body_enc FROM reading_editions').first('body_enc')).toBe(
+    ciphertext,
+  );
+  expect(await env.DB.prepare('SELECT count(*) AS n FROM provider_dispatches').first('n')).toBe(1);
+  expect(calls.calls).toBe(1);
+  expect((await f.client.me()).remainingDay).toBe(allowance);
+});
+
+test('recovery rejects a prepared plan under an unrecognized policy without replacing operator policy', async () => {
+  const calls = { calls: 0 },
+    f = await setup(failingDatabase('before-dispatch'), writer(calls));
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const old = (await latest(f.client)).status;
+  const encrypted = (await env.DB.prepare('SELECT plan_enc FROM generation_requests').first<string>(
+    'plan_enc',
+  ))!;
+  const plan = await f.generation.base.crypt.open(
+    f.session.subjectId,
+    'generation_requests',
+    'plan_enc',
+    old.requestId,
+    encrypted,
+    PreparedPlan,
+  );
+  const unknown = '9'.repeat(64);
+  plan.generationPolicyHash = unknown;
+  plan.promptHash = unknown;
+  plan.validatorHash = unknown;
+  const ciphertext = await f.generation.base.crypt.seal(
+    f.session.subjectId,
+    'generation_requests',
+    'plan_enc',
+    old.requestId,
+    plan,
+  );
+  const hmac = await f.generation.base.crypt.hash(f.session.subjectId, 'plan', plan);
+  await env.DB.batch([
+    env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(unknown),
+    env.DB.prepare(
+      'UPDATE generation_requests SET policy_hash=?,plan_enc=?,plan_hmac=?,lease_expires_at=1,next_run_at=1',
+    ).bind(unknown, ciphertext, hmac),
+  ]);
+  await f.generation.maintenance();
+  expect(calls.calls).toBe(0);
+  expect((await latest(f.client)).status).toMatchObject({
+    state: 'blocked',
+    errorCode: 'DEPENDENCY_UNAVAILABLE',
+  });
+  expect(
+    await env.DB.prepare('SELECT provider_policy_hash FROM system_state').first(
+      'provider_policy_hash',
+    ),
+  ).toBe(unknown);
+});
+
+test.each(['maintenance', 'drive'] as const)(
+  'the %s entrypoint upgrades old prepared work before it can dispatch',
+  async (entrypoint) => {
+    const calls = { calls: 0 },
+      f = await setup(failingDatabase('before-dispatch'), writer(calls));
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    const old = (await latest(f.client)).status;
+    const { sha256Json } = await import('../../src/domain/json.ts');
+    const previous = await sha256Json({
+      localOnly: true,
+      writer: 'simulation.v2',
+      validator: 'bounded-english-reflection.v1',
+    });
+    await env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(previous).run();
+    await env.DB.prepare(
+      'UPDATE generation_requests SET policy_hash=?,lease_expires_at=1,next_run_at=1',
+    )
+      .bind(previous)
+      .run();
+    if (entrypoint === 'maintenance') await f.generation.maintenance();
+    else await f.generation.drive(old.requestId);
+    expect(calls.calls).toBe(0);
+    expect((await latest(f.client)).status).toMatchObject({
+      state: 'blocked',
+      errorCode: 'DEPENDENCY_UNAVAILABLE',
+    });
+  },
+);
 
 test.each(['before-dispatch', 'after-dispatch', 'after-receipt'] as const)(
   'recovers %s loss without regenerating an authorized request',
@@ -512,38 +665,109 @@ test('configured outage mode admits a labelled template without authorization or
   expect(await env.DB.prepare('SELECT count(*) AS n FROM cost_reservations').first('n')).toBe(0);
 });
 
-test('the known previous local policy is upgraded while prior work is fenced and its quota released', async () => {
-  const f = await setup(failingDatabase('before-dispatch'));
-  await f.generation.start(f.session, f.input, crypto.randomUUID());
-  const { sha256Json } = await import('../../src/domain/json.ts');
-  const previous = await sha256Json({ localOnly: true, writer: 'simulation.v1' });
-  const old = (await latest(f.client)).status;
-  await env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(previous).run();
-  await env.DB.prepare('UPDATE generation_requests SET policy_hash=?').bind(previous).run();
-  const response = await f.client.start('What might I learn from a change of perspective?');
-  expect(response.status).toBe(202);
-  expect(apiSchemas.StartResponse.parse(await response.json()).status.state).toBe('published');
-  expect(
-    await env.DB.prepare(
-      'SELECT state,error_code,policy_hash,lease_token FROM generation_requests WHERE id=?',
-    )
-      .bind(old.requestId)
-      .first(),
-  ).toEqual({
-    state: 'blocked',
-    error_code: 'DEPENDENCY_UNAVAILABLE',
-    policy_hash: previous,
-    lease_token: null,
-  });
-  expect(
-    await env.DB.prepare(
-      "SELECT count(*) AS n FROM quota_events WHERE request_id=? AND event='release'",
-    )
-      .bind(old.requestId)
-      .first('n'),
-  ).toBe(1);
-  expect((await f.client.me()).remainingDay).toBe(2);
-});
+test.each(['simulation.v1', 'simulation.v2'])(
+  'the known previous local policy %s is upgraded while prior work is fenced and its quota released',
+  async (previousWriter) => {
+    const f = await setup(failingDatabase('before-dispatch'));
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    const { sha256Json } = await import('../../src/domain/json.ts');
+    const previous = await sha256Json(
+      previousWriter === 'simulation.v1'
+        ? { localOnly: true, writer: previousWriter }
+        : { localOnly: true, writer: previousWriter, validator: 'bounded-english-reflection.v1' },
+    );
+    const old = (await latest(f.client)).status;
+    await env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(previous).run();
+    await env.DB.prepare('UPDATE generation_requests SET policy_hash=?').bind(previous).run();
+    const response = await f.client.start('What might I learn from a change of perspective?');
+    expect(response.status).toBe(202);
+    expect(apiSchemas.StartResponse.parse(await response.json()).status.state).toBe('published');
+    expect(
+      await env.DB.prepare(
+        'SELECT state,error_code,policy_hash,lease_token FROM generation_requests WHERE id=?',
+      )
+        .bind(old.requestId)
+        .first(),
+    ).toEqual({
+      state: 'blocked',
+      error_code: 'DEPENDENCY_UNAVAILABLE',
+      policy_hash: previous,
+      lease_token: null,
+    });
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS n FROM quota_events WHERE request_id=? AND event='release'",
+      )
+        .bind(old.requestId)
+        .first('n'),
+    ).toBe(1);
+    expect((await f.client.me()).remainingDay).toBe(2);
+  },
+);
+
+test.each(['before-dispatch', 'after-dispatch', 'after-receipt'] as const)(
+  'upgrading the 5.6 simulator fences %s work without redispatch or losing liability',
+  async (stage) => {
+    const calls = { calls: 0 },
+      supplied = writer(calls),
+      f = await setup(failingDatabase(stage), supplied);
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    const old = (await latest(f.client)).status;
+    const { sha256Json } = await import('../../src/domain/json.ts');
+    const previous = await sha256Json({
+      localOnly: true,
+      writer: 'simulation.v2',
+      validator: 'bounded-english-reflection.v1',
+    });
+    await env.DB.prepare('UPDATE system_state SET provider_policy_hash=?').bind(previous).run();
+    await env.DB.prepare('UPDATE generation_requests SET policy_hash=?').bind(previous).run();
+    const cost = await env.DB.prepare('SELECT actual_microusd FROM cost_reservations').first();
+    const response = await f.client.start('What could a different perspective invite?');
+    expect(response.status).toBe(202);
+    await recover(f.client, supplied);
+    await recover(f.client, supplied);
+    expect(
+      await env.DB.prepare('SELECT state,error_code FROM generation_requests WHERE id=?')
+        .bind(old.requestId)
+        .first(),
+    ).toEqual({ state: 'blocked', error_code: 'DEPENDENCY_UNAVAILABLE' });
+    expect(calls.calls).toBe(stage === 'after-receipt' ? 1 : 0);
+    expect(
+      await env.DB.prepare(
+        "SELECT count(*) AS n FROM quota_events WHERE request_id=? AND event='release'",
+      )
+        .bind(old.requestId)
+        .first('n'),
+    ).toBe(1);
+    if (stage !== 'before-dispatch') {
+      const dispatch = await env.DB.prepare(
+        'SELECT id,state,transmission_enc,candidate_enc FROM provider_dispatches WHERE request_id=?',
+      )
+        .bind(old.requestId)
+        .first<{
+          id: string;
+          state: string;
+          transmission_enc: string | null;
+          candidate_enc: string | null;
+        }>();
+      expect(dispatch).toMatchObject({
+        state: stage === 'after-dispatch' ? 'unknown' : 'received',
+        transmission_enc: null,
+        candidate_enc: null,
+      });
+      expect(
+        await env.DB.prepare(
+          'SELECT state,actual_microusd FROM cost_reservations WHERE dispatch_id=?',
+        )
+          .bind(dispatch!.id)
+          .first(),
+      ).toEqual({
+        state: stage === 'after-dispatch' ? 'unknown' : 'actual',
+        actual_microusd: cost!.actual_microusd,
+      });
+    }
+  },
+);
 
 test.each(['off', 'disabled'] as const)(
   'a previous local policy upgrade preserves operator %s mode',
