@@ -3,6 +3,12 @@
 This CLI exercises the shared Responses transport. It does not activate the application,
 approve content, or issue an application provider qualification.
 
+Human editorial decisions are separate from transport/schema screening. The
+[reading editorial standard](../docs/operations/reading-editorial-standard.md) defines
+source adequacy, distinct section jobs, evidence exports, and an offline additive screen.
+An automated pass does not mean a finished reading is acceptable. Private review decisions
+and new diagnostic proposals stay in the external run archive alongside the original evidence.
+
 `npm run provider:evaluate -- --dry-run` recomputes and checks `manifest.json` without
 credentials or network access. `--dry-run --profile smoke` selects three named development
 cases: A01-1 (quiet reflection), A11-1 (follow-up contract), and A16-1 (ordinary metaphor).

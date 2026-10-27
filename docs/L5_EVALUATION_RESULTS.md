@@ -73,3 +73,40 @@ L6 integration, genuine human content approval, project privacy review, billing
 reconciliation and the L7 qualification run remain separate work. The proposed rendering
 comparison needs distinct frozen rendering policies before authorization; this baseline
 does not pretend to run three variants of the same request.
+
+## Human review of the fast/xhigh sample
+
+The subsequent 20-case fast/xhigh run `ea8aa869-897b-40ad-9a7a-06a540cfb600`
+returned 20 candidates with known usage costing $0.218928. Its frozen mechanical
+screen accepted 19 and flagged A08-4 for repetition. The owner's later human review
+recommended **Revise for all 20 as finished readings**, with grounding **NV** because
+the reviewed PDF omitted source passages and full instructions. No combined quality
+score or human approval is recorded. This feedback does not support selecting a model
+or reasoning/tier configuration.
+
+An audit of the archived request bytes confirmed that all 60 selected position sources
+contained the same synthetic warning and one invitation to pause. There was no distinct
+card/orientation interpretation in those passages. The fixed prompt additionally excludes
+precise card names and orientations from interpretation prose. These are confirmed input
+constraints, not proof that they explain every output weakness.
+
+The original report exporter hid source details in print CSS. A new evidence packet
+keeps all 60 passages visible, includes full instructions, source mappings, the frozen
+manifest, and all 20 original wire request files. Reproduced local draw state is labeled
+as such; its projection was checked byte-for-byte against archived requests. The original
+PDF, outputs, receipts and screening results remain unchanged. The private packet records
+the owner's individual decisions and scores, with NV preserved rather than converted to
+a number. Both the evidence and proposed experiment remain under the original archive TTL.
+
+The v1 mechanical validator compares whole sentences split at periods, question marks
+and exclamation marks. A08-1's repeated clause precedes semicolons and has different
+continuations, explaining the visible screening discrepancy. A separately versioned
+offline editorial screen now flags shared openings and clauses, including both A08-1
+and A08-4. Its signals cannot assess entailment or semantic usefulness and never grant
+acceptance. See the [revised editorial standard](operations/reading-editorial-standard.md).
+
+A source-only diagnostic is prepared for A07-2 and A08-1: two source conditions and
+three repetitions per case, 12 new calls with a $1.44 reservation ceiling. Questions,
+draws, source IDs, instructions and fast/xhigh settings are frozen. Six new experimental
+source passages require human review before execution. They are explicitly AI-authored
+drafts and confer no production content approval. No new calls were made during the audit.
