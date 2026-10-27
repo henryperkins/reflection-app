@@ -389,7 +389,7 @@ export function IdentityApp() {
                 onSession={setSession}
                 onExpired={() => {
                   clear();
-                  setMessage({ tone: 'error', text: 'Your session ended. Please sign in again.' });
+                  setMessage({ tone: 'notice', text: 'Your session ended. Please sign in again.' });
                 }}
               />
             </div>

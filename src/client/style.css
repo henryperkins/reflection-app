@@ -190,6 +190,9 @@ textarea {
 .source {
   margin-block: 1.5rem;
 }
+.source h3 {
+  text-transform: none;
+}
 .save-reading {
   margin-block: 2rem;
   padding: 1rem 1.25rem;

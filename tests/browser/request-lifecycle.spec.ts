@@ -230,12 +230,14 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
   const artifact = AcceptedReading.parse(
     await (await page.request.get(`/api/v1/readings/${status.editionId}`)).json(),
   );
+  const positions = ['Situation', 'Tension', 'Possibility'];
   for (let i = 0; i < 3; i++) {
     const card = artifact.basis.cards[i]!,
       source = artifact.sources[i]!;
     await expect(
       accepted.getByRole('heading', {
-        name: `${card.position}: Synthetic ${card.cardId} (${card.cardId}) · ${card.orientation}`,
+        name: `${positions[i]}: Synthetic ${card.cardId} (${card.cardId}) · ${card.orientation}`,
+        exact: true,
       }),
     ).toBeVisible();
     await expect(

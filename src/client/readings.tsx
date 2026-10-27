@@ -766,10 +766,11 @@ export function ReadingWorkspace({
               </p>
               {reading.basis.cards.map((card, index) => {
                 const name = cardName(reading.basis.deckEdition, card.cardId);
+                const position = card.position[0]!.toUpperCase() + card.position.slice(1);
                 return (
                   <div key={card.id} className="source">
                     <h3>
-                      {card.position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
+                      {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
                       {card.orientation}
                     </h3>
                     <p>{reading.sources[index]!.text}</p>

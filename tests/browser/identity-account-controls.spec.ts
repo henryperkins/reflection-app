@@ -49,6 +49,11 @@ test('a signed-in person adds a passkey, removes the old one, and signs out ever
   expect(addChallengeSeen).toBe(true);
   expect((await elsewhere.request.get('http://localhost:8787/api/v1/me')).status()).toBe(401);
   await expect(anotherTab.getByRole('heading', { name: 'A place to return to.' })).toBeVisible();
+  await expect(
+    anotherTab
+      .getByRole('status')
+      .filter({ hasText: 'Your account session changed in another tab.' }),
+  ).toBeVisible();
   expect(await anotherTab.evaluate(() => ({ ...sessionStorage }))).toEqual({});
   await page
     .getByRole('button', { name: `Remove passkey ${first.id.slice(0, 8)}`, exact: true })
@@ -74,6 +79,26 @@ test('a signed-in person adds a passkey, removes the old one, and signs out ever
   await expect(page.getByRole('list', { name: 'Passkeys' }).getByRole('listitem')).toHaveCount(1);
   expect(faults).toEqual([]);
   await elsewhere.close();
+});
+
+test('an ended session clears the workspace and announces signing in again as a notice', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.178');
+  await page.route(/\/api\/v1\/sessions\?status=saved$/, (route) =>
+    route.fulfill({
+      status: 401,
+      contentType: 'application/json',
+      body: '{}',
+    }),
+  );
+  await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'A place to return to.' })).toBeVisible();
+  await expect(page.getByRole('region', { name: 'Your readings' })).toHaveCount(0);
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Your session ended. Please sign in again.' }),
+  ).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
 });
 
 test('a passkey action keeps the reading workspace visible and its draft intact while blocking interaction', async ({
