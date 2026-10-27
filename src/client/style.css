@@ -105,7 +105,7 @@ button {
   cursor: pointer;
 }
 button:hover:enabled {
-  background: color-mix(in oklch, var(--primary) 90%, transparent);
+  background: color-mix(in oklch, var(--primary) 90%, var(--foreground));
 }
 button.secondary {
   color: var(--foreground);
@@ -270,8 +270,6 @@ details[open] {
 }
 .notice {
   display: block;
-  align-items: flex-start;
-  gap: 12px;
   margin-block: 20px;
   padding: 10px 14px;
   border: 1px solid var(--border);
@@ -283,6 +281,8 @@ details[open] {
 }
 p.notice {
   display: flex;
+  align-items: flex-start;
+  gap: 12px;
 }
 .notice > span {
   max-width: 48ch;
@@ -825,6 +825,9 @@ button.history-link:hover:enabled {
   color: var(--muted-foreground);
   font-size: 14px;
   line-height: 20px;
+}
+.passkeys-card > :where(h2) + p {
+  max-width: 48ch;
 }
 .passkeys-card > ul {
   margin: 16px 0;

@@ -461,7 +461,7 @@ export function IdentityApp() {
                             </span>
                             <p>
                               <strong>Passkey {credential.id.slice(0, 8)}</strong>
-                              {' · '}Added {date(credential.createdAt, true)}
+                              Added {date(credential.createdAt, true)}
                               {' · '}
                               {credential.backedUp
                                 ? 'Backed up by your passkey provider'
