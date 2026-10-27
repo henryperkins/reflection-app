@@ -4,6 +4,8 @@ Milestone 1 is complete. Milestone 2 now has local identity/recovery and saved-r
 
 The [local delivery guide](docs/LOCAL_DELIVERY.md) explains the runnable ZIP and its verification records. The [completion pass](docs/COMPLETION_PASS_RESULTS.md) adds passkey management, logout-all, durable generation recovery, actual candidate composition, retained-key rotation/receipts, operator telemetry and reproducible packaging. Production launch decisions are deferred for this delivery at the owner's instruction.
 
+The [live-reading plan](docs/superpowers/plans/2026-10-27-live-ai-readings.md) records the implemented GPT-6.1 Terra development path and completed four-case live check. The [production key lifecycle](docs/superpowers/plans/2026-10-27-production-key-lifecycle.md) and [production qualification](docs/superpowers/plans/2026-10-27-production-qualification.md) plans retain the remaining production work; no production gate is marked complete.
+
 Implementation evidence: [Milestone 1 baseline](docs/MILESTONE_1_RESULTS.md) and [local identity/recovery results](docs/IDENTITY_RECOVERY_RESULTS.md), plus [saved-reading return results](docs/SAVED_READING_RESULTS.md). The architecture baseline remains [`278d5fd`](https://github.com/henryperkins/reflection-architecture/commit/278d5fdb1636225887220368fbef52dc0d7ab889).
 
 The [local privacy and restore slice](docs/PRIVACY_RESTORE_RESULTS.md) adds account/exact-reflection-revision deletion and synthetic offline replay of erasures and identity checkpoints. See the [local restore runbook](docs/LOCAL_RESTORE_RUNBOOK.md); hosted restore and deployment remain disabled/unqualified.
