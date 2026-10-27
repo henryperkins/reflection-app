@@ -53,6 +53,7 @@ const cookie = (name: string, value: string, seconds: number) =>
 export async function identityRoute(
   request: Request,
   env: IdentityBindings,
+  supplied?: IdentityService,
 ): Promise<Response | null> {
   const path = new URL(request.url).pathname.replace('/api/v1', '');
   if (path !== '/me' && !path.startsWith('/auth/')) return null;
@@ -99,7 +100,7 @@ export async function identityRoute(
     return new Response(status === 204 ? null : JSON.stringify(body), { status, headers });
   };
   try {
-    const service = localIdentity(env);
+    const service = supplied ?? localIdentity(env);
     if (!service || new URL(request.url).origin !== service.origin)
       throw new IdentityError(503, 'NOT_AVAILABLE');
     if (request.headers.get('Sec-Fetch-Site') === 'cross-site')

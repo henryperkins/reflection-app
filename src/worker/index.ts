@@ -6,6 +6,7 @@ import { SessionErasure } from './readings/erasure.ts';
 import { generationService, type GenerationFactory } from './readings/runtime.ts';
 import { RetentionMaintenance } from './maintenance/retention.ts';
 import { maintenanceHealth } from './maintenance/health.ts';
+import type { ApplicationRuntime } from './runtime/application.ts';
 
 export interface Env extends IdentityBindings, ReadingBindings {
   ASSETS?: Fetcher;
@@ -13,7 +14,7 @@ export interface Env extends IdentityBindings, ReadingBindings {
 }
 
 /** Protected bootstrap seam. The default export still has no live factory or secrets. */
-export function createWorker(factory?: GenerationFactory) {
+export function createWorker(factory?: GenerationFactory, runtime?: ApplicationRuntime) {
   const app = new Hono<{ Bindings: Env }>();
   app.use('*', async (c, next) => {
     await next();
@@ -26,22 +27,25 @@ export function createWorker(factory?: GenerationFactory) {
     c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   });
   app.get('/health', (c) =>
-    c.json({
-      status: 'ok',
-      milestone: 1,
-      mode:
-        factory && ['live-local', 'live-preview'].includes(c.env.READING_MODE ?? '')
-          ? c.env.READING_MODE
-          : 'synthetic-only',
-      ...(factory && ['live-local', 'live-preview'].includes(c.env.READING_MODE ?? '')
-        ? { provider: 'openai' }
-        : {}),
-    }),
+    c.json(
+      runtime?.health ?? {
+        status: 'ok',
+        milestone: 1,
+        mode:
+          factory && ['live-local', 'live-preview'].includes(c.env.READING_MODE ?? '')
+            ? c.env.READING_MODE
+            : 'synthetic-only',
+        ...(factory && ['live-local', 'live-preview'].includes(c.env.READING_MODE ?? '')
+          ? { provider: 'openai' }
+          : {}),
+      },
+    ),
   );
   app.all('/api/v1/*', async (c, next) => {
     if (
       c.env.RESTORE_MODE === 'offline' ||
-      (['synthetic-local', 'live-local', 'live-preview'].includes(c.env.IDENTITY_MODE ?? '') &&
+      ((runtime ||
+        ['synthetic-local', 'live-local', 'live-preview'].includes(c.env.IDENTITY_MODE ?? '')) &&
         (await c.env.DB.prepare(
           'SELECT restore_in_progress FROM system_state WHERE id=1',
         ).first<number>('restore_in_progress')))
@@ -61,7 +65,7 @@ export function createWorker(factory?: GenerationFactory) {
         { 'Cache-Control': 'private, no-store' },
       );
     }
-    const response = await identityRoute(c.req.raw, c.env);
+    const response = await identityRoute(c.req.raw, c.env, runtime?.identity);
     if (response) return response;
     // Direct service/in-process callers may await completion; Worker requests acknowledge admission.
     let defer: ((work: Promise<void>) => void) | undefined;
@@ -71,7 +75,7 @@ export function createWorker(factory?: GenerationFactory) {
     } catch {
       /* No execution context for direct application calls. */
     }
-    const reading = await readingRoute(c.req.raw, c.env, defer, factory);
+    const reading = await readingRoute(c.req.raw, c.env, defer, factory, runtime);
     if (reading) return reading;
     await next();
   });
@@ -85,24 +89,28 @@ export function createWorker(factory?: GenerationFactory) {
     async scheduled(_controller, env, _ctx) {
       if (
         env.RESTORE_MODE === 'offline' ||
-        (['synthetic-local', 'live-local', 'live-preview'].includes(env.IDENTITY_MODE ?? '') &&
+        ((runtime ||
+          ['synthetic-local', 'live-local', 'live-preview'].includes(env.IDENTITY_MODE ?? '')) &&
           (await env.DB.prepare(
             'SELECT restore_in_progress FROM system_state WHERE id=1',
           ).first<number>('restore_in_progress')))
       )
         return;
-      const identity = localIdentity(env);
+      const identity = runtime?.identity ?? localIdentity(env);
       try {
         await identity?.maintenance();
         if (
           identity &&
-          ['synthetic-local', 'qualified', 'live-local', 'live-preview'].includes(
-            env.READING_MODE ?? '',
-          ) &&
+          (runtime ||
+            ['synthetic-local', 'qualified', 'live-local', 'live-preview'].includes(
+              env.READING_MODE ?? '',
+            )) &&
           env.RECOVERY
         ) {
-          const base = new RecordBase(env.DB, identity);
-          await generationService(base, env.READING_MODE, factory)?.maintenance();
+          const base = runtime?.base ?? new RecordBase(env.DB, identity);
+          await (
+            runtime?.generation ?? generationService(base, env.READING_MODE, factory)
+          )?.maintenance();
           await new SessionErasure(base, env.RECOVERY).maintenance();
         }
         if (identity) {

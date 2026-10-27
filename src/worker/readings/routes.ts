@@ -10,6 +10,7 @@ import { ReadingRecords } from './records.ts';
 import { Reflections } from './reflections.ts';
 import { ReadingExports } from './export.ts';
 import { SessionErasure } from './erasure.ts';
+import type { ApplicationRuntime } from '../runtime/application.ts';
 
 export interface ReadingBindings extends IdentityBindings {
   READING_MODE?: string;
@@ -73,8 +74,10 @@ export async function readingRoute(
   env: ReadingBindings,
   defer?: (work: Promise<void>) => void,
   factory?: GenerationFactory,
+  runtime?: ApplicationRuntime,
 ): Promise<Response | null> {
   if (
+    !runtime &&
     !['synthetic-local', 'qualified', 'live-local', 'live-preview'].includes(env.READING_MODE ?? '')
   )
     return null;
@@ -84,12 +87,12 @@ export async function readingRoute(
   if (path === '/me' || path.startsWith('/auth/')) return null;
   let base: RecordBase | undefined, token: string | undefined;
   try {
-    const identity = localIdentity(env);
+    const identity = runtime?.identity ?? localIdentity(env);
     if (!identity || url.origin !== identity.origin)
       throw new RecordError(503, 'DEPENDENCY_UNAVAILABLE');
     if (request.headers.get('Sec-Fetch-Site') === 'cross-site')
       throw new RecordError(403, 'FORBIDDEN');
-    base = new RecordBase(env.DB, identity);
+    base = runtime?.base ?? new RecordBase(env.DB, identity);
     const erasure = new SessionErasure(base, env.RECOVERY!);
     const deletionMatch = path.match(/^\/deletions\/([^/]+)$/);
     if (method === 'GET' && deletionMatch) {
@@ -143,7 +146,7 @@ export async function readingRoute(
       return recordResponse(value, 200, value.revision);
     }
     if (method === 'POST' && path === '/requests') {
-      const service = generationService(base, env.READING_MODE, factory);
+      const service = runtime?.generation ?? generationService(base, env.READING_MODE, factory);
       if (!service) throw new RecordError(503, 'DEPENDENCY_UNAVAILABLE');
       await identity.rate('reading-start-minute', session.subjectId, 5, 60_000);
       await identity.rate('reading-start-day', session.subjectId, 20, 86_400_000);

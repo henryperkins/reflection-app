@@ -19,14 +19,16 @@ test('failed runtime discovery never describes a possible live call as simulatio
   await expect(page.getByRole('button', { name: 'Saved readings', exact: true })).toBeEnabled();
 });
 
-for (const mode of ['live-local', 'live-preview'] as const) {
+for (const mode of ['live-local', 'live-preview', 'production'] as const) {
   test(`${mode} makes provider disclosure clear before enabling AI or submitting a question`, async ({
     page,
   }) => {
     await page.context().setExtraHTTPHeaders({
       'CF-Connecting-IP': mode === 'live-local' ? '192.0.2.202' : '192.0.2.203',
     });
-    await page.route('**/health', (route) => route.fulfill({ json: { mode, provider: 'openai' } }));
+    await page.route('**/health', (route) =>
+      route.fulfill({ json: { mode, provider: 'openai', generationReady: true } }),
+    );
     await authenticator(page);
     await page.goto('/');
     await expect(
@@ -45,3 +47,16 @@ for (const mode of ['live-local', 'live-preview'] as const) {
     await expect(page.getByText(/Starting a reading sends this question to OpenAI/)).toBeVisible();
   });
 }
+
+test('explicit hosted synthetic readiness retains simulation disclosure', async ({ page }) => {
+  await page.route('**/health', (route) =>
+    route.fulfill({ json: { mode: 'hosted-synthetic', generationReady: true } }),
+  );
+  await page.goto('/');
+  await expect(
+    page.getByText(/This local build simulates readings and never contacts an AI provider/),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Create a test account', exact: true }),
+  ).toBeVisible();
+});

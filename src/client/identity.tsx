@@ -35,8 +35,18 @@ export function IdentityApp() {
       .then((response) => response.json())
       .then((runtime) => {
         if (typeof runtime === 'object' && runtime !== null && 'mode' in runtime) {
+          const ready = 'generationReady' in runtime && runtime.generationReady === true;
           if (runtime.mode === 'live-local' || runtime.mode === 'live-preview') setLive(true);
           if (runtime.mode === 'synthetic-only') setLive(false);
+          if (ready && ['synthetic-local', 'hosted-synthetic'].includes(String(runtime.mode)))
+            setLive(false);
+          if (
+            ready &&
+            runtime.mode === 'production' &&
+            'provider' in runtime &&
+            runtime.provider === 'openai'
+          )
+            setLive(true);
         }
       })
       .catch(() => {});

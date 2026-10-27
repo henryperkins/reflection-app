@@ -52,6 +52,11 @@ export type GenerationDependencies = DependencyBase &
     | {
         policy: ReadingProviderPolicy;
         writer: WritingProvider;
+        authorization: { kind: 'disabled' };
+      }
+    | {
+        policy: ReadingProviderPolicy;
+        writer: WritingProvider;
         authorization: { kind: 'application'; qualification: ProviderQualification };
       }
     | {

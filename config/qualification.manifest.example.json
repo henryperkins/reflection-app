@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "mode": "hosted-synthetic",
+  "environmentId": "REQUIRED_QUALIFICATION_ENVIRONMENT",
+  "workerName": "REQUIRED_QUALIFICATION_WORKER",
+  "origin": "https://qualification-domain-required.invalid",
+  "rpId": "qualification-domain-required.invalid",
+  "resources": {
+    "databaseId": "REQUIRED_QUALIFICATION_DATABASE_ID",
+    "recoveryBucket": "REQUIRED_QUALIFICATION_RECOVERY",
+    "coordinatorId": "REQUIRED_QUALIFICATION_COORDINATOR",
+    "backupInventoryBucket": "REQUIRED_INDEPENDENT_BACKUP_INVENTORY",
+    "qualificationBucket": "REQUIRED_QUALIFICATION_EVIDENCE"
+  },
+  "isolatedFrom": [
+    {
+      "environmentId": "REQUIRED_RESERVED_ENVIRONMENT",
+      "databaseId": "REQUIRED_RESERVED_DATABASE_ID",
+      "recoveryBucket": "REQUIRED_RESERVED_RECOVERY",
+      "coordinatorId": "REQUIRED_RESERVED_COORDINATOR",
+      "backupInventoryBucket": "REQUIRED_RESERVED_BACKUPS",
+      "qualificationBucket": "REQUIRED_RESERVED_EVIDENCE"
+    }
+  ],
+  "generation": "intercepted",
+  "ingress": "on",
+  "policyHash": "REQUIRED_POLICY_HASH",
+  "contentHash": "REQUIRED_CONTENT_HASH",
+  "qualificationEvidenceDigest": null
+}

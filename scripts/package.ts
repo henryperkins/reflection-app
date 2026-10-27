@@ -6,7 +6,16 @@ import { pathToFileURL } from 'node:url';
 import { projectRoot } from './schemas.ts';
 import { checkRelease } from './release.ts';
 
-const roots = new Set(['src', 'tests', 'checks', 'scripts', 'docs', 'content', 'qualification']);
+const roots = new Set([
+  'src',
+  'tests',
+  'checks',
+  'scripts',
+  'docs',
+  'content',
+  'qualification',
+  'config',
+]);
 const rootFiles = new Set([
   '.node-version',
   '.npmrc',

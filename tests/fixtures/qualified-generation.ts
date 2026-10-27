@@ -45,7 +45,11 @@ export function candidateFromRequest(payload: Uint8Array) {
     reflectionQuestion: null,
   });
 }
-export async function qualifiedFixture(db: D1Database, expiresAt?: string) {
+export async function qualifiedFixture(
+  db: D1Database,
+  expiresAt?: string,
+  target?: { projectId: string; environmentId: string },
+) {
   const old = await editorialBundle(),
     sample = await v2Input();
   const bundle = ContentBundleV2.parse({
@@ -77,8 +81,10 @@ export async function qualifiedFixture(db: D1Database, expiresAt?: string) {
   const f = await qualificationFixture({
     policyHash,
     contentHash: bundle.editionHash,
+    ...target,
     ...(expiresAt ? { expiresAt } : {}),
   });
+  if (target) Object.assign(f.options, target);
   const qualification = await authenticateProviderQualification(f.signed, {
     ...f.options,
     policyHash,
@@ -131,5 +137,14 @@ export async function qualifiedFixture(db: D1Database, expiresAt?: string) {
     authorization: { kind: 'application' as const, qualification },
     ensureReady: () => writer.ensureReady(),
   };
-  return { bundle, config, dependencies, policyHash, calls: () => calls, payload: () => payload };
+  return {
+    bundle,
+    config,
+    dependencies,
+    policyHash,
+    calls: () => calls,
+    payload: () => payload,
+    contentTrust: approval.trust,
+    qualificationSource: f,
+  };
 }
