@@ -856,15 +856,17 @@ export function ReadingWorkspace({
               </p>
             ) : (
               <>
-                <Icon name="clock" />
-                <div className="save-copy">
-                  <p>
-                    <strong>Not saved</strong> · Temporary storage lasts 24 hours from creation.
-                  </p>
-                  <p className="muted">
-                    Save keeps this reading, its cards and sources until deletion. No reflection is
-                    required.
-                  </p>
+                <div className="save-summary">
+                  <Icon name="clock" />
+                  <div className="save-copy">
+                    <p>
+                      <strong>Not saved</strong> · Temporary storage lasts 24 hours from creation.
+                    </p>
+                    <p className="muted">
+                      Save keeps this reading, its cards and sources until deletion. No reflection
+                      is required.
+                    </p>
+                  </div>
                 </div>
                 <button type="button" onClick={save} disabled={busy}>
                   <Icon name="bookmark" />
@@ -933,18 +935,20 @@ export function ReadingWorkspace({
               disabled={busy}
             />
             <label htmlFor="reflection-stance">How does this feel?</label>
-            <select
-              id="reflection-stance"
-              value={stance}
-              onChange={(event) => setStance(event.target.value as Thought['stance'])}
-              disabled={busy}
-            >
-              {Object.entries(stanceLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </select>
+            <div className="select-field">
+              <select
+                id="reflection-stance"
+                value={stance}
+                onChange={(event) => setStance(event.target.value as Thought['stance'])}
+                disabled={busy}
+              >
+                {Object.entries(stanceLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
             <p className="muted">
               Unsaved drafts stay only in memory and are lost when you leave this reading or reload.
             </p>
@@ -965,23 +969,25 @@ export function ReadingWorkspace({
               <div className="revision-controls">
                 <div className="revision-select">
                   <label htmlFor="reflection-revision">Saved reflection revision</label>
-                  <select
-                    id="reflection-revision"
-                    value={revisionChoice}
-                    onChange={(event) => {
-                      setRevisionChoice(Number(event.target.value));
-                      setRevisionNote(null);
-                      setEraseRevisionChecked(false);
-                    }}
-                    disabled={busy}
-                  >
-                    {Array.from({ length: reflection.revision }, (_, i) => i + 1).map((value) => (
-                      <option key={value} value={value}>
-                        Revision {value}
-                        {value === reflection.revision ? ' (current)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="select-field">
+                    <select
+                      id="reflection-revision"
+                      value={revisionChoice}
+                      onChange={(event) => {
+                        setRevisionChoice(Number(event.target.value));
+                        setRevisionNote(null);
+                        setEraseRevisionChecked(false);
+                      }}
+                      disabled={busy}
+                    >
+                      {Array.from({ length: reflection.revision }, (_, i) => i + 1).map((value) => (
+                        <option key={value} value={value}>
+                          Revision {value}
+                          {value === reflection.revision ? ' (current)' : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
                 <button type="button" className="secondary" onClick={viewRevision} disabled={busy}>
                   <Icon name="eye" />

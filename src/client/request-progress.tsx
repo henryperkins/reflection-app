@@ -283,7 +283,7 @@ export function RequestProgress(props: {
           role="status"
           aria-live="polite"
           aria-atomic="true"
-          className={`progress-status ${indicator ?? 'working'}`}
+          className={`progress-status status-${indicator ?? 'working'}`}
         >
           {indicator ? <Icon name={indicator} /> : <span className="spinner" aria-hidden="true" />}
           <span>{notice || description(status)}</span>
@@ -293,14 +293,14 @@ export function RequestProgress(props: {
           another reading.
         </p>
         <div className="actions progress-actions">
-          {status && !terminal(status) && (
-            <button
-              type="button"
-              className="secondary"
-              disabled={cancelling}
-              onClick={() => actions.current.cancel()}
-            >
-              Cancel reading
+          {status?.state === 'published' && (
+            <button type="button" onClick={() => latest.current.onAccepted(status.sessionId, true)}>
+              Open reading
+            </button>
+          )}
+          {canRetry && (
+            <button type="button" onClick={() => actions.current.retry()}>
+              Retry the same Start
             </button>
           )}
           {notice && (
@@ -309,14 +309,14 @@ export function RequestProgress(props: {
               Check request again
             </button>
           )}
-          {canRetry && (
-            <button type="button" onClick={() => actions.current.retry()}>
-              Retry the same Start
-            </button>
-          )}
-          {status?.state === 'published' && (
-            <button type="button" onClick={() => latest.current.onAccepted(status.sessionId, true)}>
-              Open reading
+          {status && !terminal(status) && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={cancelling}
+              onClick={() => actions.current.cancel()}
+            >
+              Cancel reading
             </button>
           )}
         </div>
