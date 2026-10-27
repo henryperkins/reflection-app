@@ -1,3 +1,4 @@
+import { costReservationStatement, reconcileProviderCost } from '../provider/costs.ts';
 import { providerReceiptStatements } from '../provider/receipts.ts';
 import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
 import { providerPolicyHash } from '../../domain/provider-policy.ts';
@@ -55,30 +56,36 @@ export class LocalGeneration extends RequestState {
   private async localPolicyHash() {
     return sha256Json({
       localOnly: true,
-      writer: 'simulation.v3',
+      writer: 'simulation.v4',
       providerPolicyHash: await providerPolicyHash(READING_PROVIDER_POLICY),
     });
   }
   private async refreshLocalPolicy() {
-    await this.upgradeLocalPolicy(
-      (await syntheticBundle()).editionHash,
-      await this.localPolicyHash(),
-    );
+    await this.upgradeLocalPolicy(await syntheticBundle(), await this.localPolicyHash());
   }
   /** Upgrade only known localhost predecessors. Operator and financial switches are untouched. */
-  private async upgradeLocalPolicy(content: string, next: string) {
+  private async upgradeLocalPolicy(bundle: z.infer<typeof ContentBundle>, next: string) {
     const installed = await q(
       this.base.db,
-      'SELECT provider_policy_hash FROM system_state WHERE id=1',
-    ).first<string>('provider_policy_hash');
+      'SELECT provider_policy_hash,active_content_hash FROM system_state WHERE id=1',
+    ).first<{ provider_policy_hash: string; active_content_hash: string }>();
     const predecessors = await Promise.all([
       sha256Json({ localOnly: true, writer: 'simulation.v1' }),
       sha256Json({ localOnly: true, writer: 'simulation.v2', validator: SAFETY_VERSION }),
+      Promise.resolve('f2d365842b853e8998b3d466c768d4bf4c026c4563f2daa4763d9dfddcfa8df7'),
     ]);
-    if (!installed || !predecessors.includes(installed)) return;
-    const previous = installed;
-    const ids = `SELECT id FROM generation_requests WHERE policy_hash=? AND content_hash=? AND state NOT IN (${terminalStates})`;
-    const identity = [previous, content];
+    const content = bundle.editionHash;
+    if (
+      !installed ||
+      !predecessors.includes(installed.provider_policy_hash) ||
+      ![content, '5c8573a9c66dd25a781067244bc124cb8b558b8cf33ea3d7981c9088c0771d5d'].includes(
+        installed.active_content_hash,
+      )
+    )
+      return;
+    const previous = installed.provider_policy_hash;
+    const ids = `SELECT id FROM generation_requests WHERE policy_hash=? AND state NOT IN (${terminalStates})`;
+    const identity = [previous];
     try {
       await this.base.db.batch([
         onlineGuard(this.base.db),
@@ -86,6 +93,13 @@ export class LocalGeneration extends RequestState {
           this.base.db,
           'EXISTS(SELECT 1 FROM system_state WHERE id=1 AND provider_policy_hash=? AND active_content_hash=?)',
           previous,
+          installed.active_content_hash,
+        ),
+        q(
+          this.base.db,
+          `INSERT OR IGNORE INTO content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at) VALUES (?,'approved',?,?,'human_approved','SYNTHETIC LOCAL FIXTURE; NOT EDITORIAL APPROVAL','cleared',${DB_NOW},${DB_NOW})`,
+          content,
+          JSON.stringify(bundle),
           content,
         ),
         q(
@@ -140,8 +154,15 @@ export class LocalGeneration extends RequestState {
         ),
         q(
           this.base.db,
-          `UPDATE system_state SET provider_policy_hash=?,revision=revision+1,updated_at=${DB_NOW} WHERE id=1 AND provider_policy_hash=?`,
+          "UPDATE content_editions SET state='superseded',policy_revision=policy_revision+1 WHERE hash=? AND hash!=? AND state='approved'",
+          installed.active_content_hash,
+          content,
+        ),
+        q(
+          this.base.db,
+          `UPDATE system_state SET provider_policy_hash=?,active_content_hash=?,revision=revision+1,updated_at=${DB_NOW} WHERE id=1 AND provider_policy_hash=?`,
           next,
+          content,
           previous,
         ),
         assertion(this.base.db, 'changes()=1'),
@@ -223,7 +244,7 @@ export class LocalGeneration extends RequestState {
         policyHash,
       ),
     ]);
-    await this.upgradeLocalPolicy(content.editionHash, policyHash);
+    await this.upgradeLocalPolicy(content, policyHash);
     const requestId = crypto.randomUUID(),
       sessionId = crypto.randomUUID(),
       basisId = crypto.randomUUID();
@@ -693,71 +714,14 @@ export class LocalGeneration extends RequestState {
     h.fallback_reason = reason;
   }
   private async settle(dispatch: DispatchRow, receipt?: ProviderReceipt) {
-    const cost = await q(
-      this.base.db,
-      'SELECT id,state,reserved_microusd FROM cost_reservations WHERE dispatch_id=?',
-      dispatch.id,
-    ).first<{ id: string; state: string; reserved_microusd: number }>();
-    if (!cost || cost.state === 'actual') return;
-    // This local simulator retains its explicitly synthetic tariff until L4.
-    const actual = receipt ? receipt.usage.inputTokens * 2 + receipt.usage.outputTokens * 12 : null;
-    if (actual === null || !Number.isSafeInteger(actual)) {
-      await this.base.db.batch([
-        onlineGuard(this.base.db),
-        q(
-          this.base.db,
-          `UPDATE cost_reservations SET state='unknown',settled_at=${DB_NOW} WHERE id=? AND state='reserved'`,
-          cost.id,
-        ),
-      ]);
-      return;
-    }
-    try {
-      await this.base.db.batch([
-        onlineGuard(this.base.db),
-        q(
-          this.base.db,
-          `UPDATE cost_reservations SET state='actual',actual_microusd=?,settled_at=${DB_NOW} WHERE id=? AND state=?`,
-          actual,
-          cost.id,
-          cost.state,
-        ),
-        assertion(this.base.db, 'changes()=1'),
-        q(
-          this.base.db,
-          'UPDATE spend_buckets SET committed_microusd=min(ceiling_microusd,committed_microusd+?) WHERE period IN (SELECT day_period FROM cost_reservations WHERE id=? UNION SELECT month_period FROM cost_reservations WHERE id=?)',
-          actual - cost.reserved_microusd,
-          cost.id,
-          cost.id,
-        ),
-        assertion(this.base.db, 'changes()=2'),
-        q(
-          this.base.db,
-          `INSERT INTO cost_adjustments VALUES (?,?,?,?,'usage',${DB_NOW})`,
-          `${dispatch.id}:usage`,
-          cost.id,
-          cost.reserved_microusd,
-          actual,
-        ),
-        q(
-          this.base.db,
-          'UPDATE system_state SET generation_enabled=0 WHERE id=1 AND ?>?',
-          actual,
-          cost.reserved_microusd,
-        ),
-      ]);
-    } catch (error) {
-      if (
-        await q(
-          this.base.db,
-          "SELECT 1 FROM cost_reservations WHERE id=? AND state='actual'",
-          cost.id,
-        ).first()
-      )
-        return;
-      throw error;
-    }
+    await reconcileProviderCost(this.base.db, {
+      dispatchId: dispatch.id,
+      receiptId: `${dispatch.id}:usage`,
+      receipt: receipt ?? null,
+      policy: READING_PROVIDER_POLICY,
+    });
   }
+
   private async dispatch(h: Lease, plan: PreparedPlan): Promise<DispatchRow> {
     const payload = await projectWriterPayload(plan, READING_PROVIDER_POLICY),
       text = new TextDecoder().decode(payload),
@@ -780,7 +744,7 @@ export class LocalGeneration extends RequestState {
       ),
       q(
         this.base.db,
-        `UPDATE spend_buckets SET committed_microusd=committed_microusd+40000 WHERE period IN (${DAY},${MONTH}) AND committed_microusd+40000<=ceiling_microusd`,
+        `UPDATE spend_buckets SET committed_microusd=committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd} WHERE period IN (${DAY},${MONTH}) AND committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd}<=ceiling_microusd`,
       ),
       assertion(this.base.db, 'changes()=2'),
       assertion(
@@ -807,13 +771,13 @@ export class LocalGeneration extends RequestState {
           ...READING_PROVIDER_POLICY.request,
         }),
       ),
-      q(
-        this.base.db,
-        `INSERT INTO cost_reservations(id,owner_id,dispatch_id,day_period,month_period,state,reserved_microusd,price_basis_json,created_at) VALUES (?,?,?,${DAY},${MONTH},'reserved',40000,'{"syntheticOnly":true,"inputMicrousdPerToken":2,"outputMicrousdPerToken":12}',${DB_NOW})`,
-        crypto.randomUUID(),
-        h.owner_id,
-        id,
-      ),
+      await costReservationStatement(this.base.db, {
+        id: crypto.randomUUID(),
+        ownerId: h.owner_id,
+        dispatchId: id,
+        applicationPolicyHash: plan.generationPolicyHash,
+        policy: READING_PROVIDER_POLICY,
+      }),
       this.guardCurrent(h, 'prepared', 'dispatch'),
       q(
         this.base.db,
@@ -856,7 +820,7 @@ export class LocalGeneration extends RequestState {
             }),
             receipt: {
               responseId: null,
-              returnedModel: 'synthetic-local-writer.v1',
+              returnedModel: READING_PROVIDER_POLICY.model,
               serviceTier: 'default',
               durationMs: 0,
               usage: {
@@ -897,7 +861,7 @@ export class LocalGeneration extends RequestState {
           ]
         : []),
     ]);
-    await this.settle(dispatch, halt ? undefined : (receipt ?? undefined));
+    await this.settle(dispatch, receipt ?? undefined);
     if (halt) throw new GenerationFailure('DEPENDENCY_UNAVAILABLE');
     const responseId =
       receipt?.responseId == null

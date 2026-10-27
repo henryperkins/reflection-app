@@ -1,3 +1,4 @@
+import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, type AuthResult } from '../contracts/index.ts';
@@ -516,10 +517,7 @@ export function IdentityApp() {
                 Delete account permanently
               </button>
             </details>
-            <p>
-              Storage is encrypted and readable by the service for authorized operations. This is
-              not end-to-end encryption.
-            </p>
+            <p>{READING_PRODUCT_COPY.serviceStorage}</p>
             <div className="actions">
               <button
                 type="button"

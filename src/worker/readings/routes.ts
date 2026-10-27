@@ -1,3 +1,4 @@
+import { READING_PRODUCT_COPY } from '../../contracts/product-copy.ts';
 import { z } from 'zod';
 import { apiSchemas, Id } from '../../contracts/index.ts';
 import { IdentityError } from '../identity/types.ts';
@@ -13,6 +14,9 @@ export interface ReadingBindings extends IdentityBindings {
   READING_MODE?: string;
 }
 const messages: Record<string, string> = {
+  UNSUPPORTED_LANGUAGE: READING_PRODUCT_COPY.unsupportedLanguage,
+  PROVIDER_REFUSAL: READING_PRODUCT_COPY.providerRefusal,
+  SAFETY_REVIEW: READING_PRODUCT_COPY.uncertainSafety,
   UNAUTHENTICATED: 'Please sign in again to continue.',
   CONSENT_REQUIRED: 'AI readings are off. Your saved readings and reflections remain available.',
   FORBIDDEN: 'Save and acknowledge your complete recovery kit before starting a reading.',

@@ -1,3 +1,4 @@
+import { costReservationStatement, reconcileProviderCost } from '../provider/costs.ts';
 import { ProviderReceipt } from '../../contracts/index.ts';
 import { providerReceiptStatements } from '../provider/receipts.ts';
 import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
@@ -297,7 +298,7 @@ export class SyntheticGenerationPrototype {
         ),
         q(
           this.db,
-          `UPDATE spend_buckets SET committed_microusd=committed_microusd+40000 WHERE period IN (${DAY},${MONTH}) AND committed_microusd+40000<=ceiling_microusd`,
+          `UPDATE spend_buckets SET committed_microusd=committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd} WHERE period IN (${DAY},${MONTH}) AND committed_microusd+${READING_PROVIDER_POLICY.reservationMicrousd}<=ceiling_microusd`,
         ),
         assertChanges(this.db, 2),
         assertExists(
@@ -325,13 +326,13 @@ export class SyntheticGenerationPrototype {
             ...READING_PROVIDER_POLICY.request,
           }),
         ),
-        q(
-          this.db,
-          `INSERT INTO cost_reservations(id,owner_id,dispatch_id,day_period,month_period,state,reserved_microusd,price_basis_json,created_at) VALUES (?,?,?,${DAY},${MONTH},'reserved',40000,'{"syntheticOnly":true}',${DB_NOW})`,
-          crypto.randomUUID(),
-          h.ownerId,
+        await costReservationStatement(this.db, {
+          id: crypto.randomUUID(),
+          ownerId: h.ownerId,
           dispatchId,
-        ),
+          applicationPolicyHash: h.plan.policyHash,
+          policy: READING_PROVIDER_POLICY,
+        }),
         currentGuard(this.db, guardValues(h, 'prepared'), 'dispatch'),
         q(
           this.db,
@@ -381,7 +382,7 @@ export class SyntheticGenerationPrototype {
       ...(halt ? [q(this.db, 'UPDATE system_state SET generation_enabled=0 WHERE id=1')] : []),
     ];
     if (receiptWrites.length) await this.db.batch(receiptWrites);
-    if (receipt && !halt) await this.settleUsage(dispatchId, receipt);
+    if (receipt) await this.settleUsage(dispatchId, receipt);
     if (outcome.kind !== 'candidate' || !receipt || halt) {
       await this.db.batch([
         q(
@@ -507,48 +508,14 @@ export class SyntheticGenerationPrototype {
     return editionId;
   }
   private async settleUsage(dispatchId: string, receipt: ProviderReceipt): Promise<void> {
-    const actual = receipt.usage.inputTokens * 2 + receipt.usage.outputTokens * 12;
-    if (
-      !Number.isSafeInteger(actual) ||
-      actual < 0 ||
-      !Number.isSafeInteger(receipt.usage.inputTokens) ||
-      receipt.usage.inputTokens < 0 ||
-      !Number.isSafeInteger(receipt.usage.outputTokens) ||
-      receipt.usage.outputTokens < 0
-    )
-      throw new Error('INVALID_USAGE');
-    const cost = await q(
-      this.db,
-      'SELECT id,state FROM cost_reservations WHERE dispatch_id=?',
+    await reconcileProviderCost(this.db, {
       dispatchId,
-    ).first<{ id: string; state: string }>();
-    if (cost?.state !== 'reserved') return;
-    await this.db.batch([
-      q(
-        this.db,
-        `UPDATE cost_reservations SET state='actual',actual_microusd=?,settled_at=${DB_NOW} WHERE id=? AND state='reserved'`,
-        actual,
-        cost.id,
-      ),
-      assertChanges(this.db, 1),
-      q(
-        this.db,
-        `UPDATE spend_buckets SET committed_microusd=min(ceiling_microusd,committed_microusd+?) WHERE period IN (SELECT day_period FROM cost_reservations WHERE id=? UNION SELECT month_period FROM cost_reservations WHERE id=?)`,
-        actual - 40000,
-        cost.id,
-        cost.id,
-      ),
-      assertChanges(this.db, 2),
-      q(
-        this.db,
-        `INSERT INTO cost_adjustments VALUES (?,?,40000,?,'usage',${DB_NOW})`,
-        dispatchId,
-        cost.id,
-        actual,
-      ),
-      q(this.db, `UPDATE system_state SET generation_enabled=0 WHERE id=1 AND ?>40000`, actual),
-    ]);
+      receiptId: `${dispatchId}:usage`,
+      receipt,
+      policy: READING_PROVIDER_POLICY,
+    });
   }
+
   async terminalize(
     ownerId: string,
     requestId: string,

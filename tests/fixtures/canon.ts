@@ -1,3 +1,4 @@
+import { READING_PRODUCT_COPY } from '../../src/contracts/product-copy.ts';
 import type { z } from 'zod';
 import type { ContentBundle, PreparedPlan } from '../../src/contracts/index.ts';
 import { sha256Json } from '../../src/domain/json.ts';
@@ -69,6 +70,7 @@ export async function syntheticBundle(): Promise<z.infer<typeof ContentBundle>> 
       { position: 'possibility', text: `${TEST_ONLY}: possibility` },
     ],
     productCopy: {
+      ...READING_PRODUCT_COPY,
       unsupportedLanguage: TEST_ONLY,
       crisis: TEST_ONLY,
       uncertainSafety: TEST_ONLY,

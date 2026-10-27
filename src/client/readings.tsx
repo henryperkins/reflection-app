@@ -1,3 +1,4 @@
+import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, type AcceptedReading, type Reflection } from '../contracts/index.ts';
@@ -512,10 +513,8 @@ export function ReadingWorkspace({
     <section className="reading-workspace" aria-label="Your readings" aria-busy={busy}>
       <div className="notice consent">
         <h2>AI readings are {user.permission.modelAllowed ? 'on' : 'off'}</h2>
-        <p>
-          AI permission is separate from saving. It allows your question to be used for a new
-          reading. Saved readings and reflections are not sent automatically.
-        </p>
+        <p>{READING_PRODUCT_COPY.aiPermission}</p>
+        <p className="muted">{READING_PRODUCT_COPY.providerRetention}</p>
         {!user.permission.modelAllowed && (
           <p>History, reopening, reflections, export and deletion remain available.</p>
         )}
@@ -694,10 +693,7 @@ export function ReadingWorkspace({
             />
             Include reversed cards
           </label>
-          <p className="storage-notice">
-            Start temporarily stores your question and processing/recovery records for 24 hours from
-            creation. Save reading keeps the result until you delete it.
-          </p>
+          <p className="storage-notice">{READING_PRODUCT_COPY.startProcessing}</p>
           <p className="muted">
             Drafts stay in memory until submitted. This build uses a local simulated writer. Use
             synthetic text only.
@@ -769,10 +765,7 @@ export function ReadingWorkspace({
                 <button type="button" onClick={save} disabled={busy}>
                   Save reading
                 </button>
-                <p className="muted">
-                  Save keeps this reading, its cards and sources until deletion. No reflection is
-                  required.
-                </p>
+                <p className="muted">{READING_PRODUCT_COPY.saveReading}</p>
               </>
             )}
           </div>

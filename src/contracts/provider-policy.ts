@@ -31,6 +31,7 @@ export const READING_PROVIDER_POLICY = {
   priceBasis: {
     version: 'openai-standard-short-context-30m.2026-10-27',
     currency: 'USD',
+    rounding: 'ceil-total-microusd',
     // Each cache category is a disjoint input subset; write rates are total rates.
     inputMicrousdPerMillion: 1000000,
     cachedInputMicrousdPerMillion: 50000,

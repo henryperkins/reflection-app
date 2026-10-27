@@ -29,9 +29,10 @@ export async function composeTemplate(value: PreparedPlan): Promise<PreparedTemp
     reflectionQuestion: plan.sources[i]!.reflectionQuestion,
   }));
   const closing =
-    plan.operation === 'followup'
+    plan.fallbackClosing ??
+    (plan.operation === 'followup'
       ? 'This provides another reflection prompt based on the original draw.'
-      : 'Use these prompts to reflect on what feels relevant to you.';
+      : 'Use these prompts to reflect on what feels relevant to you.');
   validateCandidateBindings(plan, {
     schemaVersion: 1,
     kind: 'tarot.interpretation.v1',

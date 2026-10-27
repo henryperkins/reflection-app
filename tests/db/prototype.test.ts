@@ -236,15 +236,15 @@ test('known provider usage settles cost separately from product quota', async ()
   const f = await validating();
   expect(
     await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
-  ).toEqual({ state: 'actual', actual_microusd: 14 });
+  ).toEqual({ state: 'actual', actual_microusd: 6 });
   expect(
     await env.DB.prepare('SELECT sum(committed_microusd) AS n FROM spend_buckets').first(),
-  ).toEqual({ n: 28 });
+  ).toEqual({ n: 12 });
   await f.service.terminalize(OWNER, f.requestId, 'cancelled');
   expect(await quota()).toEqual({ held: 0, consumed: 0 });
   expect(
     await env.DB.prepare('SELECT sum(committed_microusd) AS n FROM spend_buckets').first(),
-  ).toEqual({ n: 28 });
+  ).toEqual({ n: 12 });
 });
 
 test('an injected mid-publication statement failure rolls the entire actual D1 batch back', async () => {
@@ -334,7 +334,7 @@ test('cancellation before a late receipt cannot restore candidate material', asy
   expect(await count('reading_editions')).toBe(0);
   expect(
     await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
-  ).toEqual({ state: 'actual', actual_microusd: 14 });
+  ).toEqual({ state: 'actual', actual_microusd: 6 });
 });
 for (const kind of ['parent status', 'parent content', 'selected native content'] as const)
   test(`guard blocks ${kind} withdrawal even when the request uses newer content`, async () => {
@@ -504,7 +504,7 @@ test('provider usage exceeding reservation increases aggregate liability and dis
         durationMs: 1,
         usage: {
           inputTokens: 0,
-          outputTokens: 4000,
+          outputTokens: 10000,
           cachedInputTokens: 0,
           cacheWriteTokens: 0,
           reasoningTokens: 0,
@@ -514,11 +514,11 @@ test('provider usage exceeding reservation increases aggregate liability and dis
   };
   await new SyntheticGenerationPrototype(env.DB, expensive).dispatch(f.lease, new Uint8Array([1]));
   expect(await env.DB.prepare('SELECT actual_microusd FROM cost_reservations').first()).toEqual({
-    actual_microusd: 48000,
+    actual_microusd: 50000,
   });
   expect(
     await env.DB.prepare('SELECT sum(committed_microusd) AS total FROM spend_buckets').first(),
-  ).toEqual({ total: 96000 });
+  ).toEqual({ total: 100000 });
   expect(await env.DB.prepare('SELECT generation_enabled FROM system_state').first()).toEqual({
     generation_enabled: 0,
   });

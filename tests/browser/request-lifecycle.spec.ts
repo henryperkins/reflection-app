@@ -321,7 +321,7 @@ test('revoking AI during progress keeps the stopped request and history availabl
 });
 
 for (const [state, errorCode, copy] of [
-  ['blocked', 'PROVIDER_REFUSAL', 'The writer declined this question'],
+  ['blocked', 'PROVIDER_REFUSAL', 'The AI provider declined this request'],
   ['expired', 'EXPIRED', 'This reading request expired'],
   ['failed', 'PROVIDER_UNCERTAIN', 'The writer did not confirm a result'],
   ['failed', 'PROVIDER_UNAVAILABLE', 'The writer is unavailable'],

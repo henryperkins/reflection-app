@@ -36,7 +36,11 @@ export function canonicalJson(value: unknown): string {
 }
 export async function sha256Json(value: unknown): Promise<string> {
   const bytes = new TextEncoder().encode(canonicalJson(value));
-  return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), (b) =>
-    b.toString(16).padStart(2, '0'),
+  return sha256Bytes(bytes);
+}
+export async function sha256Bytes(bytes: Uint8Array): Promise<string> {
+  return Array.from(
+    new Uint8Array(await crypto.subtle.digest('SHA-256', new Uint8Array(bytes))),
+    (b) => b.toString(16).padStart(2, '0'),
   ).join('');
 }

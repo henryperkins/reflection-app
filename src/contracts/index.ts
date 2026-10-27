@@ -248,6 +248,13 @@ export const ContentBundle = z.strictObject({
     uncertainSafety: z.string().max(1000),
     sensitiveAdvice: z.string().max(1000),
     providerRefusal: z.string().max(500),
+    startProcessing: z.string().min(1).max(1000),
+    saveReading: z.string().min(1).max(1000),
+    aiPermission: z.string().min(1).max(1000),
+    serviceStorage: z.string().min(1).max(1000),
+    providerRetention: z.string().min(1).max(1000),
+    initialClosing: z.string().min(1).max(250),
+    followupClosing: z.string().min(1).max(250),
   }),
   sources: z.array(CanonSource).min(156).max(1000),
   createdAt: Instant,
@@ -291,6 +298,8 @@ export const PreparedPlan = z.strictObject({
   permissionRevision: Revision,
   keyVersion: Revision,
   generationPolicyHash: Hash,
+  // Optional without a default: old encrypted plans must retain their exact HMAC shape.
+  fallbackClosing: z.string().min(1).max(250).optional(),
 });
 export type PreparedPlan = z.infer<typeof PreparedPlan>;
 

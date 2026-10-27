@@ -16,9 +16,84 @@ import { readingAccount } from '../fixtures/reading-client.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
 import { OpenAIResponsesTransport } from '../../src/worker/provider/transport.ts';
 import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
+import { reconcileProviderCost } from '../../src/worker/provider/costs.ts';
 
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
 beforeEach(() => clearDatabase(env.DB));
+
+test('v3 content and price migration fences old prepared work while preserving financial switches', async () => {
+  const calls = { calls: 0 },
+    f = await setup(failingDatabase('before-dispatch'), writer(calls));
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const old = '5c8573a9c66dd25a781067244bc124cb8b558b8cf33ea3d7981c9088c0771d5d';
+  const policy = 'f2d365842b853e8998b3d466c768d4bf4c026c4563f2daa4763d9dfddcfa8df7';
+  const current = await env.DB.prepare('SELECT active_content_hash FROM system_state').first(
+    'active_content_hash',
+  );
+  await env.DB.batch([
+    env.DB.prepare(
+      "INSERT INTO content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at) SELECT ?,'approved',bundle_json,?,'human_approved','SYNTHETIC LOCAL FIXTURE; NOT EDITORIAL APPROVAL','cleared',1,1 FROM content_editions LIMIT 1",
+    ).bind(old, old),
+    env.DB.prepare(
+      "UPDATE system_state SET active_content_hash=?,provider_policy_hash=?,generation_enabled=0,dispatch_mode='off'",
+    ).bind(old, policy),
+    env.DB.prepare(
+      'UPDATE generation_requests SET content_hash=?,policy_hash=?,lease_expires_at=1,next_run_at=1',
+    ).bind(old, policy),
+  ]);
+  await f.generation.maintenance();
+  expect(calls.calls).toBe(0);
+  expect(await env.DB.prepare('SELECT state,error_code FROM generation_requests').first()).toEqual({
+    state: 'blocked',
+    error_code: 'DEPENDENCY_UNAVAILABLE',
+  });
+  expect(
+    await env.DB.prepare(
+      'SELECT active_content_hash,generation_enabled,dispatch_mode FROM system_state',
+    ).first(),
+  ).toEqual({ active_content_hash: current, generation_enabled: 0, dispatch_mode: 'off' });
+  expect(await env.DB.prepare('SELECT sum(held) n FROM quota_buckets').first('n')).toBe(0);
+});
+test('late reconciliation updates an available consent-off export without recreating erased private rows', async () => {
+  const supplied: WritingProvider = {
+      write: async () => ({ kind: 'uncertain', reason: 'timeout', receipt: null }),
+    },
+    f = await setup(env.DB, supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const dispatchId = (await env.DB.prepare('SELECT id FROM provider_dispatches').first<string>(
+    'id',
+  ))!;
+  await f.client.permission(false);
+  await reconcileProviderCost(env.DB, {
+    dispatchId,
+    receiptId: 'late-bill',
+    policy: READING_PROVIDER_POLICY,
+    receipt: providerReceipt({
+      returnedModel: READING_PROVIDER_POLICY.model,
+      usage: {
+        inputTokens: 1000,
+        cachedInputTokens: 200,
+        cacheWriteTokens: 300,
+        outputTokens: 100,
+        reasoningTokens: 10,
+      },
+    }),
+  });
+  const ticket = apiSchemas.ExportTicket.parse(
+    await (await f.client.request('/exports', {})).json(),
+  );
+  const page = apiSchemas.ExportPage.parse(
+    await (await f.client.request(`/exports/${ticket.id}`)).json(),
+  );
+  expect(page.records.find((r) => r.kind === 'generation_receipt')?.value).toMatchObject({
+    inputTokens: 1000,
+    cachedInputTokens: 200,
+    cacheWriteTokens: 300,
+    outputTokens: 100,
+    reasoningTokens: 10,
+    serviceTier: 'default',
+  });
+});
 
 test.each(['completed', 'incomplete'])(
   'a %s response containing refusal never publishes a fallback reading',
@@ -119,6 +194,7 @@ test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as con
   async (kind) => {
     const receipt = providerReceipt({
       responseId: 'synthetic-billable-response',
+      returnedModel: READING_PROVIDER_POLICY.model,
       usage: {
         inputTokens: 1000,
         cachedInputTokens: 200,
@@ -146,7 +222,7 @@ test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as con
         'SELECT returned_model,input_tokens,output_tokens,duration_ms FROM provider_dispatches',
       ).first(),
     ).toEqual({
-      returned_model: 'synthetic-test-only',
+      returned_model: READING_PROVIDER_POLICY.model,
       input_tokens: 1000,
       output_tokens: 100,
       duration_ms: 1,
@@ -173,6 +249,9 @@ test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as con
       await env.DB.prepare('SELECT candidate_enc FROM provider_dispatches').first('candidate_enc'),
     ).toBeNull();
     expect((await f.client.me()).remainingDay).toBe(3);
+    expect(
+      await env.DB.prepare('SELECT state,actual_microusd FROM cost_reservations').first(),
+    ).toEqual({ state: 'actual', actual_microusd: 1385 });
   },
 );
 
@@ -998,7 +1077,7 @@ test.each(['before-dispatch', 'after-dispatch', 'after-receipt'] as const)(
           .bind(dispatch!.id)
           .first(),
       ).toEqual({
-        state: stage === 'after-dispatch' ? 'unknown' : 'actual',
+        state: cost!.actual_microusd === null ? 'unknown' : 'actual',
         actual_microusd: cost!.actual_microusd,
       });
     }

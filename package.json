@@ -29,7 +29,9 @@
     "cleanup:rehearse": "vitest run --config vitest.db.config.ts tests/db/storage-accounting.test.ts tests/db/retention.test.ts tests/db/recovery-cleanup.test.ts tests/db/cleanup-review-regressions.test.ts",
     "package": "tsx scripts/package.ts",
     "key:rotate": "tsx scripts/key-rotation.ts",
-    "check:publication-guard": "tsx scripts/generate-publication-guard.ts --check"
+    "check:publication-guard": "tsx scripts/generate-publication-guard.ts --check",
+    "content:activate": "tsx scripts/content-activate.ts",
+    "provider:reconcile": "tsx scripts/provider-reconcile.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",

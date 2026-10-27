@@ -21,6 +21,9 @@ export async function maintenanceHealth(db: D1Database) {
     db.prepare(
       "SELECT committed_microusd amount FROM spend_buckets WHERE period='month:'||strftime('%Y-%m','now')",
     ),
+    db.prepare(
+      "SELECT count(*) n FROM cost_reservations WHERE state='actual' AND actual_microusd>reserved_microusd",
+    ),
   ]);
   if (results.some((result) => !result.success))
     throw new Error('Maintenance counters unavailable');
@@ -35,6 +38,7 @@ export async function maintenanceHealth(db: D1Database) {
   if (security.age > 300_000) alerts.push('SECURITY_LAG');
   if (erasure.age > 86_400_000) alerts.push('ERASURE_LAG');
   if (liability.n) alerts.push('PROVIDER_COST_UNKNOWN');
+  if (results[6]!.results[0]!.n) alerts.push('PROVIDER_COST_OVERRUN');
   if (dailySpendMicrousd >= 10_000_000 || monthlySpendMicrousd >= 100_000_000)
     alerts.push('SPEND_LIMIT');
   return {

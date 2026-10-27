@@ -1,3 +1,4 @@
+import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
 import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, Id } from '../contracts/index.ts';
@@ -31,8 +32,7 @@ function description(status: Status | null) {
     return 'This reading request expired. No reading allowance was used.';
   if (status.errorCode === 'CONSENT_REQUIRED')
     return 'AI permission was turned off. This request stopped; your saved readings remain available.';
-  if (status.errorCode === 'PROVIDER_REFUSAL')
-    return 'The writer declined this question. No reading was created. You can change the question for a new reading.';
+  if (status.errorCode === 'PROVIDER_REFUSAL') return READING_PRODUCT_COPY.providerRefusal;
   if (status.errorCode === 'PROVIDER_UNCERTAIN')
     return 'The writer did not confirm a result. This can happen after a timeout or lost connection. This request will not be sent again automatically.';
   if (status.errorCode === 'PROVIDER_UNAVAILABLE')
