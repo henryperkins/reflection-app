@@ -290,8 +290,16 @@ export function IdentityApp() {
                     and one unused code if your passkeys are unavailable.
                   </p>
                 )}
+                {!kit && !grant && session && (
+                  <p className="lead">
+                    You’re signed in. Your passkey and recovery kit protect access to this account.
+                  </p>
+                )}
               </div>
               {kit && <Art name="study-perspective" className="title-art" />}
+              {!kit && !grant && session && (
+                <Art name="study-stillness" className="title-art account-title-art" />
+              )}
             </div>
             <Notice message={message} />
             <div className="identity-content" aria-busy={busy || checking}>
@@ -423,10 +431,7 @@ export function IdentityApp() {
                   </button>
                 </section>
               ) : session ? (
-                <section>
-                  <p>
-                    You’re signed in. Your passkey and recovery kit protect access to this account.
-                  </p>
+                <section className="account-content">
                   <div inert={checking || busy}>
                     <ReadingWorkspace
                       key={session.subjectId}
@@ -441,7 +446,7 @@ export function IdentityApp() {
                       }}
                     />
                   </div>
-                  <section aria-label="Manage passkeys">
+                  <section className="card passkeys-card" aria-label="Manage passkeys">
                     <h2>Your passkeys</h2>
                     <p>
                       Add a passkey on another device before removing one. You’ll verify an existing
@@ -451,6 +456,9 @@ export function IdentityApp() {
                       <ul aria-label="Passkeys">
                         {credentials.items.map((credential) => (
                           <li key={credential.id}>
+                            <span className="passkey-icon">
+                              <Icon name="key" />
+                            </span>
                             <p>
                               <strong>Passkey {credential.id.slice(0, 8)}</strong>
                               {' · '}Added {date(credential.createdAt, true)}
@@ -493,7 +501,10 @@ export function IdentityApp() {
                         ))}
                       </ul>
                     ) : (
-                      <p role="status">Loading your passkeys…</p>
+                      <p role="status" className="busy-line">
+                        <span className="spinner" aria-hidden="true" />
+                        Loading your passkeys…
+                      </p>
                     )}
                     {credentials?.items.length === 1 && (
                       <p>Keep at least one passkey on your account.</p>
@@ -523,6 +534,7 @@ export function IdentityApp() {
                         })
                       }
                     >
+                      <Icon name="add" />
                       Add a passkey
                     </button>
                     {credentials?.items.length === 10 && (
@@ -590,11 +602,14 @@ export function IdentityApp() {
                       Delete account permanently
                     </button>
                   </details>
-                  <p>
-                    Storage is encrypted and readable by the service for authorized operations. This
-                    is not end-to-end encryption.
+                  <p className="account-storage">
+                    <Icon name="lock" />
+                    <span>
+                      Storage is encrypted and readable by the service for authorized operations.
+                      This is not end-to-end encryption.
+                    </span>
                   </p>
-                  <div className="actions">
+                  <div className="actions account-actions">
                     <button
                       type="button"
                       className="secondary"

@@ -13,6 +13,8 @@ import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './dele
 import { date } from './date.ts';
 import { Notice, type NoticeMessage } from './notice.tsx';
 import { cardName } from './card-names.ts';
+import { Art, historyArt } from './art.tsx';
+import { Icon } from './icon.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type RecordView = z.infer<typeof apiSchemas.SessionRecord>;
@@ -534,18 +536,21 @@ export function ReadingWorkspace({
   };
   return (
     <section className="reading-workspace" aria-label="Your readings" aria-busy={busy}>
-      <div className="notice consent">
-        <h2>AI readings are {user.permission.modelAllowed ? 'on' : 'off'}</h2>
-        <p>
-          AI permission is separate from saving. It allows your question to be used for a new
-          reading. Saved readings and reflections are not sent automatically.
-        </p>
-        {!user.permission.modelAllowed && (
-          <p>History, reopening, reflections, export and deletion remain available.</p>
-        )}
-        <button type="button" className="secondary" disabled={busy} onClick={permission}>
-          {user.permission.modelAllowed ? 'Turn off AI readings' : 'Enable AI readings'}
-        </button>
+      <div className="consent">
+        <Art name="study-return" className="consent-art" />
+        <div className="consent-copy">
+          <h2>AI readings are {user.permission.modelAllowed ? 'on' : 'off'}</h2>
+          <p>
+            AI permission is separate from saving. It allows your question to be used for a new
+            reading. Saved readings and reflections are not sent automatically.
+          </p>
+          {!user.permission.modelAllowed && (
+            <p>History, reopening, reflections, export and deletion remain available.</p>
+          )}
+          <button type="button" className="secondary" disabled={busy} onClick={permission}>
+            {user.permission.modelAllowed ? 'Turn off AI readings' : 'Enable AI readings'}
+          </button>
+        </div>
       </div>
       <nav className="actions" aria-label="Reading actions">
         <button
@@ -564,6 +569,7 @@ export function ReadingWorkspace({
             });
           }}
         >
+          <Icon name="bookmark" />
           Saved readings
         </button>
         <button
@@ -580,36 +586,50 @@ export function ReadingWorkspace({
             setMessage(null);
           }}
         >
+          <Icon name="add" />
           New reading
         </button>
         <button type="button" className="text-button" disabled={busy} onClick={exportRecords}>
+          <Icon name="download" />
           Export my records
         </button>
       </nav>
       <Notice message={message} />
-      {busy && <p role="status">Completing your reading action…</p>}
+      {busy && (
+        <p role="status" className="busy-line">
+          <span className="spinner" aria-hidden="true" />
+          Completing your reading action…
+        </p>
+      )}
       {mode === 'history' && (
-        <section aria-label="Saved reading history">
-          <h2>Saved readings</h2>
+        <section className="history-section" aria-label="Saved reading history">
+          <h2 className="title-section">Saved readings</h2>
           <p className="muted">
             Return to the original reading, cards and sources. Reopening uses no new generation or
             allowance.
           </p>
           {history.items.length === 0 ? (
-            <p>No saved readings yet.</p>
+            <div className="empty-history">
+              <Art name="study-possibility" className="empty-history-art" />
+              <p>No saved readings yet.</p>
+            </div>
           ) : (
             <ol className="reading-history">
               {history.items.map((item) => (
                 <li key={item.id}>
-                  <time dateTime={item.createdAt}>{date(item.createdAt)}</time>
-                  <button
-                    type="button"
-                    className="history-link"
-                    disabled={busy}
-                    onClick={() => void run((current) => open(item.id, current))}
-                  >
-                    {item.questionPreview ?? 'Saved reading'}
-                  </button>
+                  <Art name={historyArt(item.id)} className="history-art" />
+                  <div className="history-copy">
+                    <time dateTime={item.createdAt}>{date(item.createdAt)}</time>
+                    <button
+                      type="button"
+                      className="history-link"
+                      disabled={busy}
+                      onClick={() => void run((current) => open(item.id, current))}
+                    >
+                      <span>{item.questionPreview ?? 'Saved reading'}</span>
+                      <Icon name="chevron" />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ol>

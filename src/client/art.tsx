@@ -29,3 +29,17 @@ export type ArtName = keyof typeof art;
 export function Art({ name, className = '' }: { name: ArtName; className?: string }) {
   return <img className={`art ${className}`} src={art[name]} alt="" aria-hidden="true" />;
 }
+
+const studies = [
+  'study-return',
+  'study-inquiry',
+  'study-perspective',
+  'study-stillness',
+  'study-possibility',
+  'study-tension',
+] as const;
+export function historyArt(id: string): ArtName {
+  let hash = 0;
+  for (const character of id) hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
+  return studies[hash % studies.length]!;
+}

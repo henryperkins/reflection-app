@@ -741,3 +741,203 @@ main {
 .receipt-content .actions {
   margin: 20px 0 0;
 }
+
+/* Account and saved readings. */
+.app-shell:has(.page-column) .site-footer .shell-width {
+  max-width: 760px;
+}
+.account-page .page-title {
+  margin-bottom: 32px;
+}
+.account-title-art {
+  height: 180px;
+  object-position: 58% 50%;
+}
+.account-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+.account-content > .deletion-actions {
+  margin: 0;
+}
+.account-content > .actions {
+  margin: 0;
+}
+.account-page .page-panel > .notice {
+  margin: 0 0 32px;
+}
+.reading-workspace {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin: 0;
+}
+.reading-workspace > .actions,
+.reading-workspace > .notice,
+.reading-workspace > .busy-line {
+  margin: 0;
+}
+.consent {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px 20px;
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+}
+.consent-art {
+  flex: 0 0 64px;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-xl);
+}
+.consent-copy {
+  display: flex;
+  flex: 1 1 300px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+.consent-copy p {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 20px;
+}
+.consent-copy button {
+  margin-top: 4px;
+}
+.history-section > .muted {
+  margin-top: 6px;
+}
+.reading-history {
+  margin: 16px 0 0;
+  border-top: 1px solid var(--border);
+}
+.reading-history li {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 4px;
+}
+.history-art {
+  flex: 0 0 56px;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+}
+.history-copy {
+  flex: 1;
+  min-width: 0;
+}
+.history-link {
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 10px;
+  font-size: 16px;
+  line-height: 24px;
+  border-radius: 0;
+}
+.history-link .icon {
+  color: var(--muted-foreground);
+}
+button.history-link:hover:enabled {
+  color: var(--foreground);
+  background: transparent;
+}
+.history-link:hover span {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.history-section > button {
+  margin-top: 16px;
+}
+.empty-history {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 20px 28px;
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-2xl);
+}
+.empty-history-art {
+  flex: 1 1 200px;
+  max-width: 260px;
+  height: 180px;
+  min-width: 0;
+  border-radius: var(--radius-xl);
+  object-position: 50% 35%;
+}
+.empty-history p {
+  flex: 999 1 220px;
+  font-size: 18px;
+  line-height: 28px;
+}
+.passkeys-card {
+  padding: 20px;
+}
+.passkeys-card > p {
+  margin: 4px 0 16px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 20px;
+}
+.passkeys-card > ul {
+  margin: 16px 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--border);
+}
+.passkeys-card li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding-block: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.passkey-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-full);
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+.passkeys-card li p {
+  flex: 1 1 240px;
+  min-width: 0;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 20px;
+}
+.passkeys-card strong {
+  display: block;
+  color: var(--foreground);
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.account-storage {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 20px;
+}
+.account-storage .icon {
+  margin-top: 2px;
+}
