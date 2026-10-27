@@ -25,7 +25,12 @@ export interface ContentSnapshot {
   guard: D1PreparedStatement;
 }
 /** Bind the exact verified row, including approval and content bytes, in the mutation batch. */
-export function contentSnapshot(db: D1Database, row: ContentRow, bundle: Bundle): ContentSnapshot {
+export function contentSnapshot(
+  db: D1Database,
+  row: ContentRow,
+  bundle: Bundle,
+  developmentContent = false,
+): ContentSnapshot {
   const fields = [
     'hash',
     'bundle_json',
@@ -42,7 +47,7 @@ export function contentSnapshot(db: D1Database, row: ContentRow, bundle: Bundle)
     policyRevision: row.policy_revision,
     guard: assertion(
       db,
-      `EXISTS(SELECT 1 FROM content_editions WHERE state IN ('approved','superseded') AND ${fields.map((f) => `${f} IS ?`).join(' AND ')})`,
+      `EXISTS(SELECT 1 FROM content_editions WHERE ${developmentContent ? "state='staged'" : "state IN ('approved','superseded')"} AND ${fields.map((f) => `${f} IS ?`).join(' AND ')})`,
       ...fields.map((f) => row[f]),
     ),
   };

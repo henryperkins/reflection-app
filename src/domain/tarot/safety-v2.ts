@@ -50,7 +50,7 @@ function unquotedEvidence(text: string) {
   return result;
 }
 /** Narrow, deterministic evidence match: entire declarative statements, never extracted keywords. */
-function supportedProse(text: string, question: string) {
+function supportedProse(text: string, question: string, comparisonMethods = false) {
   const quotations: Array<{ token: string; text: string }> = [];
   const protectedText = text.replace(
     /\bYou (?:wrote|said),?\s*[“"]([^”"]+)[”"]/gi,
@@ -118,6 +118,13 @@ function supportedProse(text: string, question: string) {
     /\b(if|whether)\s+(you (?:are|were|have been|had)|your (?:partner|family|parent|child|boss|friend) (?:is|was|has))\b/g,
     '$1 a possible circumstance involves',
   );
+  // A direction to distinguish observations from assumptions is a method, not
+  // invented biography. Exempt only that phrase; later personal assertions remain screened.
+  if (comparisonMethods)
+    result = result.replace(
+      /\b((?:separate|distinguish) what you have observed\b[^.!?;]{0,160}? from )what you are assuming\b/g,
+      '$1the assumptions to examine',
+    );
   for (const quote of quotations) result = result.replace(quote.token, quote.text);
   return result;
 }
@@ -128,13 +135,11 @@ export async function validateCandidateV2(
   template = false,
 ): Promise<ModelCandidateV2> {
   const plan = await validatePlanV2(value);
-  if (
-    plan.validatorHash !==
-    (await sha256Json({
-      version: SAFETY_V2_VERSION,
-      outputSchema: z.toJSONSchema(ModelCandidateV2),
-    }))
-  )
+  const identity = (version: string) =>
+    sha256Json({ version, outputSchema: z.toJSONSchema(ModelCandidateV2) });
+  const comparisonMethods =
+    plan.validatorHash === (await identity('bounded-developed-reading.v2.3'));
+  if (!comparisonMethods && plan.validatorHash !== (await identity(SAFETY_V2_VERSION)))
     reject('CONTENT_CHANGED');
   boundedCandidateJson(candidate);
   const parsed = ModelCandidateV2.safeParse(candidate);
@@ -216,7 +221,7 @@ export async function validateCandidateV2(
   ];
   const sentences = new Set<string>();
   for (const field of fields) {
-    screenProse(supportedProse(field, plan.question), plan);
+    screenProse(supportedProse(field, plan.question, comparisonMethods), plan);
     for (const sentence of field.split(/[.!?]+/u)) {
       const key = normalize(sentence)
         .replace(/[^\p{L}\p{N}]+/gu, ' ')

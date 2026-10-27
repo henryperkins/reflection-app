@@ -25,6 +25,7 @@ const rootFiles = new Set([
   'vitest.db.config.ts',
   'wrangler.jsonc',
   'wrangler.identity.jsonc',
+  'wrangler.live.jsonc',
 ]);
 const excluded = new Set([
   '.git',

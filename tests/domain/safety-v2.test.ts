@@ -5,15 +5,17 @@ import { validateCandidateV2 } from '../../src/domain/tarot/safety-v2.ts';
 import { v2Input, relationship, rehashBundle } from '../fixtures/canon-v2.ts';
 import { TarotFactId, type ModelCandidateV2 } from '../../src/contracts/index.ts';
 import { READING_V2_EVALUATION_POLICY as policy } from '../../src/contracts/provider-policy.ts';
+import { LOCAL_LIVE_READING_POLICY } from '../../src/contracts/provider-policy.ts';
 
 async function fixture(
   question = 'I am not discouraged. My workload is manageable. What could I explore?',
+  selectedPolicy = policy as typeof policy | typeof LOCAL_LIVE_READING_POLICY,
 ) {
   const input = await v2Input();
   input.question = question;
-  Object.assign(input, await writerIdentitiesV2());
+  Object.assign(input, await writerIdentitiesV2(selectedPolicy));
   const plan = await buildPlanV2(input),
-    { receipt } = await prepareWriterV2(plan);
+    { receipt } = await prepareWriterV2(plan, selectedPolicy);
   const refs = {
     sourceIds: plan.sources.map((s) => s.id),
     contextRefs: ['reader:question'] as const,
@@ -47,6 +49,33 @@ async function fixture(
   };
   return { plan, receipt, candidate: JSON.parse(JSON.stringify(candidate)) as ModelCandidateV2 };
 }
+
+test('live screening permits a comparison method without changing the archived validator', async () => {
+  const text =
+    'Separate what you’ve observed about the newsletter from what you’re assuming about print, so the comparison can change as you learn.';
+  const current = await fixture(undefined, LOCAL_LIVE_READING_POLICY);
+  current.candidate.action.text = text;
+  await expect(
+    validateCandidateV2(current.plan, current.candidate, current.receipt),
+  ).resolves.toEqual(current.candidate);
+  const previous = await fixture();
+  previous.candidate.action.text = text;
+  await expect(
+    validateCandidateV2(previous.plan, previous.candidate, previous.receipt),
+  ).rejects.toThrow('BIOGRAPHY_UNSUPPORTED');
+});
+
+test.each([
+  'You are assuming the project cannot work.',
+  'Separate what you have observed from what you are feeling.',
+  'Separate what you have observed from what you are assuming, because you are overwhelmed.',
+])('a comparison method does not authorize personal assertions: %s', async (text) => {
+  const { plan, candidate, receipt } = await fixture(undefined, LOCAL_LIVE_READING_POLICY);
+  candidate.action.text = text;
+  await expect(validateCandidateV2(plan, candidate, receipt)).rejects.toThrow(
+    'BIOGRAPHY_UNSUPPORTED',
+  );
+});
 test.each([
   ['I am not discouraged.', 'You are not discouraged.'],
   ["I'm comfortable with my workload.", "You're comfortable with your workload."],

@@ -1,6 +1,39 @@
 # Reflection local application
 
-Milestone 1 is complete. Milestone 2 now has local identity/recovery and saved-reading return workflows: save without a reflection, sign back in to dated history, recover in a fresh browser, and reopen identical content. History, reflection editing, export and session deletion work with AI permission off. Generation is simulated locally; production acceptance gates remain open and deployment stays disabled.
+The development app supports live OpenAI readings, local identity/recovery and saved-reading return workflows. Save without a reflection, sign back in to dated history, recover in a fresh browser, and reopen identical content. History, reflection editing, export and session deletion work with AI permission off.
+
+## Live development app
+
+```sh
+npm run dev:live
+```
+
+Open **http://localhost:8787**, create an account, keep the recovery kit and enable AI
+readings. Start reading calls GPT-6.1 Terra with fast service and xhigh reasoning, using
+the current v2 editorial prompt and draft card meanings. No production qualification
+receipt or content-approval ceremony is required for this development mode.
+
+The command reads `OPENAI_API_KEY` and `OPENAI_PROJECT_ID` from the process environment,
+the checkout's `.env.local`/`.env`, or the main checkout's `.env` when running in a
+worktree. An explicit path is also supported:
+
+```sh
+npm run dev:live -- --env-file /absolute/path/to/.env
+```
+
+Credentials stay on the server and are not copied into the frontend or persisted app
+settings. Live app data and its generated encryption keys persist under
+`.wrangler/live-development`; keep that directory to retain access to saved readings.
+The synthetic app uses separate storage. Stop the server with Ctrl+C.
+
+The existing limits remain: three readings per day and thirty per month per account,
+up to $0.16 reserved for an attempt, and $10/day/$100/month technical spend ceilings.
+A recovery or reload does not resend an authorized provider call. Draft sources retain
+their existing review metadata. This command starts the local app; it does not deploy
+a public service. The synthetic commands and offline verification below remain available.
+
+The [live app check](docs/superpowers/evidence/2026-10-27-live-app-activation.md) records
+the actual Start, save and reopen result and the activation fixes.
 
 The [local delivery guide](docs/LOCAL_DELIVERY.md) explains the runnable ZIP and its verification records. The [completion pass](docs/COMPLETION_PASS_RESULTS.md) adds passkey management, logout-all, durable generation recovery, actual candidate composition, retained-key rotation/receipts, operator telemetry and reproducible packaging. Production launch decisions are deferred for this delivery at the owner's instruction.
 

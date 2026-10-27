@@ -25,6 +25,18 @@ function kitText(kit: Kit) {
   );
 }
 export function IdentityApp() {
+  const [live, setLive] = useState<boolean | null>(null);
+  useEffect(() => {
+    void fetch('/health', { cache: 'no-store' })
+      .then((response) => response.json())
+      .then((runtime) => {
+        if (typeof runtime === 'object' && runtime !== null && 'mode' in runtime) {
+          if (runtime.mode === 'live-local') setLive(true);
+          if (runtime.mode === 'synthetic-only') setLive(false);
+        }
+      })
+      .catch(() => {});
+  }, []);
   const [session, setSession] = useState<View | null>(null);
   const [kit, setKit] = useState<Kit | null>(null);
   const [grant, setGrant] = useState<Grant | null>(null);
@@ -247,8 +259,11 @@ export function IdentityApp() {
         {title}
       </h1>
       <p className="test-notice">
-        Use synthetic text and test accounts only. This local build simulates readings and never
-        contacts an AI provider.
+        {live === null
+          ? 'Reading service status is unavailable. Saved readings remain available.'
+          : live
+            ? 'Live AI readings are enabled for this development app.'
+            : 'Use synthetic text and test accounts only. This local build simulates readings and never contacts an AI provider.'}
       </p>
       {message && (
         <p role="alert" className="notice error">
@@ -455,6 +470,7 @@ export function IdentityApp() {
             </section>
             <div hidden={checking || busy}>
               <ReadingWorkspace
+                live={live}
                 key={session.subjectId}
                 user={session}
                 onSession={setSession}
@@ -651,7 +667,7 @@ export function IdentityApp() {
                   })
                 }
               >
-                Create a test account
+                {live === false ? 'Create a test account' : 'Create an account'}
               </button>
               <button
                 type="button"

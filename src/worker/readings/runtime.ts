@@ -9,6 +9,14 @@ export function generationService(
   mode: string | undefined,
   factory?: GenerationFactory,
 ) {
-  if (mode === 'qualified') return factory ? new ReadingGeneration(base, factory(base)) : null;
+  if (mode === 'qualified' || mode === 'live-local') {
+    const dependencies = factory?.(base);
+    if (
+      !dependencies ||
+      dependencies.authorization.kind !== (mode === 'qualified' ? 'application' : 'live-local')
+    )
+      return null;
+    return new ReadingGeneration(base, dependencies);
+  }
   return mode === 'synthetic-local' ? new LocalGeneration(base) : null;
 }

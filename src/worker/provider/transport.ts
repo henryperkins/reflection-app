@@ -218,7 +218,8 @@ export class OpenAIResponsesTransport implements WritingProvider {
         try {
           response = await fetcher(policy.endpoint, {
             method: 'POST',
-            redirect: 'error',
+            // Workers supports manual redirects; non-2xx replies are rejected below.
+            redirect: 'manual',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
             body: new Uint8Array(input.payload),
             signal: controller.signal,

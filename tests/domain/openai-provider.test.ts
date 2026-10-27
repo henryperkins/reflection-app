@@ -120,7 +120,7 @@ test('qualified application call sends exact persisted bytes once with bounded p
   const fetcher: typeof fetch = async (url, init) => {
     calls++;
     expect(url).toBe('https://api.openai.com/v1/responses');
-    expect(init).toMatchObject({ method: 'POST', redirect: 'error' });
+    expect(init).toMatchObject({ method: 'POST', redirect: 'manual' });
     expect(Array.from(init!.body as Uint8Array)).toEqual(Array.from(supplied.payload));
     expect(new Headers(init!.headers).get('authorization')).toBe('Bearer synthetic-test-only-key');
     return Response.json(envelope());
@@ -136,6 +136,17 @@ test('transport can be shared without an application qualification', async () =>
     kind: 'candidate',
     receipt: knownReceipt,
   });
+});
+
+test('redirects are rejected without sending credentials to a second destination', async () => {
+  let calls = 0;
+  const result = await transport(async (_url, init) => {
+    calls++;
+    expect(init?.redirect).toBe('manual');
+    return new Response(null, { status: 307, headers: { Location: 'https://example.com/' } });
+  }).write(input());
+  expect(result).toEqual({ kind: 'rejected', status: 400, receipt: null });
+  expect(calls).toBe(1);
 });
 
 async function fastInput(): Promise<Parameters<WritingProvider['write']>[0]> {

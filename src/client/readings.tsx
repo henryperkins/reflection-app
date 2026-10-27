@@ -30,10 +30,12 @@ function download(name: string, chunks: BlobPart[], type: string) {
 /** Mounted only for a verified account. All private state and unfinished actions die on unmount. */
 export function ReadingWorkspace({
   user,
+  live = false,
   onSession,
   onExpired,
 }: {
   user: View;
+  live?: boolean | null;
   onSession: (value: View) => void;
   onExpired: () => void;
 }) {
@@ -514,11 +516,22 @@ export function ReadingWorkspace({
       <div className="notice consent">
         <h2>AI readings are {user.permission.modelAllowed ? 'on' : 'off'}</h2>
         <p>{READING_PRODUCT_COPY.aiPermission}</p>
-        <p className="muted">{READING_PRODUCT_COPY.providerRetention}</p>
+        <p className="muted">
+          {live === null
+            ? 'Refresh to check the reading service before enabling AI. Your saved readings and reflections remain available.'
+            : live
+              ? 'Your question, drawn cards and selected source meanings are sent to OpenAI to write the reading. Saved readings and reflections are not sent. OpenAI may retain request data according to your project settings.'
+              : READING_PRODUCT_COPY.providerRetention}
+        </p>
         {!user.permission.modelAllowed && (
           <p>History, reopening, reflections, export and deletion remain available.</p>
         )}
-        <button type="button" className="secondary" disabled={busy} onClick={permission}>
+        <button
+          type="button"
+          className="secondary"
+          disabled={busy || (live === null && !user.permission.modelAllowed)}
+          onClick={permission}
+        >
           {user.permission.modelAllowed ? 'Turn off AI readings' : 'Enable AI readings'}
         </button>
       </div>
@@ -543,7 +556,7 @@ export function ReadingWorkspace({
         </button>
         <button
           type="button"
-          disabled={busy || !user.permission.modelAllowed || requestPending}
+          disabled={busy || !user.permission.modelAllowed || requestPending || live === null}
           onClick={() => {
             if (!canLeave()) return;
             // A deliberate new reading is a new intent, even if the question is unchanged.
@@ -700,12 +713,17 @@ export function ReadingWorkspace({
           </label>
           <p className="storage-notice">{READING_PRODUCT_COPY.startProcessing}</p>
           <p className="muted">
-            Drafts stay in memory until submitted. This build uses a local simulated writer. Use
-            synthetic text only.
+            {live === null
+              ? 'Refresh to check the reading service before submitting. Your draft stays in memory.'
+              : live
+                ? 'Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.'
+                : 'Drafts stay in memory until submitted. This build uses a local simulated writer. Use synthetic text only.'}
           </p>
           <button
             type="submit"
-            disabled={busy || !english || !question.trim() || !user.permission.modelAllowed}
+            disabled={
+              busy || !english || !question.trim() || !user.permission.modelAllowed || live === null
+            }
           >
             Start reading
           </button>
@@ -717,7 +735,7 @@ export function ReadingWorkspace({
       {mode === 'reading' && record && reading && (
         <section aria-label="Reading detail">
           <p className="eyebrow">
-            Local simulated reading
+            {reading.provenance.provider === 'openai' ? 'AI reading' : 'Local simulated reading'}
             {reading.mode === 'template' ? ' · Prepared reflection template' : ''}
           </p>
           <time dateTime={record.createdAt}>{date(record.createdAt)}</time>

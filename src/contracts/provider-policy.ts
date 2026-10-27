@@ -90,6 +90,7 @@ export type WriterProviderPolicy =
   | typeof READING_V2_1_EVALUATION_POLICY
   | typeof READING_V2_EVALUATION_POLICY
   | typeof READING_V2_EDITORIAL_EVALUATION_POLICY
+  | typeof LOCAL_LIVE_READING_POLICY
   | typeof READING_V2_APPLICATION_POLICY;
 
 /** Candidate for new-context probes; retains v1 as the tested development reference. */
@@ -173,7 +174,15 @@ export const READING_V2_EDITORIAL_EVALUATION_POLICY = {
 export type ReadingV2WriterPolicy =
   | typeof READING_V2_EVALUATION_POLICY
   | typeof READING_V2_EDITORIAL_EVALUATION_POLICY
+  | typeof LOCAL_LIVE_READING_POLICY
   | typeof READING_V2_APPLICATION_POLICY;
+
+/** Local app: unchanged editorial prompt/settings, corrected comparison-method screening. */
+export const LOCAL_LIVE_READING_POLICY = {
+  ...READING_V2_EDITORIAL_EVALUATION_POLICY,
+  version: 'reading-local-live.v1',
+  validatorVersion: 'bounded-developed-reading.v2.3',
+} as const;
 
 /** Application candidate only. Installation and authenticated qualification are still required. */
 export const READING_V2_APPLICATION_POLICY = {

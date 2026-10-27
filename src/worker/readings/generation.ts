@@ -3,6 +3,7 @@ import { providerReceiptStatements } from '../provider/receipts.ts';
 import {
   READING_PROVIDER_POLICY,
   READING_V2_APPLICATION_POLICY,
+  type LOCAL_LIVE_READING_POLICY,
   type READING_V2_EVALUATION_POLICY,
   type ReadingProviderPolicy,
   type WriterProviderPolicy,
@@ -54,6 +55,11 @@ export type GenerationDependencies = DependencyBase &
         authorization: { kind: 'application'; qualification: ProviderQualification };
       }
     | {
+        policy: typeof LOCAL_LIVE_READING_POLICY;
+        writer: WritingProvider;
+        authorization: { kind: 'live-local' };
+      }
+    | {
         policy: typeof READING_V2_EVALUATION_POLICY;
         writer: (plan: VersionedPlan) => Promise<WritingProvider>;
         authorization: { kind: 'synthetic-local'; policyHash: () => Promise<string> };
@@ -69,6 +75,9 @@ export class ReadingGeneration extends RequestState {
   }
   private get synthetic() {
     return this.dependencies.authorization.kind === 'synthetic-local';
+  }
+  private get development() {
+    return this.dependencies.authorization.kind === 'live-local';
   }
   private async policyHash() {
     const auth = this.dependencies.authorization;
@@ -117,7 +126,7 @@ export class ReadingGeneration extends RequestState {
   private guard(session: Session, permission: number, content: string, policy: string) {
     return assertion(
       this.base.db,
-      `EXISTS(SELECT 1 FROM accounts a JOIN permission_revisions p ON p.owner_id=a.id AND p.revision=a.permission_revision JOIN system_state sys ON sys.id=1 JOIN content_editions c ON c.hash=sys.active_content_hash WHERE a.id=? AND a.permission_revision=? AND p.model_allowed=1 AND a.recovery_ack_at IS NOT NULL AND a.key_version=1 AND sys.generation_enabled=1 AND sys.dispatch_mode IN('model','outage_template') AND c.hash=? AND c.state='approved' AND sys.provider_policy_hash=?)`,
+      `EXISTS(SELECT 1 FROM accounts a JOIN permission_revisions p ON p.owner_id=a.id AND p.revision=a.permission_revision JOIN system_state sys ON sys.id=1 JOIN content_editions c ON c.hash=sys.active_content_hash WHERE a.id=? AND a.permission_revision=? AND p.model_allowed=1 AND a.recovery_ack_at IS NOT NULL AND a.key_version=1 AND sys.generation_enabled=1 AND sys.dispatch_mode IN('model','outage_template') AND c.hash=? AND c.state='${this.development ? 'staged' : 'approved'}' AND sys.provider_policy_hash=?)`,
       session.subjectId,
       permission,
       content,
@@ -211,7 +220,7 @@ export class ReadingGeneration extends RequestState {
         generationPolicyHash: policyHash,
       },
       this.dependencies.policy,
-      this.synthetic,
+      this.synthetic || this.development,
     );
     try {
       await prepareWriter(plan, this.dependencies.policy);
@@ -390,6 +399,7 @@ export class ReadingGeneration extends RequestState {
         context_count: h.context_count,
       },
       stage,
+      this.development,
     );
   }
   private fence(h: Lease) {
@@ -456,7 +466,7 @@ export class ReadingGeneration extends RequestState {
       WHEN a.key_version!=r.key_version OR k.owner_id IS NULL THEN 'KEY_UNAVAILABLE'
       WHEN a.permission_revision!=r.permission_revision OR p.model_allowed!=1 THEN 'CONSENT_REQUIRED'
       WHEN s.status NOT IN ('open','saved') OR (s.status='open' AND s.retention_expires_at<=${DB_NOW}) THEN 'CONTENT_UNAVAILABLE'
-      WHEN c.state NOT IN ('approved','superseded') OR c.rights_status!='cleared' OR c.policy_revision!=r.content_policy_revision THEN 'CONTENT_UNAVAILABLE'
+      WHEN ${this.development ? "c.state!='staged' OR c.reviewer_kind!='agent_reviewed' OR c.rights_status='disallowed'" : "c.state NOT IN ('approved','superseded') OR c.rights_status!='cleared'"} OR c.policy_revision!=r.content_policy_revision THEN 'CONTENT_UNAVAILABLE'
       WHEN sys.generation_enabled!=1 OR sys.dispatch_mode='off' OR sys.provider_policy_hash!=r.policy_hash THEN 'DEPENDENCY_UNAVAILABLE'
       ELSE NULL END AS failure
       FROM generation_requests r JOIN accounts a ON a.id=r.owner_id JOIN reading_sessions s ON s.id=r.session_id AND s.owner_id=r.owner_id
@@ -590,7 +600,7 @@ export class ReadingGeneration extends RequestState {
             generationPolicyHash: h.policy_hash,
           },
           this.dependencies.policy,
-          this.synthetic,
+          this.synthetic || this.development,
         );
         const enc = await this.base.crypt.seal(
           h.owner_id,

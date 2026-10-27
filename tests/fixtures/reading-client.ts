@@ -20,7 +20,9 @@ export class ReadingClient {
   ip = crypto.randomUUID();
   constructor(
     readonly bindings = readingBindings,
-    readonly handler = worker,
+    readonly handler: {
+      fetch: (request: Request, env: Env) => Response | Promise<Response>;
+    } = worker,
   ) {}
   async request(
     path: string,
@@ -108,9 +110,8 @@ export class ReadingClient {
     return { started, status, reading };
   }
 }
-export async function readingAccount(ack = true, allowed = true) {
-  const client = new ReadingClient(),
-    passkey = await syntheticPasskey();
+export async function readingAccount(ack = true, allowed = true, client = new ReadingClient()) {
+  const passkey = await syntheticPasskey();
   const options = AuthOptions.parse(
     await (await client.request('/auth/options', { purpose: 'register' })).json(),
   );

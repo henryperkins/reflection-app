@@ -25,11 +25,18 @@ export function createWorker(factory?: GenerationFactory) {
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   });
-  app.get('/health', (c) => c.json({ status: 'ok', milestone: 1, mode: 'synthetic-only' }));
+  app.get('/health', (c) =>
+    c.json({
+      status: 'ok',
+      milestone: 1,
+      mode: factory && c.env.READING_MODE === 'live-local' ? 'live-local' : 'synthetic-only',
+      ...(factory && c.env.READING_MODE === 'live-local' ? { provider: 'openai' } : {}),
+    }),
+  );
   app.all('/api/v1/*', async (c, next) => {
     if (
       c.env.RESTORE_MODE === 'offline' ||
-      (c.env.IDENTITY_MODE === 'synthetic-local' &&
+      (['synthetic-local', 'live-local'].includes(c.env.IDENTITY_MODE ?? '') &&
         (await c.env.DB.prepare(
           'SELECT restore_in_progress FROM system_state WHERE id=1',
         ).first<number>('restore_in_progress')))
@@ -73,7 +80,7 @@ export function createWorker(factory?: GenerationFactory) {
     async scheduled(_controller, env, _ctx) {
       if (
         env.RESTORE_MODE === 'offline' ||
-        (env.IDENTITY_MODE === 'synthetic-local' &&
+        (['synthetic-local', 'live-local'].includes(env.IDENTITY_MODE ?? '') &&
           (await env.DB.prepare(
             'SELECT restore_in_progress FROM system_state WHERE id=1',
           ).first<number>('restore_in_progress')))
@@ -84,7 +91,7 @@ export function createWorker(factory?: GenerationFactory) {
         await identity?.maintenance();
         if (
           identity &&
-          ['synthetic-local', 'qualified'].includes(env.READING_MODE ?? '') &&
+          ['synthetic-local', 'qualified', 'live-local'].includes(env.READING_MODE ?? '') &&
           env.RECOVERY
         ) {
           const base = new RecordBase(env.DB, identity);
