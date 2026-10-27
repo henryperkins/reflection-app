@@ -120,6 +120,30 @@ test('forward policy migration preserves populated 5.6 data, accounting, indexes
   ).toEqual(foreignKeys.results);
   expect((await env.DB.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
 
+  // Receipt storage is a separate additive upgrade; legacy unknown categories stay NULL.
+  const historicalUsage = await env.DB.prepare(
+    'SELECT id,input_tokens,output_tokens,returned_model,cost_expired_at FROM provider_dispatches',
+  ).first();
+  await applyD1Migrations(
+    env.DB,
+    env.TEST_MIGRATIONS.filter((m) => m.name.startsWith('0010_')),
+  );
+  expect(
+    await env.DB.prepare(
+      'SELECT id,input_tokens,output_tokens,returned_model,cost_expired_at FROM provider_dispatches',
+    ).first(),
+  ).toEqual(historicalUsage);
+  expect(
+    await env.DB.prepare(
+      'SELECT cached_input_tokens,cache_write_tokens,reasoning_tokens,service_tier FROM provider_dispatches',
+    ).first(),
+  ).toEqual({
+    cached_input_tokens: null,
+    cache_write_tokens: null,
+    reasoning_tokens: null,
+    service_tier: null,
+  });
+
   // Admission remains disabled, so create only synthetic rows to exercise the new table contract.
   const newRequest = crypto.randomUUID(),
     newAttempt = crypto.randomUUID(),

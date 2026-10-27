@@ -59,7 +59,7 @@ K1/K2 can first be proven against synthetic local stores. Hosted execution of K2
 
 ## K2 — Journal and resume complete account-DEK replacement
 
-**Files:** Create `src/worker/recovery/account-rekey.ts`, `src/worker/db/migrations/0012_account_rekey.sql`, `scripts/key-rotate-account.ts`, `tests/db/account-rekey.test.ts`, `tests/tooling/account-rekey.test.ts`. Modify `src/worker/db/column-registry.json`, `scripts/package.ts`, `package.json`, `src/worker/recovery/restore.ts` and the key runbook. This follows L1's `0009`, L4's `0010` and P2's `0011`; renumber consistently if another migration lands first.
+**Files:** Create `src/worker/recovery/account-rekey.ts`, `src/worker/db/migrations/0013_account_rekey.sql`, `scripts/key-rotate-account.ts`, `tests/db/account-rekey.test.ts`, `tests/tooling/account-rekey.test.ts`. Modify `src/worker/db/column-registry.json`, `scripts/package.ts`, `package.json`, `src/worker/recovery/restore.ts` and the key runbook. This follows L1's `0009`, L2's `0010`, L4's `0011` and P2's `0012`; renumber consistently if another migration lands first.
 
 **Interfaces:** `AccountRekey(base: RecordBase, coordinator: OfflineCoordinator)` exposes `begin(ownerId: string, expectedVersion: number): Promise<{operationId: string; targetVersion: number}>`, `step(operationId: string, limit: 20): Promise<{phase: 'rewriting' | 'validating' | 'complete'; rewritten: number}>`, and `validate(operationId: string): Promise<RekeyReceipt>`. `OfflineCoordinator` comes from P2; local tests use an explicitly local implementation. `RekeyReceipt` has operation identity, versions, counts, registry/inventory hashes and `stillOffline:true`; public summaries omit account IDs and ciphertext.
 

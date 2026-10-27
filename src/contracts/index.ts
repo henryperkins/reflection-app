@@ -857,19 +857,39 @@ export const apiSchemas = {
 } as const;
 
 export type Principal = { subjectId: string; sessionHash: string; recentAuth: boolean };
-export type WriterOutcome =
+const TokenCount = z.number().int().min(0).max(Number.MAX_SAFE_INTEGER);
+export const ProviderReceipt = z.strictObject({
+  responseId: z.string().min(1).max(300).nullable(),
+  returnedModel: z.string().min(1).max(200),
+  serviceTier: z.string().min(1).max(32),
+  durationMs: TokenCount,
+  usage: z
+    .strictObject({
+      inputTokens: TokenCount,
+      cachedInputTokens: TokenCount,
+      cacheWriteTokens: TokenCount,
+      outputTokens: TokenCount,
+      reasoningTokens: TokenCount,
+    })
+    .refine(
+      (v) =>
+        v.cachedInputTokens <= v.inputTokens &&
+        v.cacheWriteTokens <= v.inputTokens - v.cachedInputTokens &&
+        v.reasoningTokens <= v.outputTokens &&
+        Number.isSafeInteger(v.inputTokens + v.outputTokens),
+    ),
+});
+export type ProviderReceipt = z.infer<typeof ProviderReceipt>;
+export type WriterOutcome = (
   | {
       kind: 'candidate';
       candidate: unknown;
-      providerResponseId: string | null;
-      returnedModel: string;
-      inputTokens: number;
-      outputTokens: number;
-      durationMs: number;
     }
   | { kind: 'refusal' }
   | { kind: 'rejected'; status: 400 | 401 | 403 | 429 | 500 | 503 }
-  | { kind: 'uncertain'; reason: 'timeout' | 'network' | 'lost_response' };
+  | { kind: 'invalid'; reason: 'malformed' | 'incomplete' }
+  | { kind: 'uncertain'; reason: 'timeout' | 'network' | 'lost_response'; haltGeneration?: true }
+) & { receipt: ProviderReceipt | null };
 export interface WritingProvider {
   write(input: {
     dispatchId: string;

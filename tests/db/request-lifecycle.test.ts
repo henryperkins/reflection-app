@@ -232,9 +232,9 @@ test('cancellation checks owner and revision and preserves a published reading',
 });
 
 test.each([
-  [{ kind: 'refusal' }, 'blocked', 'PROVIDER_REFUSAL'],
-  [{ kind: 'rejected', status: 503 }, 'published', null],
-  [{ kind: 'uncertain', reason: 'timeout' }, 'published', null],
+  [{ kind: 'refusal', receipt: null }, 'blocked', 'PROVIDER_REFUSAL'],
+  [{ kind: 'rejected', status: 503, receipt: null }, 'published', null],
+  [{ kind: 'uncertain', reason: 'timeout', receipt: null }, 'published', null],
 ] as const)(
   'writer outcome %j is distinct and never retried',
   async (outcome, state, errorCode) => {

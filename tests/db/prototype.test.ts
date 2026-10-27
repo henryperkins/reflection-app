@@ -1,3 +1,4 @@
+import { providerReceipt } from '../fixtures/provider.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeEach, expect, test, vi } from 'vitest';
@@ -17,11 +18,18 @@ const writer: WritingProvider = {
   write: vi.fn(async () => ({
     kind: 'candidate' as const,
     candidate: { synthetic: true },
-    providerResponseId: null,
-    returnedModel: 'gpt-6.1-terra',
-    inputTokens: 1,
-    outputTokens: 1,
-    durationMs: 1,
+    receipt: providerReceipt({
+      responseId: null,
+      returnedModel: 'gpt-6.1-terra',
+      durationMs: 1,
+      usage: {
+        inputTokens: 1,
+        outputTokens: 1,
+        cachedInputTokens: 0,
+        cacheWriteTokens: 0,
+        reasoningTokens: 0,
+      },
+    }),
   })),
 };
 beforeEach(async () => {
@@ -185,7 +193,11 @@ test('cross-owner links cannot reserve or persist a request', async () => {
 test('uncertain provider result never retries and releases product quota while retaining spend', async () => {
   const f = await prepared();
   const uncertain: WritingProvider = {
-    write: vi.fn(async () => ({ kind: 'uncertain' as const, reason: 'lost_response' as const })),
+    write: vi.fn(async () => ({
+      kind: 'uncertain' as const,
+      reason: 'lost_response' as const,
+      receipt: null,
+    })),
   };
   const service = new SyntheticGenerationPrototype(env.DB, uncertain);
   await service.dispatch(f.lease, new Uint8Array([1]));
@@ -486,11 +498,18 @@ test('provider usage exceeding reservation increases aggregate liability and dis
     write: async () => ({
       kind: 'candidate',
       candidate: { synthetic: true },
-      providerResponseId: null,
-      returnedModel: 'gpt-6.1-terra',
-      inputTokens: 0,
-      outputTokens: 4000,
-      durationMs: 1,
+      receipt: providerReceipt({
+        responseId: null,
+        returnedModel: 'gpt-6.1-terra',
+        durationMs: 1,
+        usage: {
+          inputTokens: 0,
+          outputTokens: 4000,
+          cachedInputTokens: 0,
+          cacheWriteTokens: 0,
+          reasoningTokens: 0,
+        },
+      }),
     }),
   };
   await new SyntheticGenerationPrototype(env.DB, expensive).dispatch(f.lease, new Uint8Array([1]));

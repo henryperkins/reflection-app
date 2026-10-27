@@ -1,3 +1,5 @@
+import { ProviderReceipt } from '../../contracts/index.ts';
+import { providerReceiptStatements } from '../provider/receipts.ts';
 import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
 import type { WritingProvider, WriterOutcome } from '../../contracts/index.ts';
 import {
@@ -368,10 +370,19 @@ export class SyntheticGenerationPrototype {
         signal: AbortSignal.timeout(18000),
       });
     } catch {
-      outcome = { kind: 'uncertain', reason: 'network' };
+      outcome = { kind: 'uncertain', reason: 'network', receipt: null };
     }
     await this.barriers.beforeReceipt?.();
-    if (outcome.kind !== 'candidate') {
+    const parsedReceipt = ProviderReceipt.safeParse(outcome.receipt);
+    const receipt = parsedReceipt.success ? parsedReceipt.data : null;
+    const halt = outcome.kind === 'uncertain' && outcome.haltGeneration;
+    const receiptWrites = [
+      ...providerReceiptStatements(this.db, dispatchId, h.ownerId, receipt),
+      ...(halt ? [q(this.db, 'UPDATE system_state SET generation_enabled=0 WHERE id=1')] : []),
+    ];
+    if (receiptWrites.length) await this.db.batch(receiptWrites);
+    if (receipt && !halt) await this.settleUsage(dispatchId, receipt);
+    if (outcome.kind !== 'candidate' || !receipt || halt) {
       await this.db.batch([
         q(
           this.db,
@@ -381,24 +392,23 @@ export class SyntheticGenerationPrototype {
         ),
         q(
           this.db,
-          `UPDATE cost_reservations SET state='unknown',settled_at=${DB_NOW} WHERE dispatch_id=?`,
+          `UPDATE cost_reservations SET state='unknown',settled_at=${DB_NOW} WHERE dispatch_id=? AND state='reserved'`,
           dispatchId,
         ),
       ]);
       await this.terminalize(h.ownerId, h.requestId, 'failed');
       return outcome;
     }
-    await this.settleUsage(dispatchId, outcome);
     // Placeholder persistence deliberately never serializes the private candidate.
     await this.db.batch([
       q(
         this.db,
         `UPDATE provider_dispatches SET state='received',candidate_enc=?,returned_model=?,input_tokens=?,output_tokens=?,duration_ms=?,received_at=${DB_NOW} WHERE id=? AND owner_id=?`,
         PLACEHOLDER,
-        outcome.returnedModel,
-        outcome.inputTokens,
-        outcome.outputTokens,
-        outcome.durationMs,
+        receipt.returnedModel,
+        receipt.usage.inputTokens,
+        receipt.usage.outputTokens,
+        receipt.durationMs,
         dispatchId,
         h.ownerId,
       ),
@@ -496,18 +506,15 @@ export class SyntheticGenerationPrototype {
     }
     return editionId;
   }
-  private async settleUsage(
-    dispatchId: string,
-    outcome: Extract<WriterOutcome, { kind: 'candidate' }>,
-  ): Promise<void> {
-    const actual = outcome.inputTokens * 2 + outcome.outputTokens * 12;
+  private async settleUsage(dispatchId: string, receipt: ProviderReceipt): Promise<void> {
+    const actual = receipt.usage.inputTokens * 2 + receipt.usage.outputTokens * 12;
     if (
       !Number.isSafeInteger(actual) ||
       actual < 0 ||
-      !Number.isSafeInteger(outcome.inputTokens) ||
-      outcome.inputTokens < 0 ||
-      !Number.isSafeInteger(outcome.outputTokens) ||
-      outcome.outputTokens < 0
+      !Number.isSafeInteger(receipt.usage.inputTokens) ||
+      receipt.usage.inputTokens < 0 ||
+      !Number.isSafeInteger(receipt.usage.outputTokens) ||
+      receipt.usage.outputTokens < 0
     )
       throw new Error('INVALID_USAGE');
     const cost = await q(

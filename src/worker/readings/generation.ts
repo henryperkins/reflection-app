@@ -1,3 +1,4 @@
+import { providerReceiptStatements } from '../provider/receipts.ts';
 import { READING_PROVIDER_POLICY } from '../../contracts/provider-policy.ts';
 import { providerPolicyHash } from '../../domain/provider-policy.ts';
 import type { z } from 'zod';
@@ -9,6 +10,7 @@ import {
   PreparedPlan,
   ContentBundle,
   TarotBasis,
+  ProviderReceipt,
   type WriterOutcome,
   type WritingProvider,
   type ErrorCode,
@@ -690,22 +692,15 @@ export class LocalGeneration extends RequestState {
     h.state = state;
     h.fallback_reason = reason;
   }
-  private async settle(
-    dispatch: DispatchRow,
-    outcome?: Extract<WriterOutcome, { kind: 'candidate' }>,
-  ) {
+  private async settle(dispatch: DispatchRow, receipt?: ProviderReceipt) {
     const cost = await q(
       this.base.db,
       'SELECT id,state,reserved_microusd FROM cost_reservations WHERE dispatch_id=?',
       dispatch.id,
     ).first<{ id: string; state: string; reserved_microusd: number }>();
     if (!cost || cost.state === 'actual') return;
-    const valid =
-      outcome &&
-      [outcome.inputTokens, outcome.outputTokens, outcome.durationMs].every(
-        (v) => Number.isSafeInteger(v) && v >= 0,
-      );
-    const actual = valid ? outcome.inputTokens * 2 + outcome.outputTokens * 12 : null;
+    // This local simulator retains its explicitly synthetic tariff until L4.
+    const actual = receipt ? receipt.usage.inputTokens * 2 + receipt.usage.outputTokens * 12 : null;
     if (actual === null || !Number.isSafeInteger(actual)) {
       await this.base.db.batch([
         onlineGuard(this.base.db),
@@ -859,11 +854,19 @@ export class LocalGeneration extends RequestState {
               })),
               closing: template.closing,
             }),
-            providerResponseId: null,
-            returnedModel: 'synthetic-local-writer.v1',
-            inputTokens: 0,
-            outputTokens: 0,
-            durationMs: 0,
+            receipt: {
+              responseId: null,
+              returnedModel: 'synthetic-local-writer.v1',
+              serviceTier: 'default',
+              durationMs: 0,
+              usage: {
+                inputTokens: 0,
+                cachedInputTokens: 0,
+                cacheWriteTokens: 0,
+                outputTokens: 0,
+                reasoningTokens: 0,
+              },
+            },
           },
         });
       outcome = await supplied.write({
@@ -877,24 +880,58 @@ export class LocalGeneration extends RequestState {
         signal: AbortSignal.timeout(18000),
       });
     } catch {
-      outcome = { kind: 'uncertain', reason: 'network' };
+      outcome = { kind: 'uncertain', reason: 'network', receipt: null };
     }
-    await this.settle(dispatch, outcome.kind === 'candidate' ? outcome : undefined);
-    if (outcome.kind !== 'candidate') {
+    const parsedReceipt = ProviderReceipt.safeParse(outcome.receipt);
+    const receipt = parsedReceipt.success ? parsedReceipt.data : null;
+    const halt = outcome.kind === 'uncertain' && outcome.haltGeneration;
+    await this.base.db.batch([
+      onlineGuard(this.base.db),
+      ...providerReceiptStatements(this.base.db, id, h.owner_id, receipt),
+      ...(halt
+        ? [
+            q(
+              this.base.db,
+              `UPDATE system_state SET generation_enabled=0,revision=revision+1,updated_at=${DB_NOW} WHERE id=1`,
+            ),
+          ]
+        : []),
+    ]);
+    await this.settle(dispatch, halt ? undefined : (receipt ?? undefined));
+    if (halt) throw new GenerationFailure('DEPENDENCY_UNAVAILABLE');
+    const responseId =
+      receipt?.responseId == null
+        ? null
+        : await this.base.crypt.seal(
+            h.owner_id,
+            'provider_dispatches',
+            'provider_response_id_enc',
+            id,
+            { v: 1, id: receipt.responseId },
+            1,
+            h.key_version,
+          );
+    if (outcome.kind !== 'candidate' || !receipt) {
       const failure =
         outcome.kind === 'refusal'
           ? 'PROVIDER_REFUSAL'
           : outcome.kind === 'rejected' && ![429, 500, 503].includes(outcome.status)
             ? 'PROVIDER_UNAVAILABLE'
             : null;
-      const reason = outcome.kind === 'uncertain' ? 'TIMEOUT_UNKNOWN' : 'OUTAGE';
+      const reason: FallbackReason =
+        outcome.kind === 'invalid' || outcome.kind === 'candidate'
+          ? 'MALFORMED'
+          : outcome.kind === 'uncertain'
+            ? 'TIMEOUT_UNKNOWN'
+            : 'OUTAGE';
       await this.base.db.batch([
         onlineGuard(this.base.db),
         this.fence(h),
         q(
           this.base.db,
-          "UPDATE provider_dispatches SET state=? WHERE id=? AND state='authorized'",
+          "UPDATE provider_dispatches SET state=?,provider_response_id_enc=? WHERE id=? AND state='authorized'",
           outcome.kind === 'uncertain' ? 'unknown' : 'rejected',
+          responseId,
           id,
         ),
         assertion(this.base.db, 'changes()=1'),
@@ -909,12 +946,7 @@ export class LocalGeneration extends RequestState {
       if (outcome.kind === 'refusal') throw new GenerationFailure('PROVIDER_REFUSAL');
       if (outcome.kind === 'rejected' && ![429, 500, 503].includes(outcome.status))
         throw new GenerationFailure('PROVIDER_UNAVAILABLE');
-      await this.transition(
-        h,
-        'fallback_pending',
-        'USING_TEMPLATE',
-        outcome.kind === 'uncertain' ? 'TIMEOUT_UNKNOWN' : 'OUTAGE',
-      );
+      await this.transition(h, 'fallback_pending', 'USING_TEMPLATE', reason);
       return (await this.dispatchRow(h.id))!;
     }
     // Persist the raw bounded candidate separately: publication can resume after Worker loss.
@@ -922,20 +954,7 @@ export class LocalGeneration extends RequestState {
       boundedCandidateJson(outcome.candidate);
     } catch {
       await this.transition(h, 'fallback_pending', 'USING_TEMPLATE', 'MALFORMED');
-      return dispatch;
-    }
-    if (
-      !Number.isSafeInteger(outcome.inputTokens) ||
-      outcome.inputTokens < 0 ||
-      !Number.isSafeInteger(outcome.outputTokens) ||
-      outcome.outputTokens < 0 ||
-      !Number.isSafeInteger(outcome.durationMs) ||
-      outcome.durationMs < 0 ||
-      !outcome.returnedModel ||
-      outcome.returnedModel.length > 200
-    ) {
-      await this.transition(h, 'fallback_pending', 'USING_TEMPLATE', 'MALFORMED');
-      return dispatch;
+      return (await this.dispatchRow(h.id))!;
     }
     const candidate = await this.base.crypt.seal(
       h.owner_id,
@@ -946,18 +965,6 @@ export class LocalGeneration extends RequestState {
       1,
       h.key_version,
     );
-    const responseId =
-      outcome.providerResponseId === null
-        ? null
-        : await this.base.crypt.seal(
-            h.owner_id,
-            'provider_dispatches',
-            'provider_response_id_enc',
-            id,
-            { v: 1, id: outcome.providerResponseId },
-            1,
-            h.key_version,
-          );
     await this.base.db.batch([
       onlineGuard(this.base.db),
       this.guardCurrent(h, 'dispatching'),
@@ -966,10 +973,10 @@ export class LocalGeneration extends RequestState {
         `UPDATE provider_dispatches SET state='received',candidate_enc=?,provider_response_id_enc=?,returned_model=?,input_tokens=?,output_tokens=?,duration_ms=?,received_at=${DB_NOW} WHERE id=? AND state='authorized'`,
         candidate,
         responseId,
-        outcome.returnedModel,
-        outcome.inputTokens,
-        outcome.outputTokens,
-        outcome.durationMs,
+        receipt.returnedModel,
+        receipt.usage.inputTokens,
+        receipt.usage.outputTokens,
+        receipt.durationMs,
         id,
       ),
       assertion(this.base.db, 'changes()=1'),

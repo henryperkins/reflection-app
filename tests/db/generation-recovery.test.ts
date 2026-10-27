@@ -13,9 +13,139 @@ import { RecordBase } from '../../src/worker/readings/base.ts';
 import { LocalGeneration } from '../../src/worker/readings/generation.ts';
 import { clearDatabase } from '../fixtures/database.ts';
 import { readingAccount } from '../fixtures/reading-client.ts';
+import { providerReceipt } from '../fixtures/provider.ts';
 
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
 beforeEach(() => clearDatabase(env.DB));
+
+test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as const)(
+  'verified receipt usage survives %s output and maintenance independently of prose',
+  async (kind) => {
+    const receipt = providerReceipt({
+      responseId: 'synthetic-billable-response',
+      usage: {
+        inputTokens: 1000,
+        cachedInputTokens: 200,
+        cacheWriteTokens: 300,
+        outputTokens: 100,
+        reasoningTokens: 10,
+      },
+    });
+    const supplied: WritingProvider = {
+      write: async () =>
+        kind === 'refusal'
+          ? { kind, receipt }
+          : kind === 'rejected'
+            ? { kind, status: 401, receipt }
+            : kind === 'uncertain'
+              ? { kind, reason: 'network', receipt }
+              : { kind: 'invalid', reason: kind, receipt },
+    };
+    const f = await setup(env.DB, supplied);
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    await recover(f.client, supplied);
+    const { status, reading } = await latest(f.client);
+    expect(
+      await env.DB.prepare(
+        'SELECT returned_model,input_tokens,output_tokens,duration_ms FROM provider_dispatches',
+      ).first(),
+    ).toEqual({
+      returned_model: 'synthetic-test-only',
+      input_tokens: 1000,
+      output_tokens: 100,
+      duration_ms: 1,
+    });
+    expect(
+      await env.DB.prepare(
+        'SELECT cached_input_tokens,cache_write_tokens,reasoning_tokens,service_tier FROM provider_dispatches',
+      ).first(),
+    ).toEqual({
+      cached_input_tokens: 200,
+      cache_write_tokens: 300,
+      reasoning_tokens: 10,
+      service_tier: 'default',
+    });
+    if (kind === 'refusal' || kind === 'rejected') {
+      expect(status.state).toBe('blocked');
+      expect(reading).toBeNull();
+    } else
+      expect(reading).toMatchObject({
+        mode: 'template',
+        provenance: { fallbackReason: kind === 'uncertain' ? 'TIMEOUT_UNKNOWN' : 'MALFORMED' },
+      });
+    expect(
+      await env.DB.prepare('SELECT candidate_enc FROM provider_dispatches').first('candidate_enc'),
+    ).toBeNull();
+    expect((await f.client.me()).remainingDay).toBe(3);
+  },
+);
+
+test('provider contract drift durably disables dispatch and retains the full uncertain reservation', async () => {
+  let calls = 0;
+  const supplied: WritingProvider = {
+    write: async () => {
+      calls++;
+      return {
+        kind: 'uncertain',
+        reason: 'lost_response',
+        haltGeneration: true,
+        receipt: providerReceipt({ returnedModel: 'unexpected-model' }),
+      };
+    },
+  };
+  const f = await setup(env.DB, supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  expect(
+    await env.DB.prepare('SELECT generation_enabled FROM system_state').first('generation_enabled'),
+  ).toBe(0);
+  expect((await latest(f.client)).status).toMatchObject({
+    state: 'blocked',
+    errorCode: 'DEPENDENCY_UNAVAILABLE',
+  });
+  expect(
+    await env.DB.prepare(
+      'SELECT state,actual_microusd,reserved_microusd FROM cost_reservations',
+    ).first(),
+  ).toEqual({ state: 'unknown', actual_microusd: null, reserved_microusd: 40000 });
+  await recover(f.client, supplied);
+  expect((await f.client.start()).status).not.toBe(202);
+  expect(calls).toBe(1);
+});
+
+test('a refusal receipt is encrypted before terminalization and usage survives subsequent cleanup', async () => {
+  const receipt = providerReceipt({ responseId: 'SYNTHETIC_PRIVATE_RESPONSE_ID' });
+  const supplied: WritingProvider = { write: async () => ({ kind: 'refusal', receipt }) };
+  const f = await setup(failingDatabase('after-outcome'), supplied);
+  await f.generation.start(f.session, f.input, crypto.randomUUID());
+  const row = await env.DB.prepare(
+    'SELECT id,provider_response_id_enc FROM provider_dispatches',
+  ).first<{ id: string; provider_response_id_enc: string }>();
+  expect(row!.provider_response_id_enc).toBeTruthy();
+  expect(row!.provider_response_id_enc).not.toContain('SYNTHETIC_PRIVATE_RESPONSE_ID');
+  const { z } = await import('zod');
+  expect(
+    await f.generation.base.crypt.open(
+      f.session.subjectId,
+      'provider_dispatches',
+      'provider_response_id_enc',
+      row!.id,
+      row!.provider_response_id_enc,
+      z.unknown(),
+    ),
+  ).toEqual({ v: 1, id: 'SYNTHETIC_PRIVATE_RESPONSE_ID' });
+  await recover(f.client, supplied);
+  expect((await latest(f.client)).status.state).toBe('blocked');
+  expect(
+    await env.DB.prepare(
+      'SELECT provider_response_id_enc,input_tokens,output_tokens,cached_input_tokens FROM provider_dispatches',
+    ).first(),
+  ).toEqual({
+    provider_response_id_enc: null,
+    input_tokens: 20,
+    output_tokens: 30,
+    cached_input_tokens: 0,
+  });
+});
 
 // Faults stop a Worker at durable boundaries, without replacing transaction behavior.
 function failingDatabase(
@@ -100,11 +230,18 @@ function writer(
       return {
         kind: 'candidate',
         candidate,
-        returnedModel: 'synthetic-distinct-writer.v2',
-        providerResponseId: 'synthetic-response-id',
-        inputTokens: 23,
-        outputTokens: 71,
-        durationMs: 4,
+        receipt: providerReceipt({
+          responseId: 'synthetic-response-id',
+          returnedModel: 'synthetic-distinct-writer.v2',
+          durationMs: 4,
+          usage: {
+            inputTokens: 23,
+            outputTokens: 71,
+            cachedInputTokens: 0,
+            cacheWriteTokens: 0,
+            reasoningTokens: 0,
+          },
+        }),
       };
     },
   };
@@ -535,7 +672,10 @@ test('an exact attributed supplied quotation is preserved without asserting an u
   expect((await latest(f.client)).reading).toMatchObject({ mode: 'model' });
 });
 
-test.each([{ kind: 'refusal' } as const, { kind: 'rejected', status: 401 } as const])(
+test.each([
+  { kind: 'refusal', receipt: null } as const,
+  { kind: 'rejected', status: 401, receipt: null } as const,
+])(
   'a durable non-reading provider outcome %j cannot become a recovery template',
   async (outcome) => {
     const f = await setup(failingDatabase('after-outcome'), { write: async () => outcome });

@@ -1,38 +1,26 @@
-import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
 import { afterEach, beforeAll, expect, test, vi } from 'vitest';
-import { providerPolicyHash } from '../../src/domain/provider-policy.ts';
+import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
+import type { WritingProvider } from '../../src/contracts/index.ts';
 import { buildPlan } from '../../src/domain/tarot/plan.ts';
 import { projectWriterPayload } from '../../src/domain/tarot/render.ts';
-import type { WritingProvider } from '../../src/contracts/index.ts';
-import {
-  OpenAIWritingProvider,
-  type ProviderQualification,
-} from '../../src/worker/provider/openai.ts';
-import { syntheticPlanInput } from '../fixtures/canon.ts';
+import { OpenAIWritingProvider } from '../../src/worker/provider/openai.ts';
+import { OpenAIResponsesTransport } from '../../src/worker/provider/transport.ts';
+import { authenticateProviderQualification } from '../../src/worker/provider/qualification.ts';
+import { syntheticPlanInput, syntheticCandidate } from '../fixtures/canon.ts';
+import { qualificationFixture } from '../fixtures/provider.ts';
 
-let payload: Uint8Array;
+let payload: Uint8Array,
+  candidate: ReturnType<typeof syntheticCandidate>,
+  fixture: Awaited<ReturnType<typeof qualificationFixture>>;
+let artifact: Awaited<ReturnType<typeof authenticateProviderQualification>>;
 beforeAll(async () => {
-  qualification.policyHash = await providerPolicyHash(READING_PROVIDER_POLICY);
-  payload = await projectWriterPayload(
-    await buildPlan(await syntheticPlanInput()),
-    READING_PROVIDER_POLICY,
-  );
+  const plan = await buildPlan(await syntheticPlanInput());
+  payload = await projectWriterPayload(plan, READING_PROVIDER_POLICY);
+  candidate = syntheticCandidate(plan);
+  fixture = await qualificationFixture();
+  artifact = await authenticateProviderQualification(fixture.signed, fixture.options);
 });
 afterEach(() => vi.useRealTimers());
-const qualification: ProviderQualification = {
-  version: 'openai-responses.qualification.v1',
-  model: 'gpt-6.1-terra',
-  policyHash: 'a'.repeat(64),
-  expiresAt: '2099-01-01T00:00:00Z',
-  evidence: {
-    projectAccess: 'b'.repeat(64),
-    retention: 'c'.repeat(64),
-    editorial: 'd'.repeat(64),
-    corpus: 'e'.repeat(64),
-    tokenEstimator: 'f'.repeat(64),
-    pricing: '1'.repeat(64),
-  },
-};
 const input = (): Parameters<WritingProvider['write']>[0] => ({
   dispatchId: crypto.randomUUID(),
   model: 'gpt-6.1-terra',
@@ -47,13 +35,22 @@ const envelope = () => ({
   id: 'resp_synthetic_only',
   object: 'response',
   status: 'completed',
+  error: null,
   model: 'gpt-6.1-terra',
-  usage: { input_tokens: 31, output_tokens: 47, total_tokens: 78 },
+  service_tier: 'default',
+  usage: {
+    input_tokens: 1000,
+    input_tokens_details: { cached_tokens: 200, cache_write_tokens: 300 },
+    output_tokens: 100,
+    output_tokens_details: { reasoning_tokens: 0 },
+    total_tokens: 1100,
+  },
   output: [
     {
       type: 'message',
       role: 'assistant',
-      content: [{ type: 'output_text', text: JSON.stringify({ synthetic: 'candidate' }) }],
+      status: 'completed',
+      content: [{ type: 'output_text', text: JSON.stringify(candidate) }],
     },
   ],
 });
@@ -61,32 +58,60 @@ const options = (fetcher: typeof fetch) => ({
   enabled: true,
   apiKey: 'synthetic-test-only-key',
   fetch: fetcher,
-  qualification,
-  expectedPolicyHash: qualification.policyHash,
+  qualification: artifact,
+  expectedPolicyHash: fixture.expected.policyHash,
+  expectedContentHash: fixture.expected.contentHash,
+  projectId: fixture.options.projectId,
+  environmentId: fixture.options.environmentId,
 });
+const transport = (fetcher: typeof fetch) =>
+  new OpenAIResponsesTransport({
+    apiKey: 'synthetic-test-only-key',
+    fetch: fetcher,
+    policy: READING_PROVIDER_POLICY,
+  });
+const knownReceipt = {
+  responseId: 'resp_synthetic_only',
+  returnedModel: 'gpt-6.1-terra',
+  serviceTier: 'default',
+  usage: {
+    inputTokens: 1000,
+    cachedInputTokens: 200,
+    cacheWriteTokens: 300,
+    outputTokens: 100,
+    reasoningTokens: 0,
+  },
+};
 
-test('disabled and unqualified provider never enters its transport', async () => {
+test('disabled, unverified, expired, cross-target or evaluation authority never reaches application transport', async () => {
+  let calls = 0;
   const fetcher: typeof fetch = async () => {
-    throw new Error('Transport was reached');
+    calls++;
+    return Response.json(envelope());
   };
+  const expired = await qualificationFixture({ expiresAt: '2000-01-01T00:00:00Z' });
+  const evaluation = await qualificationFixture({ scope: 'evaluation' });
   for (const config of [
     {},
     { ...options(fetcher), enabled: false },
     { ...options(fetcher), qualification: undefined },
-    { ...options(fetcher), expectedPolicyHash: '2'.repeat(64) },
-    {
-      ...options(fetcher),
-      qualification: { ...qualification, policyHash: '3'.repeat(64) },
-      expectedPolicyHash: '3'.repeat(64),
-    },
-  ]) {
+    { ...options(fetcher), qualification: structuredClone(artifact) },
+    { ...options(fetcher), qualification: expired.signed },
+    { ...options(fetcher), qualification: evaluation.signed },
+    { ...options(fetcher), expectedPolicyHash: 'c'.repeat(64) },
+    { ...options(fetcher), expectedContentHash: 'c'.repeat(64) },
+    { ...options(fetcher), projectId: 'other' },
+    { ...options(fetcher), environmentId: 'other' },
+  ])
     expect(await new OpenAIWritingProvider(config).write(input())).toEqual({
       kind: 'rejected',
       status: 503,
+      receipt: null,
     });
-  }
+  expect(calls).toBe(0);
 });
-test('qualified injected transport sends exact persisted bytes once with redirects and storage disabled', async () => {
+
+test('qualified application call sends exact persisted bytes once with bounded policy and redirects rejected', async () => {
   let calls = 0;
   const supplied = input();
   const fetcher: typeof fetch = async (url, init) => {
@@ -97,20 +122,26 @@ test('qualified injected transport sends exact persisted bytes once with redirec
     expect(new Headers(init!.headers).get('authorization')).toBe('Bearer synthetic-test-only-key');
     return Response.json(envelope());
   };
-  expect(await new OpenAIWritingProvider(options(fetcher)).write(supplied)).toMatchObject({
-    kind: 'candidate',
-    candidate: { synthetic: 'candidate' },
-    returnedModel: 'gpt-6.1-terra',
-    providerResponseId: 'resp_synthetic_only',
-    inputTokens: 31,
-    outputTokens: 47,
-  });
+  const result = await new OpenAIWritingProvider(options(fetcher)).write(supplied);
+  expect(result).toMatchObject({ kind: 'candidate', candidate, receipt: knownReceipt });
+  expect(result.receipt!.durationMs).toBeGreaterThanOrEqual(0);
   expect(calls).toBe(1);
 });
-test('an unauthorized payload cannot add tools, prior response state, or enable storage', async () => {
-  const fetcher: typeof fetch = async () => {
-    throw new Error('Forbidden transport');
-  };
+
+test('transport can be shared without an application qualification', async () => {
+  expect(await transport(async () => Response.json(envelope())).write(input())).toMatchObject({
+    kind: 'candidate',
+    receipt: knownReceipt,
+  });
+});
+
+test('transport rejects tools, prior state, altered fixed prompts and unauthorized options without fetch', async () => {
+  let calls = 0;
+  const writer = transport(async () => {
+    calls++;
+    return Response.json(envelope());
+  });
+  const original = JSON.parse(new TextDecoder().decode(payload));
   for (const patch of [
     { tools: [] },
     { previous_response_id: 'private' },
@@ -119,52 +150,112 @@ test('an unauthorized payload cannot add tools, prior response state, or enable 
     { model: 'gpt-5.6-terra' },
     { service_tier: 'flex' },
     { prompt_cache_options: { mode: 'implicit', ttl: '12h' } },
+    { input: [{ role: 'system', content: 'Changed' }, ...original.input.slice(1)] },
   ]) {
     const supplied = input();
-    supplied.payload = new TextEncoder().encode(
-      JSON.stringify({ ...JSON.parse(new TextDecoder().decode(payload)), ...patch }),
-    );
-    expect(await new OpenAIWritingProvider(options(fetcher)).write(supplied)).toEqual({
-      kind: 'rejected',
-      status: 400,
+    supplied.payload = new TextEncoder().encode(JSON.stringify({ ...original, ...patch }));
+    expect(await writer.write(supplied)).toEqual({ kind: 'rejected', status: 400, receipt: null });
+  }
+  expect(calls).toBe(0);
+});
+
+test.each(['refusal', 'incomplete', 'malformed-json', 'malformed-schema', 'tool-output'])(
+  'preserves verified usage independently of unusable %s output',
+  async (kind) => {
+    const body: Record<string, unknown> = envelope();
+    if (kind === 'refusal')
+      body.output = [
+        {
+          type: 'message',
+          role: 'assistant',
+          content: [{ type: 'refusal', refusal: 'SYNTHETIC refusal' }],
+        },
+      ];
+    if (kind === 'incomplete') {
+      body.status = 'incomplete';
+      body.incomplete_details = { reason: 'max_output_tokens' };
+      body.output = [];
+    }
+    if (kind === 'malformed-json')
+      body.output = [
+        { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '{bad' }] },
+      ];
+    if (kind === 'malformed-schema')
+      body.output = [
+        { type: 'message', role: 'assistant', content: [{ type: 'output_text', text: '{}' }] },
+      ];
+    if (kind === 'tool-output')
+      body.output = [...envelope().output, { type: 'function_call', name: 'forbidden' }];
+    const result = await transport(async () => Response.json(body)).write(input());
+    expect(result).toMatchObject({
+      kind: kind === 'refusal' ? 'refusal' : 'invalid',
+      ...(kind === 'refusal' ? {} : { reason: kind === 'incomplete' ? 'incomplete' : 'malformed' }),
+      receipt: knownReceipt,
+    });
+  },
+);
+
+test.each([
+  'model',
+  'tier',
+  'missing-usage',
+  'cache-totals',
+  'reasoning-totals',
+  'total',
+  'missing-cache-write',
+])('a %s accounting/identity mismatch stops new application dispatch', async (kind) => {
+  const body: Record<string, unknown> = envelope();
+  if (kind === 'model') body.model = 'unexpected-model';
+  if (kind === 'tier') body.service_tier = 'flex';
+  if (kind === 'missing-usage') delete body.usage;
+  if (kind === 'cache-totals')
+    body.usage = {
+      ...envelope().usage,
+      input_tokens_details: { cached_tokens: 800, cache_write_tokens: 300 },
+    };
+  if (kind === 'reasoning-totals')
+    body.usage = { ...envelope().usage, output_tokens_details: { reasoning_tokens: 101 } };
+  if (kind === 'total') body.usage = { ...envelope().usage, total_tokens: 1 };
+  if (kind === 'missing-cache-write')
+    body.usage = { ...envelope().usage, input_tokens_details: { cached_tokens: 200 } };
+  let calls = 0;
+  const writer = new OpenAIWritingProvider(
+    options(async () => {
+      calls++;
+      return Response.json(body);
+    }),
+  );
+  const result = await writer.write(input());
+  expect(result).toMatchObject({
+    kind: 'uncertain',
+    reason: 'lost_response',
+    haltGeneration: true,
+  });
+  if (kind === 'model' || kind === 'tier') expect(result.receipt).not.toBeNull();
+  else expect(result.receipt).toBeNull();
+  expect(await writer.write(input())).toEqual({ kind: 'rejected', status: 503, receipt: null });
+  expect(calls).toBe(1);
+});
+
+test('a missing response ID remains null while known usage is retained', async () => {
+  const body: Record<string, unknown> = envelope();
+  delete body.id;
+  expect(await transport(async () => Response.json(body)).write(input())).toMatchObject({
+    kind: 'candidate',
+    receipt: { ...knownReceipt, responseId: null },
+  });
+});
+
+test('malformed and oversized response bodies never become candidates', async () => {
+  for (const response of [new Response('{bad'), new Response('x'.repeat(65537))]) {
+    expect(await transport(async () => response).write(input())).toMatchObject({
+      kind: 'uncertain',
+      receipt: null,
     });
   }
 });
-test('provider refusal is handled outside the model JSON schema', async () => {
-  const body = {
-    ...envelope(),
-    output: [
-      {
-        type: 'message',
-        role: 'assistant',
-        content: [{ type: 'refusal', refusal: 'Synthetic refusal' }],
-      },
-    ],
-  };
-  expect(
-    await new OpenAIWritingProvider(options(async () => Response.json(body))).write(input()),
-  ).toEqual({ kind: 'refusal' });
-});
-test.each(['incomplete', 'malformed', 'tool-output', 'usage-missing'] as const)(
-  'response %s remains unusable and is never retried',
-  async (kind) => {
-    let calls = 0;
-    const body: Record<string, unknown> = envelope();
-    if (kind === 'incomplete') body.status = 'incomplete';
-    if (kind === 'tool-output')
-      body.output = [...envelope().output, { type: 'function_call', name: 'forbidden' }];
-    if (kind === 'usage-missing') delete body.usage;
-    const result = await new OpenAIWritingProvider(
-      options(async () => {
-        calls++;
-        return kind === 'malformed' ? new Response('{bad') : Response.json(body);
-      }),
-    ).write(input());
-    expect(result).toEqual({ kind: 'uncertain', reason: 'lost_response' });
-    expect(calls).toBe(1);
-  },
-);
-test('bounded streaming reader cancels a response before accumulating oversized content', async () => {
+
+test('the response byte bound cancels an unbounded stream before accumulating more chunks', async () => {
   let chunks = 0,
     cancelled = false;
   const response = new Response(
@@ -178,52 +269,98 @@ test('bounded streaming reader cancels a response before accumulating oversized 
       },
     }),
   );
-  const result = await new OpenAIWritingProvider(options(async () => response)).write(input());
-  expect(result).toEqual({ kind: 'uncertain', reason: 'lost_response' });
+  expect(await transport(async () => response).write(input())).toMatchObject({
+    kind: 'uncertain',
+    receipt: null,
+  });
   expect(cancelled).toBe(true);
   expect(chunks).toBeLessThanOrEqual(3);
 });
-test('18-second timeout aborts a transport that ignores cancellation and never retries', async () => {
-  vi.useFakeTimers();
-  let calls = 0;
-  let signal: AbortSignal | undefined;
+
+test.each(['fetch', 'body'] as const)(
+  'the 18s deadline covers a stalled %s and removes timers',
+  async (stage) => {
+    vi.useFakeTimers();
+    let calls = 0,
+      enter!: () => void;
+    const entered = new Promise<void>((resolve) => {
+      enter = resolve;
+    });
+    let cancelled = false;
+    const writer = transport(async () => {
+      calls++;
+      if (stage === 'fetch') {
+        enter();
+        return new Promise<Response>(() => {});
+      }
+      return new Response(
+        new ReadableStream<Uint8Array>({
+          pull() {
+            enter();
+          },
+          cancel() {
+            cancelled = true;
+          },
+        }),
+      );
+    });
+    const promise = writer.write(input());
+    await entered;
+    await vi.advanceTimersByTimeAsync(18000);
+    expect(await promise).toEqual({ kind: 'uncertain', reason: 'timeout', receipt: null });
+    expect(calls).toBe(1);
+    expect(vi.getTimerCount()).toBe(0);
+    if (stage === 'body') expect(cancelled).toBe(true);
+  },
+);
+
+test('caller cancellation during body reading stops immediately with no retry', async () => {
   let enter!: () => void;
   const entered = new Promise<void>((resolve) => {
     enter = resolve;
   });
-  const promise = new OpenAIWritingProvider(
-    options(async (_url, init) => {
-      calls++;
-      signal = init?.signal ?? undefined;
-      enter();
-      return new Promise<Response>(() => {});
-    }),
-  ).write(input());
+  const abort = new AbortController();
+  const promise = transport(
+    async () =>
+      new Response(
+        new ReadableStream<Uint8Array>({
+          pull() {
+            enter();
+          },
+        }),
+      ),
+  ).write({ ...input(), signal: abort.signal });
   await entered;
-  await vi.advanceTimersByTimeAsync(18000);
-  expect(await promise).toEqual({ kind: 'uncertain', reason: 'timeout' });
-  expect(signal?.aborted).toBe(true);
-  expect(calls).toBe(1);
-  expect(vi.getTimerCount()).toBe(0);
+  abort.abort();
+  expect(await promise).toEqual({ kind: 'uncertain', reason: 'network', receipt: null });
 });
-test('provider errors and network loss never cause automatic retry', async () => {
-  for (const status of [401, 429, 503]) {
+
+test('provider errors and network loss retain explicit unknown receipts and never retry', async () => {
+  for (const status of [401, 429, 503] as const) {
     let calls = 0;
     expect(
-      await new OpenAIWritingProvider(
-        options(async () => {
-          calls++;
-          return new Response(null, { status });
-        }),
-      ).write(input()),
-    ).toEqual({ kind: 'rejected', status });
+      await transport(async () => {
+        calls++;
+        return new Response(null, { status });
+      }).write(input()),
+    ).toEqual({ kind: 'rejected', status, receipt: null });
     expect(calls).toBe(1);
   }
   expect(
-    await new OpenAIWritingProvider(
-      options(async () => {
-        throw new TypeError('Synthetic network failure');
-      }),
+    await transport(async () => {
+      throw new TypeError('SYNTHETIC network error');
+    }).write(input()),
+  ).toEqual({ kind: 'uncertain', reason: 'network', receipt: null });
+});
+
+test('an error response cannot bypass a verified service-tier drift', async () => {
+  expect(
+    await transport(async () =>
+      Response.json({ ...envelope(), service_tier: 'flex' }, { status: 503 }),
     ).write(input()),
-  ).toEqual({ kind: 'uncertain', reason: 'network' });
+  ).toMatchObject({
+    kind: 'uncertain',
+    haltGeneration: true,
+    receipt: { ...knownReceipt, serviceTier: 'flex' },
+  });
 });
