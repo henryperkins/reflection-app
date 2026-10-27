@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, Id } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
+import { Art } from './art.tsx';
+import { Icon } from './icon.tsx';
 
 type Status = z.infer<typeof apiSchemas.RequestStatus>;
 type View = z.infer<typeof apiSchemas.SessionView>;
@@ -253,41 +255,72 @@ export function RequestProgress(props: {
       window.removeEventListener('popstate', navigate);
     };
   }, []);
+  // Presentation follows the same precedence as the existing status copy.
+  const indicator = notice
+    ? notice.startsWith('Connection lost') || notice.startsWith('This request has not been found')
+      ? 'cloud-off'
+      : 'warning'
+    : status?.state === 'published'
+      ? 'check'
+      : status?.state === 'cancelled' ||
+          status?.state === 'expired' ||
+          status?.errorCode === 'CONSENT_REQUIRED'
+        ? 'prohibited'
+        : status &&
+            (status.state === 'failed' ||
+              status.state === 'blocked' ||
+              ['PROVIDER_REFUSAL', 'PROVIDER_UNCERTAIN', 'PROVIDER_UNAVAILABLE'].includes(
+                status.errorCode ?? '',
+              ))
+          ? 'warning'
+          : null;
   return (
-    <section aria-label="Reading request">
-      <h2>Reading progress</h2>
-      <p role="status" aria-live="polite" aria-atomic="true">
-        {notice || description(status)}
-      </p>
-      <p className="muted">
-        Only the accepted reading is shown. Reconnecting checks this request without starting
-        another reading.
-      </p>
-      {status && !terminal(status) && (
-        <button
-          type="button"
-          className="secondary"
-          disabled={cancelling}
-          onClick={() => actions.current.cancel()}
+    <section className="card request-progress" aria-label="Reading request">
+      <Art name="progress-strip" className="progress-art" />
+      <div className="progress-content">
+        <h2 className="title-section">Reading progress</h2>
+        <p
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+          className={`progress-status status-${indicator ?? 'working'}`}
         >
-          Cancel reading
-        </button>
-      )}
-      {notice && (
-        <button type="button" className="secondary" onClick={() => actions.current.check()}>
-          Check request again
-        </button>
-      )}
-      {canRetry && (
-        <button type="button" onClick={() => actions.current.retry()}>
-          Retry the same Start
-        </button>
-      )}
-      {status?.state === 'published' && (
-        <button type="button" onClick={() => latest.current.onAccepted(status.sessionId, true)}>
-          Open reading
-        </button>
-      )}
+          {indicator ? <Icon name={indicator} /> : <span className="spinner" aria-hidden="true" />}
+          <span>{notice || description(status)}</span>
+        </p>
+        <p className="muted">
+          Only the accepted reading is shown. Reconnecting checks this request without starting
+          another reading.
+        </p>
+        <div className="actions progress-actions">
+          {status?.state === 'published' && (
+            <button type="button" onClick={() => latest.current.onAccepted(status.sessionId, true)}>
+              Open reading
+            </button>
+          )}
+          {canRetry && (
+            <button type="button" onClick={() => actions.current.retry()}>
+              Retry the same Start
+            </button>
+          )}
+          {notice && (
+            <button type="button" className="secondary" onClick={() => actions.current.check()}>
+              <Icon name="sync" />
+              Check request again
+            </button>
+          )}
+          {status && !terminal(status) && (
+            <button
+              type="button"
+              className="secondary"
+              disabled={cancelling}
+              onClick={() => actions.current.cancel()}
+            >
+              Cancel reading
+            </button>
+          )}
+        </div>
+      </div>
     </section>
   );
 }

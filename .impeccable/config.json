@@ -1,0 +1,18 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          ".superpowers/worktrees/design-restyle/src/client/style.css",
+          "src/client/style.css"
+        ],
+        "createdAt": "2026-10-27T08:17:24.138Z",
+        "reason": "Agent: the supplied design-handoff/README.md:208 explicitly requires the reflection blockquote to have a 3 px primary rule on the left; design-handoff/source/Account.dc.html:422 specifies this exact border. Preserve the requested design in the main stylesheet and its worktree copy."
+      }
+    ]
+  }
+}

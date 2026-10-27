@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas } from '../contracts/index.ts';
 import { date } from './date.ts';
+import { Art } from './art.tsx';
+import { Icon } from './icon.tsx';
+import { Notice } from './notice.tsx';
 
 export type DeletionProof = z.infer<typeof apiSchemas.DeleteRequest>;
 type Status = z.infer<typeof apiSchemas.DeletionStatus>;
@@ -74,36 +77,46 @@ export function DeletionReceiptPanel({
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
   return (
-    <section className="notice" aria-label="Deletion receipt">
-      <h2>Deletion receipt</h2>
-      <p role="status">
-        {status?.state === 'complete'
-          ? 'Active-store deletion complete.'
-          : status
-            ? 'Deletion is pending. Access is blocked while it completes.'
-            : 'Deletion has not been confirmed. Check the receipt status.'}
-      </p>
-      {status?.backupExpiresBy && (
-        <p>
-          Backup retention deadline: {date(status.backupExpiresBy)}. Downloaded copies are
-          unchanged.
+    <section className="card receipt-card" aria-label="Deletion receipt">
+      <Art name="study-tension" className="receipt-art" />
+      <div className="receipt-content">
+        <h2>Deletion receipt</h2>
+        <p
+          role="status"
+          className={`receipt-status ${status?.state === 'complete' ? 'complete' : ''}`}
+        >
+          <Icon name={status?.state === 'complete' ? 'check' : status ? 'clock' : 'info'} />
+          <span>
+            {status?.state === 'complete'
+              ? 'Active-store deletion complete.'
+              : status
+                ? 'Deletion is pending. Access is blocked while it completes.'
+                : 'Deletion has not been confirmed. Check the receipt status.'}
+          </span>
         </p>
-      )}
-      <p>
-        This receipt can check deletion status after sign-out. It stays only in memory unless you
-        download it.
-      </p>
-      {message && <p role="alert">{message}</p>}
-      <div className="actions">
-        <button type="button" onClick={() => void check()} disabled={busy}>
-          Check deletion status
-        </button>
-        <button type="button" className="secondary" onClick={download}>
-          Download deletion receipt
-        </button>
-        <button type="button" className="text-button" onClick={onDismiss}>
-          Dismiss receipt
-        </button>
+        {status?.backupExpiresBy && (
+          <p>
+            Backup retention deadline: {date(status.backupExpiresBy)}. Downloaded copies are
+            unchanged.
+          </p>
+        )}
+        <p className="muted">
+          This receipt can check deletion status after sign-out. It stays only in memory unless you
+          download it.
+        </p>
+        <Notice message={message ? { text: message, tone: 'error' } : null} />
+        <div className="actions">
+          <button type="button" onClick={() => void check()} disabled={busy}>
+            Check deletion status
+          </button>
+          <button type="button" className="secondary" onClick={download}>
+            <Icon name="download" />
+            Download deletion receipt
+          </button>
+          <button type="button" className="text-button" onClick={onDismiss}>
+            Dismiss receipt
+          </button>
+        </div>
       </div>
     </section>
   );
