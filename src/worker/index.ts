@@ -29,14 +29,19 @@ export function createWorker(factory?: GenerationFactory) {
     c.json({
       status: 'ok',
       milestone: 1,
-      mode: factory && c.env.READING_MODE === 'live-local' ? 'live-local' : 'synthetic-only',
-      ...(factory && c.env.READING_MODE === 'live-local' ? { provider: 'openai' } : {}),
+      mode:
+        factory && ['live-local', 'live-preview'].includes(c.env.READING_MODE ?? '')
+          ? c.env.READING_MODE
+          : 'synthetic-only',
+      ...(factory && ['live-local', 'live-preview'].includes(c.env.READING_MODE ?? '')
+        ? { provider: 'openai' }
+        : {}),
     }),
   );
   app.all('/api/v1/*', async (c, next) => {
     if (
       c.env.RESTORE_MODE === 'offline' ||
-      (['synthetic-local', 'live-local'].includes(c.env.IDENTITY_MODE ?? '') &&
+      (['synthetic-local', 'live-local', 'live-preview'].includes(c.env.IDENTITY_MODE ?? '') &&
         (await c.env.DB.prepare(
           'SELECT restore_in_progress FROM system_state WHERE id=1',
         ).first<number>('restore_in_progress')))
@@ -80,7 +85,7 @@ export function createWorker(factory?: GenerationFactory) {
     async scheduled(_controller, env, _ctx) {
       if (
         env.RESTORE_MODE === 'offline' ||
-        (['synthetic-local', 'live-local'].includes(env.IDENTITY_MODE ?? '') &&
+        (['synthetic-local', 'live-local', 'live-preview'].includes(env.IDENTITY_MODE ?? '') &&
           (await env.DB.prepare(
             'SELECT restore_in_progress FROM system_state WHERE id=1',
           ).first<number>('restore_in_progress')))
@@ -91,7 +96,9 @@ export function createWorker(factory?: GenerationFactory) {
         await identity?.maintenance();
         if (
           identity &&
-          ['synthetic-local', 'qualified', 'live-local'].includes(env.READING_MODE ?? '') &&
+          ['synthetic-local', 'qualified', 'live-local', 'live-preview'].includes(
+            env.READING_MODE ?? '',
+          ) &&
           env.RECOVERY
         ) {
           const base = new RecordBase(env.DB, identity);

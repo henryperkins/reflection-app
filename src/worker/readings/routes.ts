@@ -74,7 +74,10 @@ export async function readingRoute(
   defer?: (work: Promise<void>) => void,
   factory?: GenerationFactory,
 ): Promise<Response | null> {
-  if (!['synthetic-local', 'qualified', 'live-local'].includes(env.READING_MODE ?? '')) return null;
+  if (
+    !['synthetic-local', 'qualified', 'live-local', 'live-preview'].includes(env.READING_MODE ?? '')
+  )
+    return null;
   const url = new URL(request.url),
     path = url.pathname.replace('/api/v1', ''),
     method = request.method;

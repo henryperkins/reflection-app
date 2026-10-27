@@ -31,7 +31,7 @@ export function IdentityApp() {
       .then((response) => response.json())
       .then((runtime) => {
         if (typeof runtime === 'object' && runtime !== null && 'mode' in runtime) {
-          if (runtime.mode === 'live-local') setLive(true);
+          if (runtime.mode === 'live-local' || runtime.mode === 'live-preview') setLive(true);
           if (runtime.mode === 'synthetic-only') setLive(false);
         }
       })
@@ -252,7 +252,7 @@ export function IdentityApp() {
         <a className="brand" href="/">
           Reflection
         </a>
-        <span className="test-label">Local test build</span>
+        <span className="test-label">Development build</span>
       </header>
       <p className="eyebrow">A private space for reflection</p>
       <h1 ref={heading} tabIndex={-1}>

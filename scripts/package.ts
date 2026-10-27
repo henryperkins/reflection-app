@@ -26,6 +26,7 @@ const rootFiles = new Set([
   'wrangler.jsonc',
   'wrangler.identity.jsonc',
   'wrangler.live.jsonc',
+  'wrangler.preview.jsonc',
 ]);
 const excluded = new Set([
   '.git',

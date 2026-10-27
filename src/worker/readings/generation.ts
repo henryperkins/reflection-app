@@ -57,7 +57,7 @@ export type GenerationDependencies = DependencyBase &
     | {
         policy: typeof LOCAL_LIVE_READING_POLICY;
         writer: WritingProvider;
-        authorization: { kind: 'live-local' };
+        authorization: { kind: 'live-local' | 'live-preview' };
       }
     | {
         policy: typeof READING_V2_EVALUATION_POLICY;
@@ -77,7 +77,7 @@ export class ReadingGeneration extends RequestState {
     return this.dependencies.authorization.kind === 'synthetic-local';
   }
   private get development() {
-    return this.dependencies.authorization.kind === 'live-local';
+    return ['live-local', 'live-preview'].includes(this.dependencies.authorization.kind);
   }
   private async policyHash() {
     const auth = this.dependencies.authorization;

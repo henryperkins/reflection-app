@@ -35,10 +35,10 @@ export class ReadingClient {
     } = {},
   ) {
     const response = await this.handler.fetch(
-      new Request(`${IDENTITY_ORIGIN}/api/v1${path}`, {
+      new Request(`${this.bindings.IDENTITY_ORIGIN ?? IDENTITY_ORIGIN}/api/v1${path}`, {
         method: options.method ?? (body === undefined ? 'GET' : 'POST'),
         headers: {
-          Origin: IDENTITY_ORIGIN,
+          Origin: this.bindings.IDENTITY_ORIGIN ?? IDENTITY_ORIGIN,
           'Content-Type': 'application/json',
           Cookie: [...this.cookies].map(([k, v]) => `${k}=${v}`).join('; '),
           'X-CSRF-Token': this.csrf,
@@ -117,7 +117,7 @@ export async function readingAccount(ack = true, allowed = true, client = new Re
   );
   const reply = await client.request('/auth/register', {
     challengeId: options.challengeId,
-    credential: await passkey.register(options),
+    credential: await passkey.register(options, client.bindings.IDENTITY_ORIGIN),
   });
   expect(reply.status).toBe(200);
   const kit = AuthResult.parse(await reply.json());

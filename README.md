@@ -1,6 +1,20 @@
-# Reflection local application
+# Reflection development app
 
 The development app supports live OpenAI readings, local identity/recovery and saved-reading return workflows. Save without a reflection, sign back in to dated history, recover in a fresh browser, and reopen identical content. History, reflection editing, export and session deletion work with AI permission off.
+
+## Hosted development preview
+
+**https://reflection-preview.lfd.workers.dev**
+
+Create an account, keep the recovery kit, and enable AI readings. The preview uses
+GPT-6.1 Terra with fast service and xhigh reasoning. Its accounts and saved readings
+use a separate Cloudflare D1 database and recovery bucket from the local app.
+
+The deployment is configured in `wrangler.preview.jsonc`. With Wrangler authenticated
+to the configured account, redeploy using `npm run deploy:preview`. Server secrets
+are already installed and retained across deployments. The minute-by-minute maintenance
+schedule handles unfinished work and retention. Start keeps its HTTP request open
+while generating so longer readings can finish within the provider deadline.
 
 ## Live development app
 
@@ -39,7 +53,7 @@ The [local delivery guide](docs/LOCAL_DELIVERY.md) explains the runnable ZIP and
 
 Implementation evidence: [Milestone 1 baseline](docs/MILESTONE_1_RESULTS.md) and [local identity/recovery results](docs/IDENTITY_RECOVERY_RESULTS.md), plus [saved-reading return results](docs/SAVED_READING_RESULTS.md). The architecture baseline remains [`278d5fd`](https://github.com/henryperkins/reflection-architecture/commit/278d5fdb1636225887220368fbef52dc0d7ab889).
 
-The [local privacy and restore slice](docs/PRIVACY_RESTORE_RESULTS.md) adds account/exact-reflection-revision deletion and synthetic offline replay of erasures and identity checkpoints. See the [local restore runbook](docs/LOCAL_RESTORE_RUNBOOK.md); hosted restore and deployment remain disabled/unqualified.
+The [local privacy and restore slice](docs/PRIVACY_RESTORE_RESULTS.md) adds account/exact-reflection-revision deletion and synthetic offline replay of erasures and identity checkpoints. See the [local restore runbook](docs/LOCAL_RESTORE_RUNBOOK.md); hosted restore remains unqualified.
 
 The [local retention and cleanup slice](docs/RETENTION_CLEANUP_RESULTS.md) adds transactional storage accounting, bounded expiry and offline recovery-record purge with a verified new backup boundary. See the [cleanup runbook](docs/LOCAL_CLEANUP_RUNBOOK.md) and [remaining Milestone 2 acceptance](docs/MILESTONE_2_ACCEPTANCE.md).
 
@@ -74,7 +88,7 @@ Run `npm run dev:identity` and open **http://localhost:8787** for the account an
 
 The browser test starts its own loopback Worker, applies migrations to a temporary local database, uses Chromium virtual authenticators, then disposes the temporary storage. The development command keeps its local data under `.wrangler/identity-development` and invokes local scheduled maintenance at startup and once per minute. `npm run dev` alone starts the frontend without an identity backend.
 
-Wrangler configuration contains no remote database ID or deployment route. `release --check` reports outstanding qualifications and always returns `deploymentAllowed: false`. The publication prototype remains an internal synthetic test harness. Separately, the application UI already routes Start reading through `LocalGeneration` with an intercepted synthetic writer. The local create/save/return/reflect journey is covered by browser tests; this does not qualify a live-provider generation service. The [current application inventory](docs/MILESTONE_2_ACCEPTANCE.md#current-application-inventory) separates verified local flows from the remaining product and launch gates.
+The default and identity Wrangler configurations remain local-only; `wrangler.preview.jsonc` deploys the hosted development preview above. `release --check` reports outstanding production qualifications and returns `deploymentAllowed: false`; it does not control development preview deployment. The synthetic commands use an intercepted writer, while `dev:live` and the hosted preview call OpenAI. The local create/save/return/reflect journey is covered by browser tests. The [current application inventory](docs/MILESTONE_2_ACCEPTANCE.md#current-application-inventory) separates verified local flows from the remaining product and launch gates.
 
 ## Source ownership
 

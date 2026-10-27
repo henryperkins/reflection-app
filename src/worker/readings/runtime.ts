@@ -9,11 +9,11 @@ export function generationService(
   mode: string | undefined,
   factory?: GenerationFactory,
 ) {
-  if (mode === 'qualified' || mode === 'live-local') {
+  if (mode === 'qualified' || mode === 'live-local' || mode === 'live-preview') {
     const dependencies = factory?.(base);
     if (
       !dependencies ||
-      dependencies.authorization.kind !== (mode === 'qualified' ? 'application' : 'live-local')
+      dependencies.authorization.kind !== (mode === 'qualified' ? 'application' : mode)
     )
       return null;
     return new ReadingGeneration(base, dependencies);

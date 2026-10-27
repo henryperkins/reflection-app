@@ -18,12 +18,15 @@ export interface LocalLiveEnv extends Env {
   OPENAI_PROJECT_ID?: string;
 }
 
-function localConfiguration(env: LocalLiveEnv) {
+type DevelopmentMode = 'live-local' | 'live-preview';
+function localConfiguration(env: LocalLiveEnv, mode: DevelopmentMode) {
   const origin = new URL(env.IDENTITY_ORIGIN ?? 'https://unconfigured.invalid');
   if (
-    env.READING_MODE !== 'live-local' ||
-    env.IDENTITY_MODE !== 'live-local' ||
-    origin.hostname !== 'localhost' ||
+    env.READING_MODE !== mode ||
+    env.IDENTITY_MODE !== mode ||
+    (mode === 'live-local'
+      ? origin.hostname !== 'localhost'
+      : origin.protocol !== 'https:' || origin.hostname === 'localhost') ||
     origin.origin !== env.IDENTITY_ORIGIN ||
     !['http:', 'https:'].includes(origin.protocol)
   )
@@ -92,16 +95,17 @@ function dependencies(
   base: RecordBase,
   env: LocalLiveEnv,
   fetcher: typeof fetch,
+  mode: DevelopmentMode,
 ): GenerationDependencies {
   const ensureReady = async () => {
-    localConfiguration(env);
+    localConfiguration(env, mode);
     if (!env.OPENAI_API_KEY?.trim() || !/^proj_[\w-]+$/.test(env.OPENAI_PROJECT_ID ?? ''))
       throw new Error('Provider unavailable');
   };
   return {
     policy,
     content: new DevelopmentContent(base.db),
-    authorization: { kind: 'live-local' },
+    authorization: { kind: mode },
     ensureReady,
     writer: {
       async write(input) {
@@ -121,28 +125,40 @@ function dependencies(
 }
 
 /** Separate entry point: the default Worker and synthetic test command cannot enable egress. */
-export function createLocalLiveWorker(fetcher: typeof fetch = fetch) {
+function createDevelopmentWorker(mode: DevelopmentMode, fetcher: typeof fetch) {
   return {
     async fetch(request: Request, env: LocalLiveEnv, ctx?: ExecutionContext) {
       try {
-        localConfiguration(env);
+        localConfiguration(env, mode);
         if (new URL(request.url).origin !== env.IDENTITY_ORIGIN)
           return new Response('Local origin required', { status: 403 });
         await install(env.DB);
       } catch {
         return Response.json({ error: 'Local live app unavailable' }, { status: 503 });
       }
-      return createWorker((base) => dependencies(base, env, fetcher)).fetch(request, env, ctx);
+      // Hosted fast/xhigh can exceed the post-response waitUntil lifetime. Keep
+      // Start's HTTP request open until completion; durable recovery still applies.
+      return createWorker((base) => dependencies(base, env, fetcher, mode)).fetch(
+        request,
+        env,
+        mode === 'live-preview' ? undefined : ctx,
+      );
     },
     async scheduled(controller: ScheduledController, env: LocalLiveEnv, ctx: ExecutionContext) {
-      localConfiguration(env);
+      localConfiguration(env, mode);
       await install(env.DB);
-      return createWorker((base) => dependencies(base, env, fetcher)).scheduled(
+      return createWorker((base) => dependencies(base, env, fetcher, mode)).scheduled(
         controller,
         env,
         ctx,
       );
     },
   };
+}
+export function createLocalLiveWorker(fetcher: typeof fetch = fetch) {
+  return createDevelopmentWorker('live-local', fetcher);
+}
+export function createHostedPreviewWorker(fetcher: typeof fetch = fetch) {
+  return createDevelopmentWorker('live-preview', fetcher);
 }
 export default createLocalLiveWorker();

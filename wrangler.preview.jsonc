@@ -1,0 +1,31 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "reflection-preview",
+  "account_id": "a77e479f6736120eadd99973dbeb705e",
+  "main": "src/worker/hosted-preview.ts",
+  "compatibility_date": "2026-10-23",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist/client",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "IDENTITY_MODE": "live-preview",
+    "READING_MODE": "live-preview",
+    "IDENTITY_ORIGIN": "https://reflection-preview.lfd.workers.dev"
+  },
+  "d1_databases": [{
+    "binding": "DB",
+    "database_name": "reflection-preview",
+    "database_id": "9c8f40ce-b602-4946-bce0-19ddbbdf403f",
+    "migrations_dir": "src/worker/db/migrations"
+  }],
+  "r2_buckets": [{"binding":"RECOVERY", "bucket_name":"reflection-preview-recovery"}],
+  "triggers": {"crons":["* * * * *"]},
+  "observability": {"enabled":false},
+  "send_metrics": false
+}

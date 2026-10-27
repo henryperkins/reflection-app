@@ -1,7 +1,7 @@
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
-import { createLocalLiveWorker } from '../../src/worker/local-live.ts';
+import { createLocalLiveWorker, createHostedPreviewWorker } from '../../src/worker/local-live.ts';
 import { apiSchemas, AcceptedReadingV2 } from '../../src/contracts/index.ts';
 import { clearDatabase } from '../fixtures/database.ts';
 import { ReadingClient, readingAccount, readingBindings } from '../fixtures/reading-client.ts';
@@ -17,18 +17,23 @@ import { providerPolicyHash } from '../../src/domain/provider-policy.ts';
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
 beforeEach(() => clearDatabase(env.DB));
 
-async function setup() {
+async function setup(mode: 'live-local' | 'live-preview' = 'live-local') {
   const bindings = {
     ...readingBindings,
-    IDENTITY_MODE: 'live-local',
-    IDENTITY_SECRETS: JSON.stringify({ ...IDENTITY_SECRETS, environment: 'live-local' }),
-    READING_MODE: 'live-local',
+    IDENTITY_MODE: mode as string,
+    IDENTITY_ORIGIN:
+      mode === 'live-preview'
+        ? 'https://reflection-preview.example.com'
+        : readingBindings.IDENTITY_ORIGIN!,
+    IDENTITY_SECRETS: JSON.stringify({ ...IDENTITY_SECRETS, environment: mode }),
+    READING_MODE: mode as string,
     OPENAI_API_KEY: 'synthetic-test-key',
     OPENAI_PROJECT_ID: 'proj_synthetic',
   };
   let calls = 0;
   let beforeReturn = async () => {};
-  const worker = createLocalLiveWorker(async (url, init) => {
+  const factory = mode === 'live-preview' ? createHostedPreviewWorker : createLocalLiveWorker;
+  const worker = factory(async (url, init) => {
     // Exercise workerd's Request validation as well as the response adapter.
     const request = new Request(url, init);
     calls++;
@@ -59,58 +64,98 @@ async function setup() {
       ],
     });
   });
-  const client = new ReadingClient(bindings, worker);
+  let deferred = 0;
+  const client = new ReadingClient(bindings, {
+    fetch: (request, env) =>
+      worker.fetch(
+        request,
+        env,
+        mode === 'live-preview'
+          ? ({
+              waitUntil: () => {
+                deferred++;
+              },
+            } as unknown as ExecutionContext)
+          : undefined,
+      ),
+  });
   await readingAccount(true, true, client);
   return {
     bindings,
     worker,
     client,
     calls: () => calls,
+    deferred: () => deferred,
     beforeReturn: (f: () => Promise<void>) => {
       beforeReturn = f;
     },
   };
 }
 
-test('local live Start uses the provider and saves exact output without manufacturing content approval', async () => {
-  const f = await setup();
-  const created = await f.client.create('My work is manageable. How can I compare formats?');
-  const reading = AcceptedReadingV2.parse(created.reading);
-  expect(reading.mode).toBe('model');
-  expect(reading.provenance.provider).toBe('openai');
-  expect(reading.provenance.returnedModel).toBe('gpt-6.1-terra');
-  expect(reading.kind === 'tarot.accepted.v2' && reading.contextReceipt?.diagnosticOnly).toBe(true);
-  expect(
-    await env.DB.prepare(
-      'SELECT state,reviewer_kind,rights_status,approval_json FROM content_editions',
-    ).first(),
-  ).toEqual({
-    state: 'staged',
-    reviewer_kind: 'agent_reviewed',
-    rights_status: 'unknown',
-    approval_json: null,
-  });
-  expect(f.calls()).toBe(1);
-  expect(
-    (
-      await f.client.request(
-        `/sessions/${reading.sessionId}/save`,
-        { saved: true },
-        { method: 'PUT', revision: 1 },
-      )
-    ).status,
-  ).toBe(200);
-  f.bindings.OPENAI_API_KEY = '';
-  await f.client.permission(false);
-  expect(await (await f.client.request(`/readings/${reading.editionId}`)).json()).toEqual(reading);
-  const ticket = apiSchemas.ExportTicket.parse(
-    await (await f.client.request('/exports', {})).json(),
+test.each(['live-local', 'live-preview'] as const)(
+  '%s Start uses the provider and saves exact output',
+  async (mode) => {
+    const f = await setup(mode);
+    const created = await f.client.create('My work is manageable. How can I compare formats?');
+    const reading = AcceptedReadingV2.parse(created.reading);
+    expect(reading.mode).toBe('model');
+    expect(reading.provenance.provider).toBe('openai');
+    expect(reading.provenance.returnedModel).toBe('gpt-6.1-terra');
+    expect(reading.kind === 'tarot.accepted.v2' && reading.contextReceipt?.diagnosticOnly).toBe(
+      true,
+    );
+    expect(
+      await env.DB.prepare(
+        'SELECT state,reviewer_kind,rights_status,approval_json FROM content_editions',
+      ).first(),
+    ).toEqual({
+      state: 'staged',
+      reviewer_kind: 'agent_reviewed',
+      rights_status: 'unknown',
+      approval_json: null,
+    });
+    expect(f.calls()).toBe(1);
+    expect(f.deferred()).toBe(0);
+    expect(
+      (
+        await f.client.request(
+          `/sessions/${reading.sessionId}/save`,
+          { saved: true },
+          { method: 'PUT', revision: 1 },
+        )
+      ).status,
+    ).toBe(200);
+    f.bindings.OPENAI_API_KEY = '';
+    await f.client.permission(false);
+    expect(await (await f.client.request(`/readings/${reading.editionId}`)).json()).toEqual(
+      reading,
+    );
+    const ticket = apiSchemas.ExportTicket.parse(
+      await (await f.client.request('/exports', {})).json(),
+    );
+    const exported = apiSchemas.ExportPage.parse(
+      await (await f.client.request(`/exports/${ticket.id}`)).json(),
+    );
+    expect(exported.records.some((r) => r.kind === 'generation_receipt')).toBe(true);
+    expect(f.calls()).toBe(1);
+  },
+);
+
+test('hosted preview requires HTTPS and its configured origin', async () => {
+  const f = await setup('live-preview');
+  const health = await f.worker.fetch(
+    new Request(`${f.bindings.IDENTITY_ORIGIN}/health`),
+    f.bindings,
   );
-  const exported = apiSchemas.ExportPage.parse(
-    await (await f.client.request(`/exports/${ticket.id}`)).json(),
-  );
-  expect(exported.records.some((r) => r.kind === 'generation_receipt')).toBe(true);
-  expect(f.calls()).toBe(1);
+  expect(await health.json()).toMatchObject({ mode: 'live-preview', provider: 'openai' });
+  expect(
+    (await f.worker.fetch(new Request('https://unrelated.example.com/health'), f.bindings)).status,
+  ).toBe(403);
+  f.bindings.IDENTITY_ORIGIN = 'http://reflection-preview.example.com';
+  expect(
+    (await f.worker.fetch(new Request(`${f.bindings.IDENTITY_ORIGIN}/health`), f.bindings)).status,
+  ).toBe(503);
+  expect(f.calls()).toBe(0);
 });
 
 test.each(['key', 'disabled', 'content-edit', 'wrong-origin', 'qualified-mode'])(
