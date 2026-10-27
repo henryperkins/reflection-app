@@ -129,3 +129,19 @@ was designed for short reflections. A 500–700-word reading target needs a sepa
 versioned evaluation prompt/schema with room for synthesis and a practical method, while
 preserving stored v1 readings. Require enough reviewed source material before filling
 that space. No padding requirement or claim that length alone establishes quality applies.
+
+## Controlled uncertainty-prompt comparison
+
+The next authorized diagnostic holds the six revised source passages fixed in both arms
+and compares the original developer prompt with `tarot-writer-uncertainty.v1`. The new
+instruction requires conditions to survive locally through questions, advice, synthesis
+and closing. It allows a problem to be absent, preserves facts explicitly supplied by
+the reader, and avoids requiring extra hedges on general source statements.
+
+Use A07-2 and A08-1 with three fresh repetitions per prompt: 12 calls. Keep the system
+instruction, question, sources, draws, schema, model and fast/xhigh settings identical.
+Alternate arms within case/repeat, freeze both prompt policy hashes, and retain the shared
+$1.44 limit and no-retry rule. A revised prompt is an evaluation candidate; it does not
+replace the application prompt or confer approval on the outputs. Review every output
+against the exact inputs, including useful content that might be lost through excessive
+hedging. Report semantic findings separately from mechanical passes.

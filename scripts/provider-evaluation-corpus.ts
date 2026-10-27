@@ -6,6 +6,7 @@ import type { PreparedPlan, WritingProvider } from '../src/contracts/index.ts';
 import {
   FAST_XHIGH_EVALUATION_POLICY,
   READING_PROVIDER_POLICY,
+  UNCERTAINTY_EVALUATION_POLICY,
   type WriterProviderPolicy,
 } from '../src/contracts/provider-policy.ts';
 import { providerPolicyHash } from '../src/domain/provider-policy.ts';
@@ -50,7 +51,14 @@ export type EvaluationManifest = {
     | 'smoke'
     | 'human-review'
     | 'human-review-fast-xhigh'
-    | 'source-diagnostic-fast-xhigh';
+    | 'source-diagnostic-fast-xhigh'
+    | 'prompt-comparison-fast-xhigh';
+  promptComparison?: {
+    parentManifestHash: string;
+    oldPolicyHash: string;
+    revisedPolicyHash: string;
+    order: 'alternating-within-case-and-repeat';
+  };
   sourceDiagnostic?: {
     sourceBundleHash: string;
     parentManifestHash: string;
@@ -100,6 +108,7 @@ export async function prepareEvaluation(
   sourceBundle?: unknown,
 ): Promise<PreparedEvaluation> {
   if (profile === 'source-diagnostic-fast-xhigh') return prepareSourceDiagnostic(sourceBundle);
+  if (profile === 'prompt-comparison-fast-xhigh') return preparePromptComparison(sourceBundle);
   if (sourceBundle !== undefined) throw new Error('Source bundle requires a diagnostic profile');
   const policy =
     profile === 'human-review-fast-xhigh' ? FAST_XHIGH_EVALUATION_POLICY : READING_PROVIDER_POLICY;
@@ -359,4 +368,73 @@ async function prepareSourceDiagnostic(value: unknown): Promise<PreparedEvaluati
     manifestHash: digest(canonicalJson(manifest)),
     requests,
   };
+}
+
+/** Both arms share accounting/settings; only the developer prompt and its identity differ. */
+async function preparePromptComparison(value: unknown): Promise<PreparedEvaluation> {
+  const parent = await prepareSourceDiagnostic(value);
+  const manifest: EvaluationManifest = {
+    ...parent.manifest,
+    profile: 'prompt-comparison-fast-xhigh',
+    promptComparison: {
+      parentManifestHash: parent.manifestHash,
+      oldPolicyHash: parent.manifest.policyHash,
+      revisedPolicyHash: await providerPolicyHash(UNCERTAINTY_EVALUATION_POLICY),
+      order: 'alternating-within-case-and-repeat',
+    },
+    schedule: [],
+    blockers: [
+      'AI editorial recommendation only; no human or production approval',
+      'Two-case prompt comparison is diagnostic evidence, not provider qualification',
+    ],
+  };
+  const requests: EvaluationRequest[] = [];
+  for (const caseId of ['A07-2', 'A08-1'])
+    for (let repeat = 1; repeat <= 3; repeat++) {
+      const original = parent.requests.find((r) => r.id === `${caseId}.distinct-source.${repeat}`)!;
+      const variants =
+        repeat % 2 ? ['old-prompt', 'revised-prompt'] : ['revised-prompt', 'old-prompt'];
+      for (const variant of variants) {
+        let payload = new Uint8Array(original.input.payload);
+        if (variant === 'revised-prompt') {
+          const body = JSON.parse(new TextDecoder().decode(payload));
+          body.input[1].content = UNCERTAINTY_EVALUATION_POLICY.prompt.developer;
+          payload = new TextEncoder().encode(JSON.stringify(body));
+        }
+        const estimatedInputTokens = payload.length + parent.policy.estimator.framingTokens;
+        if (
+          payload.length > parent.policy.estimator.maxPayloadBytes ||
+          estimatedInputTokens > parent.policy.estimator.maxInputTokens
+        )
+          throw new Error('INPUT_TOO_LARGE: prompt comparison payload');
+        const id = `${caseId}.${variant}.${repeat}`,
+          payloadHash = digest(payload);
+        requests.push({
+          ...original,
+          id,
+          payloadHash,
+          estimatedInputTokens,
+          input: { ...original.input, dispatchId: id, payload },
+        });
+        const slot = parent.manifest.schedule.find((s) => s.id === original.id)!;
+        manifest.schedule.push({ ...slot, id, variant, payloadHash });
+      }
+    }
+  return {
+    policy: parent.policy,
+    manifest,
+    manifestHash: digest(canonicalJson(manifest)),
+    requests,
+  };
+}
+
+export function evaluationPolicyForRequest(
+  prepared: PreparedEvaluation,
+  dispatchId: string,
+): WriterProviderPolicy {
+  if (prepared.manifest.profile !== 'prompt-comparison-fast-xhigh') return prepared.policy;
+  const slot = prepared.manifest.schedule.find((s) => s.id === dispatchId);
+  if (slot?.variant === 'revised-prompt') return UNCERTAINTY_EVALUATION_POLICY;
+  if (slot?.variant === 'old-prompt') return prepared.policy;
+  throw new Error('Unknown prompt comparison arm');
 }

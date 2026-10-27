@@ -66,4 +66,20 @@ export const FAST_XHIGH_EVALUATION_POLICY = {
   },
 } as const;
 
-export type WriterProviderPolicy = ReadingProviderPolicy | typeof FAST_XHIGH_EVALUATION_POLICY;
+/** Evaluation candidate only; the application and historical prompts remain frozen. */
+export const UNCERTAINTY_EVALUATION_POLICY = {
+  ...FAST_XHIGH_EVALUATION_POLICY,
+  version: 'reading-evaluation-uncertainty.v1',
+  prompt: {
+    ...FAST_XHIGH_EVALUATION_POLICY.prompt,
+    version: 'tarot-writer-uncertainty.v1',
+    developer:
+      FAST_XHIGH_EVALUATION_POLICY.prompt.developer +
+      ' Preserve uncertainty locally throughout interpretations, reflection questions, advice, synthesis and closing. A source’s general or symbolic possibility is not a fact about the reader. Do not turn an unsupplied emotion, obstacle, event or need into a presupposition or a possessive such as “your uncertainty”. When applying an unsupplied circumstance, keep it conditional at each mention, including later questions and suggested actions; allow that it is absent. Do not ask which problem exists before establishing whether any does. Allow supportive settings, manageable commitments and useful existing structures; do not require the reader to find a problem or make a change. Use explicitly supplied personal facts within their stated scope. General source statements need no added hedge unless they are applied as personal circumstances. Before returning, check every question, suggestion and closing for assumptions introduced by earlier interpretations.',
+  },
+} as const;
+
+export type WriterProviderPolicy =
+  | ReadingProviderPolicy
+  | typeof FAST_XHIGH_EVALUATION_POLICY
+  | typeof UNCERTAINTY_EVALUATION_POLICY;

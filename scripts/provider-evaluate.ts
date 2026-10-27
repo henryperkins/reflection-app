@@ -3,12 +3,15 @@ import { homedir } from 'node:os';
 import { join, relative, resolve, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { WritingProvider, WriterOutcome } from '../src/contracts/index.ts';
-import type { WriterProviderPolicy } from '../src/contracts/provider-policy.ts';
 import { canonicalJson } from '../src/domain/json.ts';
 import { validateCandidate } from '../src/domain/tarot/safety.ts';
 import { OpenAIResponsesTransport } from '../src/worker/provider/transport.ts';
 import { projectRoot } from './schemas.ts';
-import { prepareEvaluation } from './provider-evaluation-corpus.ts';
+import {
+  prepareEvaluation,
+  evaluationPolicyForRequest,
+  type PreparedEvaluation,
+} from './provider-evaluation-corpus.ts';
 import {
   EvaluationJournal,
   EvaluationPermit,
@@ -94,7 +97,7 @@ function liveWriter(
   apiKey: string,
   projectId: string,
   fetcher: typeof fetch,
-  policy: WriterProviderPolicy,
+  prepared: PreparedEvaluation,
 ): CapturingWriter {
   const captures = new Map<string, unknown>();
   return {
@@ -104,6 +107,7 @@ function liveWriter(
       return value;
     },
     async write(input) {
+      const policy = evaluationPolicyForRequest(prepared, input.dispatchId);
       const chunks: Uint8Array[] = [];
       let length = 0,
         complete = false,
@@ -187,6 +191,7 @@ export async function runEvaluationCli(
       usage: [
         'provider:evaluate -- --dry-run [--profile baseline|smoke|human-review|human-review-fast-xhigh]',
         'provider:evaluate -- --dry-run --profile source-diagnostic-fast-xhigh --source-bundle /protected/sources.json',
+        'provider:evaluate -- --dry-run --profile prompt-comparison-fast-xhigh --source-bundle /protected/sources.json',
         'provider:evaluate -- --execute --permit /protected/permit.json [--resume]',
         'provider:evaluate -- --purge-expired',
       ],
@@ -210,10 +215,12 @@ export async function runEvaluationCli(
       profile !== 'smoke' &&
       profile !== 'human-review' &&
       profile !== 'human-review-fast-xhigh' &&
-      profile !== 'source-diagnostic-fast-xhigh'
+      profile !== 'source-diagnostic-fast-xhigh' &&
+      profile !== 'prompt-comparison-fast-xhigh'
     )
       throw new Error('Invalid evaluation profile');
-    const diagnostic = profile === 'source-diagnostic-fast-xhigh';
+    const diagnostic =
+      profile === 'source-diagnostic-fast-xhigh' || profile === 'prompt-comparison-fast-xhigh';
     if (diagnostic ? argv.length !== 5 || argv[3] !== '--source-bundle' : argv.length > 3)
       throw new Error('Diagnostic source bundle required only for diagnostic profile');
     const prepared = await prepareEvaluation(
@@ -255,7 +262,9 @@ export async function runEvaluationCli(
       : permit.purpose === 'synthetic-research'
         ? 'baseline'
         : permit.purpose,
-    permit.purpose === 'source-diagnostic-fast-xhigh' && permit.sourceBundlePath
+    (permit.purpose === 'source-diagnostic-fast-xhigh' ||
+      permit.purpose === 'prompt-comparison-fast-xhigh') &&
+      permit.sourceBundlePath
       ? diagnosticBundle(permit.sourceBundlePath)
       : undefined,
   );
@@ -272,11 +281,7 @@ export async function runEvaluationCli(
     argv[3] === '--resume',
   );
   try {
-    return await runEvaluation(
-      permit,
-      liveWriter(apiKey, projectId, fetch, prepared.policy),
-      journal,
-    );
+    return await runEvaluation(permit, liveWriter(apiKey, projectId, fetch, prepared), journal);
   } finally {
     journal.close();
   }

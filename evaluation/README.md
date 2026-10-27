@@ -46,6 +46,17 @@ permits cannot authorize it. Resume retains the same source bundle and skips res
 attempts. Source-only results concern the replacement bundles, which jointly change
 length, content and differentiation; they do not isolate those properties or compare models.
 
+`--dry-run --profile prompt-comparison-fast-xhigh --source-bundle /private/sources.json`
+compares the old prompt against `tarot-writer-uncertainty.v1` using the same distinct
+sources for both arms. The new prompt appends local uncertainty requirements for
+interpretations, questions, advice and closing; it preserves supplied facts and general
+source statements. No source, draw, schema, model, reasoning, tier or output setting changes.
+The 12-call schedule alternates arms within case/repeat and binds both policy hashes.
+One fresh `prompt-comparison-fast-xhigh` permit and journal enforce the shared $1.44
+maximum, two-call concurrency and no retries. Transport selects the strict scheduled
+prompt policy; both use the same pricing and accounting limits. This evaluation candidate
+does not replace the application prompt or rewrite historical evaluations.
+
 [Terra pricing](https://developers.openai.com/api/docs/models/gpt-6.1-terra) lists
 [Fast mode](https://developers.openai.com/api/docs/guides/fast-mode) at twice Standard:
 $2 input, $0.10 cached input, $2.50 cache writes (30 minutes), and $10 output per million
@@ -74,7 +85,7 @@ An operator executes only with `--execute --permit /absolute/protected/permit.js
 The permit is a mode-0600 regular file, not a web request. It binds:
 
 - `version: reflection-evaluation-permit.v1`, `scope: evaluation`, a unique `runId`,
-  `purpose: transport-smoke|synthetic-research|human-review|human-review-fast-xhigh|source-diagnostic-fast-xhigh`,
+  `purpose: transport-smoke|synthetic-research|human-review|human-review-fast-xhigh|source-diagnostic-fast-xhigh|prompt-comparison-fast-xhigh`,
   authorizer and authorization/expiry times;
 - actual `projectId`, SHA-256 `credentialHash` of the selected key, model and
   policy/content/corpus/manifest hashes;

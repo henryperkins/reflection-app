@@ -152,3 +152,47 @@ orientation bindings, exact instructions, schema, original wire requests, frozen
 costs, the source-review record and the subsequent AI editorial observations. Bundles vary
 in length, content and differentiation together; this evidence does not isolate those
 properties, compare model settings, or predict wider performance.
+
+## Controlled uncertainty-prompt comparison
+
+The owner next authorized 12 fresh calls with the same six revised sources, draws,
+schema and fast/xhigh settings. `tarot-writer-uncertainty.v1` appends one developer
+instruction requiring local uncertainty through questions, advice, synthesis and closing.
+It explicitly preserves supplied personal facts and general source statements, and permits
+problems to be absent. The old developer and system instructions remain intact. Only the
+developer text differs between arms; this candidate is not the application prompt.
+
+Run `a2865983-be06-4eb4-88d2-4f21b44a385e` used manifest
+`6ae6bed8f21f57b24ef324b52ca832bbd3ed13ac5b5ad1117008b535eb28dd4c` and the unchanged source
+bundle `455f2f85c326b6ade717738b74fcd8017420ce87c605b1ccd48efbef8dd9b4e7`. Its manifest binds
+old policy `fffeae4c28480ba4c30c514624325d4a46a4774cbb0c13c57d922d8de24a5e50` and revised
+policy `71ed7808b14c26fd79f1f0afb8ec525eace057695ac978da49beba740be90cee` under one fresh
+permit and budget journal. Arms alternate within each case/repeat. Byte checks against
+the prior run confirmed identical old-prompt requests and developer-text-only differences.
+
+All 12 attempts returned candidates with known usage: **$0.203872** calculated total,
+no refusals, unknown calls or retries. All passed the frozen mechanical screen. Resume
+made zero further calls. Both arms retained gpt-6.1-terra, xhigh, fast, the same schema,
+8,192 shared reasoning/output tokens, 60-second deadline and $0.12 per-call reservation.
+
+| Descriptive observation | Old prompt (6) | Revised prompt (6) |
+| --- | --- | --- |
+| Calculated token-receipt cost | $0.061790 | $0.142082 |
+| Mean reported duration | 8.49 seconds | 20.44 seconds |
+| Mean reading-body words | 130.5 | 193.5 |
+| Direct questions presupposing unwelcoming expectations, AI review | 2 | 0 |
+
+The unblinded AI review found two old-prompt A08-1 questions presupposing expectations
+that feel unwelcoming. A07-2 old repetition 3 also frames reducing/sharing duties as needed
+to make each choice manageable. The six revised outputs preserved local conditions and
+explicitly allowed useful existing arrangements, manageable commitments or absent problems;
+no clear equivalent personal presupposition was observed. Neither arm repeated the exact
+earlier possessive-uncertainty failure, so that particular improvement is not established
+by these fresh controls.
+
+The revised prompt retains distinct source contributions, but introduces repetitive
+conditional phrasing, particularly in A07-2. This is a trade-off in readability and response
+size, not proof of finished-reading quality. Costs and durations describe this small run;
+no general speed, cost or semantic reliability claim follows. Human review remains pending.
+The evidence packet retains all outputs unchanged, both full prompt texts, all source
+passages, exact wire requests, hashes, receipts and separately labeled AI review notes.

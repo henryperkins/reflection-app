@@ -23,6 +23,7 @@ import {
 } from '../src/contracts/index.ts';
 import { canonicalJson } from '../src/domain/json.ts';
 import { priceReceipt } from '../src/domain/provider-cost.ts';
+import { UNCERTAINTY_EVALUATION_POLICY } from '../src/contracts/provider-policy.ts';
 import { digest, type PreparedEvaluation } from './provider-evaluation-corpus.ts';
 export { digest } from './provider-evaluation-corpus.ts';
 
@@ -35,6 +36,7 @@ export const EvaluationPermit = z.strictObject({
     'human-review',
     'human-review-fast-xhigh',
     'source-diagnostic-fast-xhigh',
+    'prompt-comparison-fast-xhigh',
   ]),
   runId: z.uuid(),
   authorizedBy: z.string().trim().min(1).max(200),
@@ -151,9 +153,20 @@ export function validatePermit(
     m.reservationMicrousd !== prepared.policy.reservationMicrousd ||
     p.contentHash !== m.contentHash ||
     p.corpusHash !== m.corpusHash ||
-    (p.purpose === 'source-diagnostic-fast-xhigh'
+    (p.purpose === 'source-diagnostic-fast-xhigh' || p.purpose === 'prompt-comparison-fast-xhigh'
       ? !p.sourceBundlePath || !m.sourceDiagnostic || p.maxCalls > 12 || p.maxCostMicrousd > 1440000
       : p.sourceBundlePath !== undefined || m.sourceDiagnostic !== undefined) ||
+    (p.purpose === 'prompt-comparison-fast-xhigh'
+      ? !m.promptComparison ||
+        m.promptComparison.oldPolicyHash !== p.policyHash ||
+        m.promptComparison.revisedPolicyHash !==
+          digest(
+            canonicalJson({
+              policy: UNCERTAINTY_EVALUATION_POLICY,
+              outputSchema: z.toJSONSchema(ModelCandidate),
+            }),
+          )
+      : m.promptComparison !== undefined) ||
     m.profile !==
       (p.purpose === 'transport-smoke'
         ? 'smoke'
