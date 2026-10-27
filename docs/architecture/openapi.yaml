@@ -9451,6 +9451,34 @@ components:
                             minimum: -9007199254740991
                             maximum: 9007199254740991
                           - type: "null"
+                      cachedInputTokens:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
+                      cacheWriteTokens:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
+                      reasoningTokens:
+                        default: null
+                        anyOf:
+                          - type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          - type: "null"
+                      serviceTier:
+                        default: null
+                        anyOf:
+                          - type: string
+                            minLength: 1
+                            maxLength: 32
+                          - type: "null"
                       actualCostMicroUsd:
                         anyOf:
                           - type: integer
@@ -9482,6 +9510,10 @@ components:
                       - createdAt
                       - inputTokens
                       - outputTokens
+                      - cachedInputTokens
+                      - cacheWriteTokens
+                      - reasoningTokens
+                      - serviceTier
                       - actualCostMicroUsd
                       - costState
                       - transmission

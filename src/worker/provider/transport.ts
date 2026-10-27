@@ -45,6 +45,37 @@ const Output = z
   )
   .length(1);
 
+const RefusalEnvelope = z.object({ output: z.array(z.unknown()) });
+const AssistantMessage = z.object({
+  type: z.literal('message'),
+  role: z.literal('assistant'),
+  content: z.array(z.unknown()),
+});
+const RefusalPart = z.object({ type: z.literal('refusal'), refusal: z.string() });
+function hasRefusal(value: unknown): boolean {
+  const envelope = RefusalEnvelope.safeParse(value);
+  return (
+    envelope.success &&
+    envelope.data.output.some((item) => {
+      const message = AssistantMessage.safeParse(item);
+      return (
+        message.success && message.data.content.some((part) => RefusalPart.safeParse(part).success)
+      );
+    })
+  );
+}
+
+function hasResponseMetadata(value: unknown): boolean {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    (Object.hasOwn(value, 'usage') ||
+      Object.hasOwn(value, 'model') ||
+      Object.hasOwn(value, 'output') ||
+      ('object' in value && value.object === 'response'))
+  );
+}
+
 async function readResponse(response: Response, signal: AbortSignal): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw new Error('Empty provider response');
@@ -197,7 +228,7 @@ export class OpenAIResponsesTransport implements WritingProvider {
             : { kind: 'rejected', status: this.status(response.status), receipt: null };
         }
         const known = receipt(body, Math.max(0, Date.now() - started));
-        if (!response.ok && !known)
+        if (!response.ok && !known && !hasResponseMetadata(body))
           return { kind: 'rejected', status: this.status(response.status), receipt: known };
         if (
           !known ||
@@ -212,6 +243,8 @@ export class OpenAIResponsesTransport implements WritingProvider {
             receipt: known,
             haltGeneration: true,
           };
+        // Explicit refusal is a non-reading even when other output parts or the wrapper are unusable.
+        if (hasRefusal(body)) return { kind: 'refusal', receipt: known };
         if (!response.ok)
           return { kind: 'rejected', status: this.status(response.status), receipt: known };
         const envelope = z

@@ -14,9 +14,105 @@ import { LocalGeneration } from '../../src/worker/readings/generation.ts';
 import { clearDatabase } from '../fixtures/database.ts';
 import { readingAccount } from '../fixtures/reading-client.ts';
 import { providerReceipt } from '../fixtures/provider.ts';
+import { OpenAIResponsesTransport } from '../../src/worker/provider/transport.ts';
+import { READING_PROVIDER_POLICY } from '../../src/contracts/provider-policy.ts';
 
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
 beforeEach(() => clearDatabase(env.DB));
+
+test.each(['completed', 'incomplete'])(
+  'a %s response containing refusal never publishes a fallback reading',
+  async (status) => {
+    let calls = 0;
+    const supplied = new OpenAIResponsesTransport({
+      apiKey: 'synthetic-only-key',
+      policy: READING_PROVIDER_POLICY,
+      fetch: async () => {
+        calls++;
+        return Response.json({
+          id: 'synthetic-response',
+          model: 'gpt-6.1-terra',
+          service_tier: 'default',
+          status,
+          usage: {
+            input_tokens: 100,
+            input_tokens_details: { cached_tokens: 20, cache_write_tokens: 30 },
+            output_tokens: 10,
+            output_tokens_details: { reasoning_tokens: 0 },
+            total_tokens: 110,
+          },
+          output: [
+            {
+              type: 'message',
+              role: 'assistant',
+              content: [
+                { type: 'output_text', text: '{}' },
+                { type: 'refusal', refusal: 'SYNTHETIC refusal' },
+              ],
+            },
+          ],
+        });
+      },
+    });
+    const f = await setup(env.DB, supplied);
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    await recover(f.client, supplied);
+    expect((await latest(f.client)).status).toMatchObject({
+      state: 'blocked',
+      errorCode: 'PROVIDER_REFUSAL',
+    });
+    expect((await latest(f.client)).reading).toBeNull();
+    expect(await env.DB.prepare('SELECT count(*) AS n FROM reading_editions').first('n')).toBe(0);
+    expect(
+      await env.DB.prepare(
+        'SELECT input_tokens,cached_input_tokens,cache_write_tokens FROM provider_dispatches',
+      ).first(),
+    ).toEqual({ input_tokens: 100, cached_input_tokens: 20, cache_write_tokens: 30 });
+    expect(calls).toBe(1);
+  },
+);
+
+test.each(['refusal', 'malformed', 'legacy'])(
+  'consent-off export includes complete %s receipt metadata with explicit unknowns',
+  async (kind) => {
+    const receipt = providerReceipt({
+      usage: {
+        inputTokens: 1000,
+        cachedInputTokens: 200,
+        cacheWriteTokens: 300,
+        outputTokens: 100,
+        reasoningTokens: 10,
+      },
+    });
+    const supplied: WritingProvider = {
+      write: async () =>
+        kind === 'refusal'
+          ? { kind: 'refusal', receipt }
+          : { kind: 'invalid', reason: 'malformed', receipt },
+    };
+    const f = await setup(env.DB, supplied);
+    await f.generation.start(f.session, f.input, crypto.randomUUID());
+    if (kind === 'legacy')
+      await env.DB.prepare(
+        'UPDATE provider_dispatches SET cached_input_tokens=NULL,cache_write_tokens=NULL,reasoning_tokens=NULL,service_tier=NULL',
+      ).run();
+    await f.client.permission(false);
+    const ticket = apiSchemas.ExportTicket.parse(
+      await (await f.client.request('/exports', {})).json(),
+    );
+    const response = await f.client.request(`/exports/${ticket.id}`);
+    expect(response.status).toBe(200);
+    const page = apiSchemas.ExportPage.parse(await response.json());
+    expect(page.records.find((r) => r.kind === 'generation_receipt')?.value).toMatchObject({
+      inputTokens: 1000,
+      outputTokens: 100,
+      cachedInputTokens: kind === 'legacy' ? null : 200,
+      cacheWriteTokens: kind === 'legacy' ? null : 300,
+      reasoningTokens: kind === 'legacy' ? null : 10,
+      serviceTier: kind === 'legacy' ? null : 'default',
+    });
+  },
+);
 
 test.each(['refusal', 'malformed', 'incomplete', 'rejected', 'uncertain'] as const)(
   'verified receipt usage survives %s output and maintenance independently of prose',

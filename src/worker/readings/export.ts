@@ -124,7 +124,7 @@ export class ReadingExports {
       FROM reflection_revisions r JOIN reflections f ON f.id=r.reflection_id AND f.owner_id=r.owner_id JOIN reading_sessions s ON s.id=f.session_id AND s.owner_id=f.owner_id WHERE f.owner_id=? AND r.erased_at IS NULL AND ${availableSession}
       UNION ALL
       SELECT 'generation_receipt',r.id,r.revision,r.session_id,d.transmission_enc,r.key_version,
-        json_object('state',r.state,'createdAt',r.created_at,'dispatchId',d.id,'inputTokens',d.input_tokens,'outputTokens',d.output_tokens,'costState',coalesce(cost.state,CASE WHEN d.cost_expired_at IS NOT NULL THEN 'expired' ELSE 'none' END),'actualCost',cost.actual_microusd)
+        json_object('state',r.state,'createdAt',r.created_at,'dispatchId',d.id,'inputTokens',d.input_tokens,'outputTokens',d.output_tokens,'cachedInputTokens',d.cached_input_tokens,'cacheWriteTokens',d.cache_write_tokens,'reasoningTokens',d.reasoning_tokens,'serviceTier',d.service_tier,'costState',coalesce(cost.state,CASE WHEN d.cost_expired_at IS NOT NULL THEN 'expired' ELSE 'none' END),'actualCost',cost.actual_microusd)
       FROM generation_requests r JOIN reading_sessions s ON s.id=r.session_id AND s.owner_id=r.owner_id LEFT JOIN provider_dispatches d ON d.request_id=r.id AND d.owner_id=r.owner_id LEFT JOIN cost_reservations cost ON cost.dispatch_id=d.id AND cost.owner_id=r.owner_id WHERE r.owner_id=? AND ${availableSession}
       UNION ALL
       SELECT 'permission',p.owner_id,p.revision,NULL,NULL,1,json_object('allowed',p.model_allowed)
@@ -344,6 +344,10 @@ export class ReadingExports {
       createdAt: iso(Number(metadata.createdAt)),
       inputTokens: metadata.inputTokens,
       outputTokens: metadata.outputTokens,
+      cachedInputTokens: metadata.cachedInputTokens ?? null,
+      cacheWriteTokens: metadata.cacheWriteTokens ?? null,
+      reasoningTokens: metadata.reasoningTokens ?? null,
+      serviceTier: metadata.serviceTier ?? null,
       actualCostMicroUsd: metadata.actualCost ?? null,
       costState: metadata.costState,
       transmission: transmission?.payload ?? null,

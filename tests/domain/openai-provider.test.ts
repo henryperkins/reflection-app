@@ -364,3 +364,68 @@ test('an error response cannot bypass a verified service-tier drift', async () =
     receipt: { ...knownReceipt, serviceTier: 'flex' },
   });
 });
+
+test.each(['mixed', 'incomplete', 'malformed-wrapper', 'extra-output', 'http-error'])(
+  'an explicit refusal takes precedence over %s output and cannot become a template',
+  async (kind) => {
+    const body: Record<string, unknown> = envelope();
+    const message = {
+      type: 'message',
+      role: 'assistant',
+      content: [
+        { type: 'output_text', text: '{}' },
+        { type: 'refusal', refusal: 'SYNTHETIC refusal' },
+      ],
+    };
+    body.output = [message];
+    if (kind === 'incomplete') body.status = 'incomplete';
+    if (kind === 'malformed-wrapper') {
+      delete body.status;
+      body.error = { code: 'synthetic' };
+    }
+    if (kind === 'extra-output') body.output = [{ type: 'unexpected' }, message];
+    expect(
+      await transport(async () =>
+        Response.json(body, { status: kind === 'http-error' ? 503 : 200 }),
+      ).write(input()),
+    ).toMatchObject({ kind: 'refusal', receipt: knownReceipt });
+  },
+);
+
+test.each(['total', 'categories', 'identity', 'missing-usage'])(
+  'a response-shaped HTTP error with invalid %s accounting quarantines new calls',
+  async (kind) => {
+    const body: Record<string, unknown> = envelope();
+    if (kind === 'total') body.usage = { ...envelope().usage, total_tokens: 999 };
+    if (kind === 'categories')
+      body.usage = { ...envelope().usage, input_tokens_details: { cached_tokens: 200 } };
+    if (kind === 'identity') body.model = '';
+    if (kind === 'missing-usage') delete body.usage;
+    let calls = 0;
+    const writer = new OpenAIWritingProvider(
+      options(async () => {
+        calls++;
+        return Response.json(body, { status: 503 });
+      }),
+    );
+    expect(await writer.write(input())).toEqual({
+      kind: 'uncertain',
+      reason: 'lost_response',
+      receipt: null,
+      haltGeneration: true,
+    });
+    expect(await writer.write(input())).toEqual({ kind: 'rejected', status: 503, receipt: null });
+    expect(calls).toBe(1);
+  },
+);
+
+test('an ordinary API error without response metadata remains a known rejection', async () => {
+  expect(
+    await transport(async () =>
+      Response.json(
+        { error: { type: 'server_error', message: 'SYNTHETIC outage' } },
+        { status: 503 },
+      ),
+    ).write(input()),
+  ).toEqual({ kind: 'rejected', status: 503, receipt: null });
+});
