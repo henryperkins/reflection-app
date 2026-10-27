@@ -8,6 +8,8 @@ import { requestFromPath } from './request-progress.tsx';
 import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
 import { date } from './date.ts';
 import { Notice, type NoticeMessage } from './notice.tsx';
+import { Art } from './art.tsx';
+import { Icon } from './icon.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type Kit = z.infer<typeof apiSchemas.RecoveryCodes>;
@@ -245,459 +247,529 @@ export function IdentityApp() {
         : route === '/recover'
           ? 'Recover your account'
           : 'A place to return to.';
+  const authPage = !kit && (Boolean(grant) || !session);
+  const landing = authPage && !grant && route !== '/recover';
   return (
-    <main>
-      <header>
-        <a className="brand" href="/">
-          Reflection
-        </a>
-        <span className="test-label">Local test build</span>
+    <div className="app-shell">
+      <header className="site-header">
+        <div className="shell-width">
+          <a className="brand" href="/">
+            <span className="brand-mark">
+              <Icon name="brand" />
+            </span>
+            Reflection
+          </a>
+          <span className="test-label">Local test build</span>
+        </div>
       </header>
-      <p className="eyebrow">A private space for reflection</p>
-      <h1 ref={heading} tabIndex={-1}>
-        {title}
-      </h1>
-      <p className="test-notice">
-        Use synthetic text and test accounts only. This local build simulates readings and never
-        contacts an AI provider.
-      </p>
-      <Notice message={message} />
-      <div aria-busy={busy || checking}>
-        {checking && !session && !kit && !grant ? (
-          <p role="status">Checking your session…</p>
-        ) : kit ? (
-          <section aria-label="Recovery kit">
-            <p>
-              Your kit contains a recovery handle and ten one-time codes. You need the handle and
-              one unused code if your passkeys are unavailable.
-            </p>
-            <p>
-              Keep the complete file somewhere private, outside this browser. Anyone with the handle
-              and an unused code can replace your passkey. This kit is shown only once.
-            </p>
-            <details>
-              <summary>Show handle and recovery codes</summary>
-              <p>
-                <strong>Recovery handle</strong>
-                <br />
-                <code>{kit.recoveryHandle}</code>
-              </p>
-              <ol className="codes">
-                {kit.codes.map((item) => (
-                  <li key={item}>
-                    <code>{item}</code>
-                  </li>
-                ))}
-              </ol>
-            </details>
-            <div className="actions">
-              <button type="button" onClick={download} disabled={busy}>
-                Download recovery kit
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    await navigator.clipboard.writeText(kitText(kit));
-                    if (!isCurrent()) return;
-                    setDownloaded(true);
-                    setMessage({
-                      tone: 'success',
-                      text: 'Complete recovery kit copied. Store it somewhere private.',
-                    });
-                  })
-                }
-              >
-                Copy complete kit
-              </button>
+      <main
+        className={authPage ? 'auth-layout' : `page-column ${kit ? 'kit-page' : 'account-page'}`}
+      >
+        {authPage && <Art name={landing ? 'study-return' : 'study-inquiry'} className="auth-art" />}
+        <div className={authPage ? 'auth-column' : 'page-stack'}>
+          <div
+            className={
+              authPage
+                ? `card auth-card ${landing ? 'landing-card' : 'recovery-card'} ${grant ? 'replacement-card' : ''}`
+                : 'page-panel'
+            }
+          >
+            <div className="page-title">
+              <div className="title-copy">
+                <p className="eyebrow">A private space for reflection</p>
+                <h1 ref={heading} tabIndex={-1}>
+                  {title}
+                </h1>
+                <p className="test-notice">
+                  Use synthetic text and test accounts only. This local build simulates readings and
+                  never contacts an AI provider.
+                </p>
+                {kit && (
+                  <p className="lead">
+                    Your kit contains a recovery handle and ten one-time codes. You need the handle
+                    and one unused code if your passkeys are unavailable.
+                  </p>
+                )}
+              </div>
+              {kit && <Art name="study-perspective" className="title-art" />}
             </div>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={acknowledged}
-                onChange={(event) => setAcknowledged(event.target.checked)}
-              />
-              I have saved the complete kit with the handle and codes.
-            </label>
-            <button
-              type="button"
-              disabled={!downloaded || !acknowledged || busy || !session}
-              onClick={() =>
-                void run(async (isCurrent) => {
-                  await api('/auth/recovery/ack', apiSchemas.Empty, {}, session?.csrfToken);
-                  if (!isCurrent()) return;
-                  const current = await readSession(isCurrent);
-                  if (!isCurrent()) return;
-                  setKit(null);
-                  setSession(current);
-                  channel.current?.postMessage('changed');
-                })
-              }
-            >
-              Continue to account
-            </button>
-            <p className="muted">
-              The kit stays in memory here until you leave. Downloading or copying it is your
-              choice; it is never saved automatically in this browser.
-            </p>
-          </section>
-        ) : grant ? (
-          <section>
-            <p>
-              Your recovery code was verified. Create a new passkey to finish recovering your
-              account. This step expires after five minutes.
-            </p>
-            <p>
-              Completing recovery replaces your previous passkeys and recovery kit. Your account
-              stays the same.
-            </p>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() =>
-                void run(async (isCurrent) => {
-                  await complete(await enroll(grant.options), isCurrent);
-                })
-              }
-            >
-              Create replacement passkey
-            </button>
-            <button
-              type="button"
-              className="text-button"
-              disabled={busy}
-              onClick={() => {
-                setGrant(null);
-                setMessage({
-                  tone: 'notice',
-                  text: 'Recovery enrollment cancelled. That code has been used; use a remaining code or an existing passkey.',
-                });
-              }}
-            >
-              Cancel enrollment
-            </button>
-          </section>
-        ) : session ? (
-          <section>
-            <p>You’re signed in. Your passkey and recovery kit protect access to this account.</p>
-            <div inert={checking || busy}>
-              <ReadingWorkspace
-                key={session.subjectId}
-                user={session}
-                onSession={setSession}
-                onExpired={() => {
-                  clear();
-                  setMessage({ tone: 'notice', text: 'Your session ended. Please sign in again.' });
-                }}
-              />
-            </div>
-            <section aria-label="Manage passkeys">
-              <h2>Your passkeys</h2>
-              <p>
-                Add a passkey on another device before removing one. You’ll verify an existing
-                passkey before each change. Changing passkeys signs out your other sessions.
-              </p>
-              {credentials ? (
-                <ul aria-label="Passkeys">
-                  {credentials.items.map((credential) => (
-                    <li key={credential.id}>
-                      <p>
-                        <strong>Passkey {credential.id.slice(0, 8)}</strong>
-                        {' · '}Added {date(credential.createdAt, true)}
-                        {' · '}
-                        {credential.backedUp
-                          ? 'Backed up by your passkey provider'
-                          : 'Not reported as backed up'}
+            <Notice message={message} />
+            <div className="identity-content" aria-busy={busy || checking}>
+              {checking && !session && !kit && !grant ? (
+                <p role="status" className="busy-line">
+                  <span className="spinner" aria-hidden="true" />
+                  Checking your session…
+                </p>
+              ) : kit ? (
+                <section aria-label="Recovery kit" className="kit-content">
+                  <div className="card kit-card">
+                    <p className="callout">
+                      <Icon name="warning" />
+                      <span>
+                        Keep the complete file somewhere private, outside this browser. Anyone with
+                        the handle and an unused code can replace your passkey. This kit is shown
+                        only once.
+                      </span>
+                    </p>
+                    <details>
+                      <summary>Show handle and recovery codes</summary>
+                      <p className="recovery-handle">
+                        <strong>Recovery handle</strong>
+                        <code>{kit.recoveryHandle}</code>
                       </p>
+                      <ol className="codes">
+                        {kit.codes.map((item) => (
+                          <li key={item}>
+                            <code>{item}</code>
+                          </li>
+                        ))}
+                      </ol>
+                    </details>
+                    <div className="actions">
+                      <button type="button" onClick={download} disabled={busy}>
+                        <Icon name="download" />
+                        Download recovery kit
+                      </button>
                       <button
                         type="button"
                         className="secondary"
-                        disabled={busy || checking || credentials.items.length <= 1}
-                        aria-label={`Remove passkey ${credential.id.slice(0, 8)}`}
+                        disabled={busy}
                         onClick={() =>
                           void run(async (isCurrent) => {
-                            const csrf = await verifyExistingPasskey(isCurrent);
-                            if (!csrf || !isCurrent()) return;
-                            await api(
-                              `/auth/credentials/${credential.id}`,
-                              apiSchemas.Empty,
-                              {},
-                              csrf,
-                              { method: 'DELETE' },
-                            );
+                            await navigator.clipboard.writeText(kitText(kit));
                             if (!isCurrent()) return;
-                            const current = await readSession(isCurrent);
-                            if (!isCurrent()) return;
-                            setSession(current);
-                            channel.current?.postMessage('changed');
+                            setDownloaded(true);
                             setMessage({
                               tone: 'success',
-                              text: 'Passkey removed. Your other sessions have been signed out.',
+                              text: 'Complete recovery kit copied. Store it somewhere private.',
                             });
                           })
                         }
                       >
-                        Remove
+                        <Icon name="copy" />
+                        Copy complete kit
                       </button>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p role="status">Loading your passkeys…</p>
-              )}
-              {credentials?.items.length === 1 && <p>Keep at least one passkey on your account.</p>}
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy || checking || !credentials || credentials.items.length >= 10}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    const csrf = await verifyExistingPasskey(isCurrent);
-                    if (!csrf || !isCurrent()) return;
-                    const options = await api(
-                      '/auth/options',
-                      apiSchemas.AuthOptions,
-                      { purpose: 'add' },
-                      csrf,
-                    );
-                    if (!isCurrent()) return;
-                    await complete(await enroll(options, csrf), isCurrent);
-                    if (!isCurrent()) return;
-                    channel.current?.postMessage('changed');
-                    setMessage({
-                      tone: 'success',
-                      text: 'Passkey added. Your other sessions have been signed out.',
-                    });
-                  })
-                }
-              >
-                Add a passkey
-              </button>
-              {credentials?.items.length === 10 && (
-                <p>You have ten passkeys. Remove one before adding another.</p>
-              )}
-            </section>
-            <details className="deletion-actions">
-              <summary>Delete account</summary>
-              <p>
-                This permanently deletes your account, readings, reflections and passkeys. Your
-                recovery kit will no longer restore this account. Downloaded copies are unchanged.
-              </p>
-              <label className="check">
-                <input
-                  type="checkbox"
-                  checked={accountDeleteChecked}
-                  onChange={(event) => setAccountDeleteChecked(event.target.checked)}
-                  disabled={busy}
-                />
-                Permanently delete my account, readings and reflections
-              </label>
-              <button
-                type="button"
-                className="danger"
-                disabled={busy || !accountDeleteChecked}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    let csrf = session.csrfToken;
-                    if (Date.parse(session.recentAuthUntil) <= Date.now()) {
-                      const verified = await signIn('reauthenticate', csrf);
+                    </div>
+                  </div>
+                  <label className="check">
+                    <input
+                      type="checkbox"
+                      checked={acknowledged}
+                      onChange={(event) => setAcknowledged(event.target.checked)}
+                    />
+                    I have saved the complete kit with the handle and codes.
+                  </label>
+                  <button
+                    type="button"
+                    className="large"
+                    disabled={!downloaded || !acknowledged || busy || !session}
+                    onClick={() =>
+                      void run(async (isCurrent) => {
+                        await api('/auth/recovery/ack', apiSchemas.Empty, {}, session?.csrfToken);
+                        if (!isCurrent()) return;
+                        const current = await readSession(isCurrent);
+                        if (!isCurrent()) return;
+                        setKit(null);
+                        setSession(current);
+                        channel.current?.postMessage('changed');
+                      })
+                    }
+                  >
+                    Continue to account
+                  </button>
+                  <p className="muted">
+                    The kit stays in memory here until you leave. Downloading or copying it is your
+                    choice; it is never saved automatically in this browser.
+                  </p>
+                </section>
+              ) : grant ? (
+                <section className="replacement-content">
+                  <p className="lead">
+                    Your recovery code was verified. Create a new passkey to finish recovering your
+                    account. This step expires after five minutes.
+                  </p>
+                  <p className="callout">
+                    <Icon name="info" />
+                    <span>
+                      Completing recovery replaces your previous passkeys and recovery kit. Your
+                      account stays the same.
+                    </span>
+                  </p>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() =>
+                      void run(async (isCurrent) => {
+                        await complete(await enroll(grant.options), isCurrent);
+                      })
+                    }
+                  >
+                    <Icon name="key" />
+                    Create replacement passkey
+                  </button>
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => {
+                      setGrant(null);
+                      setMessage({
+                        tone: 'notice',
+                        text: 'Recovery enrollment cancelled. That code has been used; use a remaining code or an existing passkey.',
+                      });
+                    }}
+                  >
+                    Cancel enrollment
+                  </button>
+                </section>
+              ) : session ? (
+                <section>
+                  <p>
+                    You’re signed in. Your passkey and recovery kit protect access to this account.
+                  </p>
+                  <div inert={checking || busy}>
+                    <ReadingWorkspace
+                      key={session.subjectId}
+                      user={session}
+                      onSession={setSession}
+                      onExpired={() => {
+                        clear();
+                        setMessage({
+                          tone: 'notice',
+                          text: 'Your session ended. Please sign in again.',
+                        });
+                      }}
+                    />
+                  </div>
+                  <section aria-label="Manage passkeys">
+                    <h2>Your passkeys</h2>
+                    <p>
+                      Add a passkey on another device before removing one. You’ll verify an existing
+                      passkey before each change. Changing passkeys signs out your other sessions.
+                    </p>
+                    {credentials ? (
+                      <ul aria-label="Passkeys">
+                        {credentials.items.map((credential) => (
+                          <li key={credential.id}>
+                            <p>
+                              <strong>Passkey {credential.id.slice(0, 8)}</strong>
+                              {' · '}Added {date(credential.createdAt, true)}
+                              {' · '}
+                              {credential.backedUp
+                                ? 'Backed up by your passkey provider'
+                                : 'Not reported as backed up'}
+                            </p>
+                            <button
+                              type="button"
+                              className="secondary"
+                              disabled={busy || checking || credentials.items.length <= 1}
+                              aria-label={`Remove passkey ${credential.id.slice(0, 8)}`}
+                              onClick={() =>
+                                void run(async (isCurrent) => {
+                                  const csrf = await verifyExistingPasskey(isCurrent);
+                                  if (!csrf || !isCurrent()) return;
+                                  await api(
+                                    `/auth/credentials/${credential.id}`,
+                                    apiSchemas.Empty,
+                                    {},
+                                    csrf,
+                                    { method: 'DELETE' },
+                                  );
+                                  if (!isCurrent()) return;
+                                  const current = await readSession(isCurrent);
+                                  if (!isCurrent()) return;
+                                  setSession(current);
+                                  channel.current?.postMessage('changed');
+                                  setMessage({
+                                    tone: 'success',
+                                    text: 'Passkey removed. Your other sessions have been signed out.',
+                                  });
+                                })
+                              }
+                            >
+                              Remove
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p role="status">Loading your passkeys…</p>
+                    )}
+                    {credentials?.items.length === 1 && (
+                      <p>Keep at least one passkey on your account.</p>
+                    )}
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy || checking || !credentials || credentials.items.length >= 10}
+                      onClick={() =>
+                        void run(async (isCurrent) => {
+                          const csrf = await verifyExistingPasskey(isCurrent);
+                          if (!csrf || !isCurrent()) return;
+                          const options = await api(
+                            '/auth/options',
+                            apiSchemas.AuthOptions,
+                            { purpose: 'add' },
+                            csrf,
+                          );
+                          if (!isCurrent()) return;
+                          await complete(await enroll(options, csrf), isCurrent);
+                          if (!isCurrent()) return;
+                          channel.current?.postMessage('changed');
+                          setMessage({
+                            tone: 'success',
+                            text: 'Passkey added. Your other sessions have been signed out.',
+                          });
+                        })
+                      }
+                    >
+                      Add a passkey
+                    </button>
+                    {credentials?.items.length === 10 && (
+                      <p>You have ten passkeys. Remove one before adding another.</p>
+                    )}
+                  </section>
+                  <details className="deletion-actions">
+                    <summary>Delete account</summary>
+                    <p>
+                      This permanently deletes your account, readings, reflections and passkeys.
+                      Your recovery kit will no longer restore this account. Downloaded copies are
+                      unchanged.
+                    </p>
+                    <label className="check">
+                      <input
+                        type="checkbox"
+                        checked={accountDeleteChecked}
+                        onChange={(event) => setAccountDeleteChecked(event.target.checked)}
+                        disabled={busy}
+                      />
+                      Permanently delete my account, readings and reflections
+                    </label>
+                    <button
+                      type="button"
+                      className="danger"
+                      disabled={busy || !accountDeleteChecked}
+                      onClick={() =>
+                        void run(async (isCurrent) => {
+                          let csrf = session.csrfToken;
+                          if (Date.parse(session.recentAuthUntil) <= Date.now()) {
+                            const verified = await signIn('reauthenticate', csrf);
+                            if (!isCurrent()) return;
+                            csrf = verified.csrfToken;
+                          }
+                          const intent = deletionIntent(),
+                            proof = {
+                              receiptId: intent.receiptId,
+                              receiptToken: intent.receiptToken,
+                            };
+                          let initial: z.infer<typeof apiSchemas.DeletionStatus> | null = null;
+                          try {
+                            const receipt = await api(
+                              '/account',
+                              apiSchemas.DeletionReceipt,
+                              proof,
+                              csrf,
+                              { method: 'DELETE', key: intent.key },
+                            );
+                            initial = {
+                              state: receipt.state,
+                              backupExpiresBy: receipt.backupExpiresBy,
+                            };
+                          } catch (error) {
+                            // A network/5xx failure may follow the access fence; retain the scoped receipt.
+                            if (error instanceof ApiFailure && error.status < 500) throw error;
+                          }
+                          if (!isCurrent()) return;
+                          clear();
+                          setDeletionReceipt({ proof, initial });
+                          channel.current?.postMessage('signed-out');
+                          navigate('/');
+                        })
+                      }
+                    >
+                      Delete account permanently
+                    </button>
+                  </details>
+                  <p>
+                    Storage is encrypted and readable by the service for authorized operations. This
+                    is not end-to-end encryption.
+                  </p>
+                  <div className="actions">
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async (isCurrent) => {
+                          const csrf = await verifyExistingPasskey(isCurrent);
+                          if (!csrf || !isCurrent()) return;
+                          const rotated = await api(
+                            '/auth/recovery-codes',
+                            apiSchemas.RecoveryCodes,
+                            {},
+                            csrf,
+                          );
+                          if (!isCurrent()) return;
+                          receiveKit(rotated);
+                          const current = await readSession(isCurrent);
+                          if (!isCurrent()) return;
+                          setSession(current);
+                          channel.current?.postMessage('changed');
+                        })
+                      }
+                    >
+                      Replace recovery kit
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async (isCurrent) => {
+                          await api('/auth/logout', apiSchemas.Empty, {}, session.csrfToken);
+                          if (!isCurrent()) return;
+                          clear();
+                          channel.current?.postMessage('signed-out');
+                          navigate('/');
+                        })
+                      }
+                    >
+                      Sign out
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async (isCurrent) => {
+                          await api('/auth/logout-all', apiSchemas.Empty, {}, session.csrfToken);
+                          if (!isCurrent()) return;
+                          clear();
+                          channel.current?.postMessage('signed-out');
+                          navigate('/');
+                        })
+                      }
+                    >
+                      Sign out of all devices
+                    </button>
+                  </div>
+                </section>
+              ) : route === '/recover' ? (
+                <form
+                  className="recovery-form"
+                  autoComplete="off"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void run(async (isCurrent) => {
+                      const recovered = await api('/auth/recover', apiSchemas.RecoveryGrant, {
+                        recoveryHandle: handle.trim(),
+                        code: code.trim(),
+                      });
                       if (!isCurrent()) return;
-                      csrf = verified.csrfToken;
-                    }
-                    const intent = deletionIntent(),
-                      proof = { receiptId: intent.receiptId, receiptToken: intent.receiptToken };
-                    let initial: z.infer<typeof apiSchemas.DeletionStatus> | null = null;
-                    try {
-                      const receipt = await api(
-                        '/account',
-                        apiSchemas.DeletionReceipt,
-                        proof,
-                        csrf,
-                        { method: 'DELETE', key: intent.key },
-                      );
-                      initial = { state: receipt.state, backupExpiresBy: receipt.backupExpiresBy };
-                    } catch (error) {
-                      // A network/5xx failure may follow the access fence; retain the scoped receipt.
-                      if (error instanceof ApiFailure && error.status < 500) throw error;
-                    }
-                    if (!isCurrent()) return;
-                    clear();
-                    setDeletionReceipt({ proof, initial });
-                    channel.current?.postMessage('signed-out');
-                    navigate('/');
-                  })
-                }
-              >
-                Delete account permanently
-              </button>
-            </details>
-            <p>
-              Storage is encrypted and readable by the service for authorized operations. This is
-              not end-to-end encryption.
-            </p>
-            <div className="actions">
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    const csrf = await verifyExistingPasskey(isCurrent);
-                    if (!csrf || !isCurrent()) return;
-                    const rotated = await api(
-                      '/auth/recovery-codes',
-                      apiSchemas.RecoveryCodes,
-                      {},
-                      csrf,
-                    );
-                    if (!isCurrent()) return;
-                    receiveKit(rotated);
-                    const current = await readSession(isCurrent);
-                    if (!isCurrent()) return;
-                    setSession(current);
-                    channel.current?.postMessage('changed');
-                  })
-                }
-              >
-                Replace recovery kit
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    await api('/auth/logout', apiSchemas.Empty, {}, session.csrfToken);
-                    if (!isCurrent()) return;
-                    clear();
-                    channel.current?.postMessage('signed-out');
-                    navigate('/');
-                  })
-                }
-              >
-                Sign out
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    await api('/auth/logout-all', apiSchemas.Empty, {}, session.csrfToken);
-                    if (!isCurrent()) return;
-                    clear();
-                    channel.current?.postMessage('signed-out');
-                    navigate('/');
-                  })
-                }
-              >
-                Sign out of all devices
-              </button>
-            </div>
-          </section>
-        ) : route === '/recover' ? (
-          <form
-            autoComplete="off"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void run(async (isCurrent) => {
-                const recovered = await api('/auth/recover', apiSchemas.RecoveryGrant, {
-                  recoveryHandle: handle.trim(),
-                  code: code.trim(),
-                });
-                if (!isCurrent()) return;
-                setGrant(recovered);
-                setHandle('');
-                setCode('');
-              });
-            }}
-          >
-            <p>
-              Open the recovery kit you saved. Enter its handle and one unused code. A code alone
-              cannot identify your account.
-            </p>
-            <label htmlFor="recovery-handle">Recovery handle</label>
-            <input
-              id="recovery-handle"
-              value={handle}
-              onChange={(event) => setHandle(event.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-              autoCapitalize="none"
-              required
-              maxLength={100}
-              disabled={busy}
-            />
-            <label htmlFor="recovery-code">Unused recovery code</label>
-            <input
-              id="recovery-code"
-              type="password"
-              value={code}
-              onChange={(event) => setCode(event.target.value)}
-              autoComplete="off"
-              required
-              maxLength={100}
-              disabled={busy}
-            />
-            <button type="submit" disabled={busy || !handle.trim() || !code.trim()}>
-              Verify recovery kit
-            </button>
-            <p>
-              You’ll create a replacement passkey before you can access your account. If a
-              connection is interrupted after verification, that code may already be used; try an
-              existing passkey or another unused code.
-            </p>
-            <a href="/">Back to sign in</a>
-          </form>
-        ) : (
-          <section>
-            <p>
-              Create a passkey to access your account without an email address or password. Then
-              save a complete recovery kit for the times your passkeys are unavailable.
-            </p>
-            <div className="actions">
-              <button
-                type="button"
-                disabled={busy}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    const options = await api('/auth/options', apiSchemas.AuthOptions, {
-                      purpose: 'register',
+                      setGrant(recovered);
+                      setHandle('');
+                      setCode('');
                     });
-                    await complete(await enroll(options), isCurrent);
-                  })
-                }
-              >
-                Create a test account
-              </button>
-              <button
-                type="button"
-                className="secondary"
-                disabled={busy}
-                onClick={() =>
-                  void run(async (isCurrent) => {
-                    await complete(await signIn('authenticate'), isCurrent);
-                  })
-                }
-              >
-                Sign in with a passkey
-              </button>
+                  }}
+                >
+                  <p className="lead">
+                    Open the recovery kit you saved. Enter its handle and one unused code. A code
+                    alone cannot identify your account.
+                  </p>
+                  <label htmlFor="recovery-handle">Recovery handle</label>
+                  <input
+                    id="recovery-handle"
+                    value={handle}
+                    onChange={(event) => setHandle(event.target.value)}
+                    autoComplete="off"
+                    spellCheck={false}
+                    autoCapitalize="none"
+                    required
+                    maxLength={100}
+                    disabled={busy}
+                  />
+                  <label htmlFor="recovery-code">Unused recovery code</label>
+                  <input
+                    id="recovery-code"
+                    type="password"
+                    value={code}
+                    onChange={(event) => setCode(event.target.value)}
+                    autoComplete="off"
+                    required
+                    maxLength={100}
+                    disabled={busy}
+                  />
+                  <button type="submit" disabled={busy || !handle.trim() || !code.trim()}>
+                    Verify recovery kit
+                  </button>
+                  <p className="muted recovery-note">
+                    You’ll create a replacement passkey before you can access your account. If a
+                    connection is interrupted after verification, that code may already be used; try
+                    an existing passkey or another unused code.
+                  </p>
+                  <a href="/">Back to sign in</a>
+                </form>
+              ) : (
+                <section className="landing-content">
+                  <p className="lead">
+                    Create a passkey to access your account without an email address or password.
+                    Then save a complete recovery kit for the times your passkeys are unavailable.
+                  </p>
+                  <div className="actions">
+                    <button
+                      type="button"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async (isCurrent) => {
+                          const options = await api('/auth/options', apiSchemas.AuthOptions, {
+                            purpose: 'register',
+                          });
+                          await complete(await enroll(options), isCurrent);
+                        })
+                      }
+                    >
+                      Create a test account
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() =>
+                        void run(async (isCurrent) => {
+                          await complete(await signIn('authenticate'), isCurrent);
+                        })
+                      }
+                    >
+                      <Icon name="key" />
+                      Sign in with a passkey
+                    </button>
+                  </div>
+                  <a href="/recover">Recover with your saved kit</a>
+                </section>
+              )}
+              {busy && (
+                <p role="status" className="busy-line">
+                  <span className="spinner" aria-hidden="true" />
+                  Completing your account action…
+                </p>
+              )}
             </div>
-            <a href="/recover">Recover with your saved kit</a>
-          </section>
-        )}
-        {busy && <p role="status">Completing your account action…</p>}
-      </div>
-      {deletionReceipt && (
-        <DeletionReceiptPanel
-          key={deletionReceipt.proof.receiptId}
-          {...deletionReceipt}
-          onDismiss={() => setDeletionReceipt(null)}
-        />
-      )}
-      <footer>No email or password is collected. Keep recovery files off shared devices.</footer>
-    </main>
+            {landing && <Art name="leaves" className="landing-leaves" />}
+          </div>
+          {deletionReceipt && (
+            <DeletionReceiptPanel
+              key={deletionReceipt.proof.receiptId}
+              {...deletionReceipt}
+              onDismiss={() => setDeletionReceipt(null)}
+            />
+          )}
+        </div>
+      </main>
+      <footer className="site-footer">
+        <p className="shell-width">
+          No email or password is collected. Keep recovery files off shared devices.
+        </p>
+      </footer>
+    </div>
   );
 }
