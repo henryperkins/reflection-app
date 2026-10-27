@@ -1,3 +1,6 @@
+import type { ApplicationRuntime } from '../runtime/application.ts';
+import type { HostedCoordinator, OfflineContext } from './hosted-coordinator.ts';
+import type { ProtectedBackupInventory } from './backup-inventory.ts';
 import { z } from 'zod';
 import type { Env } from '../index.ts';
 import { IdentityCheckpoint } from '../../contracts/index.ts';
@@ -10,6 +13,7 @@ import {
   type Checkpoint,
 } from '../identity/crypto.ts';
 import { localIdentity } from '../identity/routes.ts';
+import { assertion } from '../identity/checkpoint.ts';
 import { RecordBase } from '../readings/base.ts';
 import { SessionErasure } from '../readings/erasure.ts';
 import { syntheticBundle, localDevelopmentBundle } from '../readings/local-content.ts';
@@ -17,6 +21,14 @@ import { objects, erasureJobIds, type Chain } from './ledger.ts';
 import { recoveryExclusive, type RecoveryLease } from './coordination.ts';
 import { CleanupJournal, CLEANUP_STATE_KEY } from './cleanup-state.ts';
 
+export interface OfflineRestoreOptions {
+  retainedKeys?: IdentitySecrets[];
+  now?: () => number;
+  runtime?: ApplicationRuntime;
+  offline?: { coordinator: HostedCoordinator; context: OfflineContext };
+  validateContent?: (hash: string) => Promise<boolean>;
+  backupInventory?: ProtectedBackupInventory;
+}
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 /** Local operator service only. No HTTP route imports this module. One offline runner owns D1/R2. */
 export class OfflineRestore {
@@ -25,16 +37,22 @@ export class OfflineRestore {
   readonly now: () => number;
   constructor(
     readonly env: Env,
-    options: { retainedKeys?: IdentitySecrets[]; now?: () => number } = {},
+    readonly options: OfflineRestoreOptions = {},
   ) {
-    const identity = localIdentity(env);
+    const identity = options.runtime?.identity ?? localIdentity(env);
     if (
       env.RESTORE_MODE !== 'offline' ||
-      env.READING_MODE !== 'synthetic-local' ||
       !identity ||
-      identity.crypt.secrets.environment !== 'synthetic-local'
+      (options.runtime
+        ? !options.offline ||
+          !options.validateContent ||
+          options.runtime.environmentId !== identity.crypt.secrets.environment ||
+          options.offline.context.environmentId !== options.runtime.environmentId ||
+          options.offline.coordinator.environmentId !== options.runtime.environmentId
+        : env.READING_MODE !== 'synthetic-local' ||
+          identity.crypt.secrets.environment !== 'synthetic-local')
     )
-      throw new Error('Restore requires explicit synthetic offline bindings');
+      throw new Error('Restore requires explicit offline identity and coordinator bindings');
     this.base = new RecordBase(env.DB, identity);
     this.erasure = new SessionErasure(
       this.base,
@@ -44,6 +62,24 @@ export class OfflineRestore {
     this.now = options.now ?? Date.now;
   }
   async fence() {
+    if (this.options.offline) {
+      const { coordinator, context } = this.options.offline;
+      await coordinator.assertCurrent(context);
+      await this.env.DB.batch([
+        assertion(
+          this.env.DB,
+          'NOT EXISTS(SELECT 1 FROM hosted_coordination WHERE environment_id=? AND epoch>?)',
+          context.environmentId,
+          context.epoch,
+        ),
+        q(
+          this.env.DB,
+          `INSERT INTO hosted_coordination(environment_id,epoch,state,evidence_hash,updated_at) VALUES(?,?,'offline',NULL,${DB_NOW}) ON CONFLICT(environment_id) DO UPDATE SET epoch=excluded.epoch,state='offline',evidence_hash=NULL,updated_at=excluded.updated_at`,
+          context.environmentId,
+          context.epoch,
+        ),
+      ]);
+    }
     await this.env.DB.batch([
       q(
         this.env.DB,
@@ -56,7 +92,11 @@ export class OfflineRestore {
       ),
     ]);
   }
-  private async exclusive<T>(work: (lease: RecoveryLease) => Promise<T>): Promise<T> {
+  async exclusive<T>(work: (lease: RecoveryLease) => Promise<T>): Promise<T> {
+    if (this.options.offline) {
+      const lease = this.options.offline;
+      return lease.coordinator.withOffline(lease.context, () => work(lease));
+    }
     return recoveryExclusive(this.base.identity.crypt.secrets.environment, work);
   }
   /** Flush accessible operations before taking the database back to an older bookmark. */
@@ -142,10 +182,13 @@ export class OfflineRestore {
       ).first();
       if (pending) throw new Error('Unflushed erasure remains pending');
       // Only the local runner can now remove its explicit offline binding. Dispatch stays off.
-      await q(this.env.DB, 'UPDATE system_state SET restore_in_progress=0 WHERE id=1').run();
+      if (!this.options.offline)
+        await q(this.env.DB, 'UPDATE system_state SET restore_in_progress=0 WHERE id=1').run();
       return {
         status: 'verified' as const,
-        scope: 'synthetic-local-only' as const,
+        scope: this.options.offline
+          ? ('hosted-synthetic' as const)
+          : ('synthetic-local-only' as const),
         erasureJobs: chains.length,
         identityCheckpoints: checkpoints.size,
         generationEnabled: false as const,
@@ -324,11 +367,22 @@ export class OfflineRestore {
   }
   private async checkContent() {
     // Exact localhost fixture editions only; this is not a production approval list.
-    const fixtures = [(await syntheticBundle()).editionHash, localDevelopmentBundle().editionHash];
+    let fixtures: string[];
+    if (this.options.validateContent) {
+      fixtures = [];
+      const entries = await q(
+        this.env.DB,
+        "SELECT hash FROM content_editions WHERE state!='withdrawn'",
+      ).all<{ hash: string }>();
+      for (const entry of entries.results)
+        if (await this.options.validateContent(entry.hash)) fixtures.push(entry.hash);
+    } else fixtures = [(await syntheticBundle()).editionHash, localDevelopmentBundle().editionHash];
+    // An empty verified set withdraws everything, without interpolating any identity.
+    if (!fixtures.length) fixtures = ['0'.repeat(64)];
     await this.env.DB.batch([
       q(
         this.env.DB,
-        `UPDATE content_editions SET state='withdrawn',withdrawn_at=coalesce(withdrawn_at,${DB_NOW}) WHERE hash NOT IN (?,?) AND state!='withdrawn'`,
+        `UPDATE content_editions SET state='withdrawn',withdrawn_at=coalesce(withdrawn_at,${DB_NOW}) WHERE hash NOT IN (${fixtures.map(() => '?').join(',')}) AND state!='withdrawn'`,
         ...fixtures,
       ),
       q(

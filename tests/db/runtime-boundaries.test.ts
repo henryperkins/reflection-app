@@ -25,6 +25,8 @@ function fixture() {
   manifest.generation = 'intercepted';
   const bindings: RuntimeBindings = {
     DB: env.DB,
+    OFFLINE_COORDINATOR: env.OFFLINE_COORDINATOR,
+    RECOVERY_CONTROL_SECRET: 'synthetic-offline-control-token-not-a-deployed-secret',
     RECOVERY: env.RECOVERY,
     RUNTIME_MANIFEST: JSON.stringify(manifest),
     RUNTIME_RESOURCE_IDENTITIES: JSON.stringify(manifest.resources),

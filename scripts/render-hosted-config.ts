@@ -1,12 +1,21 @@
 import { readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { resolve, relative, dirname } from 'node:path';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import { renderHostedConfig } from '../src/worker/runtime/config.ts';
 
 export function renderConfiguration(input: string, output: string) {
   if (resolve(input) === resolve(output)) throw new Error('Use a separate configuration output');
   const manifest: unknown = JSON.parse(readFileSync(resolve(input), 'utf8'));
   const config = renderHostedConfig(manifest);
+  const root = fileURLToPath(new URL('..', import.meta.url));
+  const portable = (path: string) =>
+    relative(dirname(resolve(output)), resolve(root, path))
+      .split('\\')
+      .join('/');
+  config.main = portable(config.main);
+  config.assets.directory = portable(config.assets.directory);
+  for (const database of config.d1_databases)
+    database.migrations_dir = portable(database.migrations_dir);
   writeFileSync(resolve(output), JSON.stringify(config, null, 2) + '\n', { flag: 'wx' });
   return {
     mode: JSON.parse(config.vars.RUNTIME_MANIFEST).mode,

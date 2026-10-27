@@ -1,3 +1,4 @@
+import type { OfflineControl } from '../src/worker/recovery/hosted-coordinator.ts';
 import type { D1Migration } from 'cloudflare:test';
 
 declare global {
@@ -5,6 +6,8 @@ declare global {
     interface Env {
       DB: D1Database;
       RECOVERY: R2Bucket;
+      BACKUP_INVENTORY: R2Bucket;
+      OFFLINE_COORDINATOR: DurableObjectNamespace<OfflineControl>;
       TEST_MIGRATIONS: D1Migration[];
     }
   }

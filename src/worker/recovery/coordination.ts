@@ -1,5 +1,6 @@
+import type { HostedCoordinator, OfflineContext } from './hosted-coordinator.ts';
 /** One trusted local runner only; this is not a distributed production lock. */
-export type RecoveryLease = symbol;
+export type RecoveryLease = symbol | { coordinator: HostedCoordinator; context: OfflineContext };
 const environments = new Map<string, { writers: number; exclusive: RecoveryLease | null }>();
 function state(environment: string) {
   let value = environments.get(environment);
@@ -14,6 +15,10 @@ export async function recoveryWrite<T>(
   work: () => Promise<T>,
   lease?: RecoveryLease,
 ): Promise<T> {
+  if (lease && typeof lease === 'object') {
+    if (lease.context.environmentId !== environment) throw new Error('Wrong recovery environment');
+    return lease.coordinator.withOffline(lease.context, work);
+  }
   const current = state(environment);
   if (current.exclusive !== null && current.exclusive !== lease)
     throw new Error('Offline recovery operation is running');

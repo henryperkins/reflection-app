@@ -274,13 +274,14 @@ export class IdentityCheckpoints {
       if (state !== 'applied') throw error;
     }
   }
-  async resumePending(): Promise<void> {
+  async resumePending(deadlineMs = Infinity): Promise<void> {
     const pending = await this.db
       .prepare(
         `SELECT id,created_at FROM security_operations WHERE state<>'applied' AND next_run_at<=${DB_NOW} ORDER BY next_run_at LIMIT 20`,
       )
       .all<{ id: string; created_at: number }>();
     for (const operation of pending.results) {
+      if (Date.now() >= deadlineMs) break;
       try {
         await this.apply(operation.id);
       } catch {

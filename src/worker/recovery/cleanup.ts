@@ -3,7 +3,6 @@ import type { Checkpoint, IdentitySecrets } from '../identity/crypto.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import { statement as q, DB_NOW } from '../db/core.ts';
 import { sha256Json } from '../../domain/json.ts';
-import { recoveryExclusive } from './coordination.ts';
 import {
   CleanupJournal,
   CLEANUP_LIMIT,
@@ -11,7 +10,7 @@ import {
   type PendingCleanup,
 } from './cleanup-state.ts';
 import { DAY, erasureJobIds, type Chain, type Target } from './ledger.ts';
-import { OfflineRestore } from './restore.ts';
+import { OfflineRestore, type OfflineRestoreOptions } from './restore.ts';
 
 export interface CleanupBackup {
   /** Capture actual offline D1 state in separate trusted local storage and return its SHA-256. */
@@ -32,12 +31,34 @@ export class OfflineCleanup {
     readonly env: Env,
     readonly backup: CleanupBackup,
     retainedKeys: IdentitySecrets[] = [],
+    options: OfflineRestoreOptions = {},
   ) {
-    this.restore = new OfflineRestore(env, { retainedKeys });
+    if (options.runtime && !options.backupInventory)
+      throw new Error('Independent backup inventory required');
+    if (options.backupInventory) {
+      const inventory = options.backupInventory;
+      this.backup = {
+        capture: (db, epoch) => backup.capture(db, epoch),
+        verify: async (digest, epoch) => {
+          if (!(await backup.verify(digest, epoch))) return false;
+          const verified = await inventory.verified();
+          return verified.manifests.some(
+            (m) =>
+              m.kind === 'd1' &&
+              m.sha256 === digest &&
+              m.recoveryEpoch === epoch &&
+              Date.parse(m.expiresAt) > Date.now(),
+          );
+        },
+      };
+    }
+    this.restore = new OfflineRestore(env, { ...options, retainedKeys });
     this.journal = new CleanupJournal(this.restore.erasure.ledger);
   }
   async run() {
-    return recoveryExclusive(this.restore.base.identity.crypt.secrets.environment, async () => {
+    return this.restore.exclusive(async () => {
+      if (this.restore.options.backupInventory)
+        await this.restore.options.backupInventory.verified();
       await this.restore.fence();
       const previous = await this.journal.read();
       const currentEpoch =

@@ -2894,6 +2894,52 @@
           "default": "0"
         }
       }
+    },
+    "hosted_coordination": {
+      "retention": "environment lifetime; independent coordinator remains authoritative",
+      "erasure": "operational mirror; no personal fields",
+      "columns": {
+        "environment_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "epoch": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "state": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "evidence_hash": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "updated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
     }
   }
 }

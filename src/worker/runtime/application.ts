@@ -1,3 +1,5 @@
+import { HostedCoordinator, type OfflineControl } from '../recovery/hosted-coordinator.ts';
+import { runMaintenance } from '../maintenance/driver.ts';
 import { createWorker, type Env } from '../index.ts';
 import { IdentityCrypto, parseIdentitySecrets, decode } from '../identity/crypto.ts';
 import { IdentityService } from '../identity/service.ts';
@@ -17,6 +19,9 @@ import { OpenAIWritingProvider } from '../provider/openai.ts';
 import { z } from 'zod';
 
 export interface RuntimeBindings extends Env {
+  OFFLINE_COORDINATOR?: DurableObjectNamespace<OfflineControl>;
+  RECOVERY_CONTROL_SECRET?: string;
+  BACKUP_INVENTORY?: R2Bucket;
   RUNTIME_MANIFEST?: string;
   RUNTIME_RESOURCE_IDENTITIES?: string;
   QUALIFICATION_ARTIFACTS?: R2Bucket;
@@ -27,9 +32,11 @@ export interface RuntimeBindings extends Env {
 export interface ApplicationRuntime {
   manifest: RuntimeManifest;
   environmentId: string;
+  coordinator?: HostedCoordinator;
   identity: IdentityService;
   base: RecordBase;
   generation: ReadingGeneration;
+  recoveryBucket: R2Bucket;
   health: {
     status: 'ok';
     mode: RuntimeManifest['mode'];
@@ -246,6 +253,16 @@ export async function createRuntime(
   } catch {
     throw new Error('Runtime configuration unavailable');
   }
+  let coordinator: HostedCoordinator | undefined;
+  if (manifest.mode !== 'synthetic-local') {
+    if (!env.OFFLINE_COORDINATOR || !env.RECOVERY_CONTROL_SECRET)
+      throw new Error('Runtime configuration unavailable');
+    coordinator = new HostedCoordinator(
+      env.OFFLINE_COORDINATOR,
+      env.RECOVERY_CONTROL_SECRET,
+      manifest.environmentId,
+    );
+  }
   const base = new RecordBase(env.DB, identity);
   let generation: ReadingGeneration,
     generationReady = false;
@@ -280,9 +297,11 @@ export async function createRuntime(
   return {
     manifest,
     environmentId: manifest.environmentId,
+    ...(coordinator ? { coordinator } : {}),
     identity,
     base,
     generation,
+    recoveryBucket: env.RECOVERY!,
     health: {
       status: 'ok',
       mode: manifest.mode,
@@ -302,7 +321,10 @@ export function createRuntimeWorker(fetcher: typeof fetch = fetch) {
           return new Response('Origin required', { status: 403 });
         if (new URL(request.url).pathname.startsWith('/api/') && runtime.manifest.ingress === 'off')
           return Response.json({ error: 'Application admission is disabled' }, { status: 503 });
-        return createWorker(undefined, runtime).fetch(request, env, ctx);
+        const handle = async () => createWorker(undefined, runtime).fetch(request, env, ctx);
+        return await (new URL(request.url).pathname.startsWith('/api/') && runtime.coordinator
+          ? runtime.coordinator.withWriter(handle)
+          : handle());
       } catch {
         return Response.json(
           { error: 'Application unavailable' },
@@ -310,10 +332,21 @@ export function createRuntimeWorker(fetcher: typeof fetch = fetch) {
         );
       }
     },
-    async scheduled(controller: ScheduledController, env: RuntimeBindings, ctx: ExecutionContext) {
+    async scheduled(
+      _controller: ScheduledController,
+      env: RuntimeBindings,
+      _ctx: ExecutionContext,
+    ) {
       const runtime = await createRuntime(env, fetcher);
-      return createWorker(undefined, runtime).scheduled(controller, env, ctx);
+      const work = () =>
+        runMaintenance(runtime, {
+          deadlineMs: Date.now() + runtime.generation.providerTimeoutMs + 30000,
+          concurrency: 4,
+        });
+      return runtime.coordinator ? runtime.coordinator.withWriter(work) : work();
     },
   };
 }
 export default createRuntimeWorker();
+
+export { OfflineControl } from '../recovery/hosted-coordinator.ts';

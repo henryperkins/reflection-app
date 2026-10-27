@@ -337,18 +337,41 @@ export class ReadingGeneration extends RequestState {
   }
 
   /** Durable D1 work is authoritative; waitUntil only reduces latency. */
-  async maintenance() {
+  get providerTimeoutMs() {
+    return this.dependencies.policy.timeoutMs;
+  }
+  async maintenance(
+    budget: { deadlineMs: number; concurrency: 4 } = {
+      deadlineMs: Date.now() + 90000,
+      concurrency: 4,
+    },
+  ) {
     if (this.synthetic) await this.dependencies.ensureReady();
     await this.base.db.batch([onlineGuard(this.base.db)]);
     await this.reconcileStopped();
     const due = await q(
       this.base.db,
-      `SELECT id FROM generation_requests WHERE state NOT IN (${terminalStates}) AND (expires_at<=${DB_NOW} OR (next_run_at<=${DB_NOW} AND (lease_expires_at IS NULL OR lease_expires_at<=${DB_NOW}))) ORDER BY next_run_at,id LIMIT 20`,
-    ).all<{ id: string }>();
-    const started = Date.now();
-    for (let i = 0; i < due.results.length && Date.now() - started < 30000; i += 4)
-      await Promise.allSettled(due.results.slice(i, i + 4).map((row) => this.drive(row.id)));
+      `SELECT id,expires_at<=${DB_NOW} expired,EXISTS(SELECT 1 FROM provider_dispatches d WHERE d.request_id=generation_requests.id) dispatched FROM generation_requests WHERE state NOT IN (${terminalStates}) AND (expires_at<=${DB_NOW} OR (next_run_at<=${DB_NOW} AND (lease_expires_at IS NULL OR lease_expires_at<=${DB_NOW}))) ORDER BY next_run_at,id LIMIT 20`,
+    ).all<{ id: string; expired: number; dispatched: number }>();
+    let attempted = 0;
+    for (
+      let i = 0;
+      i < due.results.length && Date.now() < budget.deadlineMs;
+      i += budget.concurrency
+    ) {
+      const eligible = due.results
+        .slice(i, i + budget.concurrency)
+        .filter(
+          (row) =>
+            row.expired ||
+            row.dispatched ||
+            budget.deadlineMs - Date.now() >= this.providerTimeoutMs + 6000,
+        );
+      attempted += eligible.length;
+      await Promise.allSettled(eligible.map((row) => this.drive(row.id)));
+    }
     await this.base.db.batch([onlineGuard(this.base.db)]);
+    return { attempted };
   }
 
   private async reconcileStopped() {

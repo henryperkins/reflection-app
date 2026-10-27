@@ -1,6 +1,6 @@
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { expect, test } from 'vitest';
 import { runtimeManifest } from '../fixtures/runtime.ts';
@@ -28,6 +28,12 @@ test('the config renderer writes a closed production candidate and refuses an ex
       });
     expect(run().status).toBe(0);
     const original = readFileSync(output, 'utf8');
+    const config = JSON.parse(original);
+    expect(resolve(root, config.main)).toBe(resolve('src/worker/runtime/application.ts'));
+    expect(resolve(root, config.assets.directory)).toBe(resolve('dist/client'));
+    expect(resolve(root, config.d1_databases[0].migrations_dir)).toBe(
+      resolve('src/worker/db/migrations'),
+    );
     expect(JSON.parse(JSON.parse(original).vars.RUNTIME_MANIFEST)).toMatchObject({
       ingress: 'off',
       generation: 'off',

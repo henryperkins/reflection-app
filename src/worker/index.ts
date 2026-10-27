@@ -70,6 +70,7 @@ export function createWorker(factory?: GenerationFactory, runtime?: ApplicationR
     // Direct service/in-process callers may await completion; Worker requests acknowledge admission.
     let defer: ((work: Promise<void>) => void) | undefined;
     try {
+      if (runtime) throw new Error('Hosted driver is awaited');
       const ctx = c.executionCtx;
       defer = (work) => ctx.waitUntil(work);
     } catch {
@@ -126,3 +127,5 @@ export function createWorker(factory?: GenerationFactory, runtime?: ApplicationR
   } satisfies ExportedHandler<Env>;
 }
 export default createWorker();
+
+export { OfflineControl } from './recovery/hosted-coordinator.ts';
