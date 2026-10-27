@@ -41,7 +41,7 @@ export type EvaluationRequest = {
 };
 export type EvaluationManifest = {
   version: 'reflection-evaluation-manifest.v1';
-  profile: 'baseline' | 'smoke';
+  profile: 'baseline' | 'smoke' | 'human-review';
   model: string;
   policyHash: string;
   contentHash: string;
@@ -79,7 +79,7 @@ export type PreparedEvaluation = {
 
 /** Synthetic-only evaluator. These fixtures cannot pass production content activation. */
 export async function prepareEvaluation(
-  profile: 'baseline' | 'smoke' = 'baseline',
+  profile: EvaluationManifest['profile'] = 'baseline',
 ): Promise<PreparedEvaluation> {
   const bytes = readFileSync(resolve(projectRoot, 'evaluation/corpus.json'));
   const corpus = z
@@ -145,6 +145,7 @@ export async function prepareEvaluation(
       continue;
     }
     if (profile === 'smoke' && !smoke.has(c.id)) continue;
+    if (profile === 'human-review' && !c.humanReviewRequired) continue;
     const id = `${c.id}.controlled.1`;
     let admission = inputAdmission(c.question!, c.language);
     let payloadHash: string | null = null;

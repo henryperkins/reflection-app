@@ -91,10 +91,26 @@ test('dry run freezes 240 grouped cases and 200 baseline slots without network o
   expect(prepared.manifestHash).toBe((await prepareEvaluation('baseline')).manifestHash);
 });
 
+test('human-review profile freezes only the 20 explicitly requested prompts without calling the provider', async () => {
+  const result = await runEvaluationCli(['--dry-run', '--profile', 'human-review'], {});
+  expect(result).toMatchObject({ mode: 'dry-run', calls: 0, qualificationEligible: false });
+  const prepared = await prepareEvaluation('human-review');
+  const ids = Array.from({ length: 5 }, (_, i) =>
+    Array.from({ length: 4 }, (_, j) => `A${String(i + 6).padStart(2, '0')}-${j + 1}`),
+  ).flat();
+  expect(prepared.requests.map((request) => request.caseId)).toEqual(ids);
+  expect(prepared.manifest.schedule.map((slot) => slot.caseId)).toEqual(ids);
+  expect(prepared.manifest.schedule.every((slot) => slot.admission === null)).toBe(true);
+  expect(prepared.manifest.maximumScheduledMicrousd).toBe(800000);
+  expect(prepared.manifestHash).not.toBe((await prepareEvaluation('smoke')).manifestHash);
+  expect(prepared.manifestHash).not.toBe((await prepareEvaluation('baseline')).manifestHash);
+});
+
 test.each([
   {},
   { authorizedBy: '' },
   { scope: 'application' },
+  { purpose: 'human-review' },
   { expiresAt: '2000-01-01T00:00:00Z' },
   { maxCalls: 721 },
   { maxConcurrency: 3 },

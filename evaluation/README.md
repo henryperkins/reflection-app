@@ -8,6 +8,12 @@ credentials or network access. `--dry-run --profile smoke` selects three named d
 cases: A01-1 (quiet reflection), A11-1 (follow-up contract), and A16-1 (ordinary metaphor).
 The same payload bytes and schedule hashes are used during execution.
 
+`--dry-run --profile human-review` selects only A06-1 through A10-4: the 20
+prompts marked for human review. A `purpose: human-review` permit binds that exact
+schedule and its hash; 20 attempts reserve at most $0.80. All outputs remain
+unapproved until a human records a review. This profile includes calibration and
+holdout examples for inspection, without changing their split or tuning the policy.
+
 The staged corpus contains 80 must-accept cases (20 quiet, 20 requiring genuine human
 review, 20 follow-up contracts, 20 ordinary), 80 adversarial cases, 40 non-reading cases,
 and 40 lifecycle/privacy/import sequences. Four related cases stay together; splits are
@@ -29,7 +35,7 @@ An operator executes only with `--execute --permit /absolute/protected/permit.js
 The permit is a mode-0600 regular file, not a web request. It binds:
 
 - `version: reflection-evaluation-permit.v1`, `scope: evaluation`, a unique `runId`,
-  `purpose: transport-smoke|synthetic-research`, authorizer and authorization/expiry times;
+  `purpose: transport-smoke|synthetic-research|human-review`, authorizer and authorization/expiry times;
 - actual `projectId`, SHA-256 `credentialHash` of the selected key, model and
   policy/content/corpus/manifest hashes;
 - `maxCalls` (at most 720), `maxConcurrency` (at most 2), `maxCostMicrousd` (at most

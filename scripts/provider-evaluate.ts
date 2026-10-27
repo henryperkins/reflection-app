@@ -174,7 +174,7 @@ export async function runEvaluationCli(
   if (argv.length === 1 && argv[0] === '--help')
     return {
       usage: [
-        'provider:evaluate -- --dry-run [--profile baseline|smoke]',
+        'provider:evaluate -- --dry-run [--profile baseline|smoke|human-review]',
         'provider:evaluate -- --execute --permit /protected/permit.json [--resume]',
         'provider:evaluate -- --purge-expired',
       ],
@@ -193,7 +193,7 @@ export async function runEvaluationCli(
         : argv.length === 3 && argv[1] === '--profile'
           ? argv[2]
           : null;
-    if (profile !== 'baseline' && profile !== 'smoke')
+    if (profile !== 'baseline' && profile !== 'smoke' && profile !== 'human-review')
       throw new Error('Invalid evaluation profile');
     const prepared = await prepareEvaluation(profile);
     const frozen = JSON.parse(
@@ -226,7 +226,11 @@ export async function runEvaluationCli(
   if (permit.projectId !== projectId || permit.credentialHash !== digest(apiKey))
     throw new Error('Evaluation project or credential mismatch');
   const prepared = await prepareEvaluation(
-    permit.purpose === 'transport-smoke' ? 'smoke' : 'baseline',
+    permit.purpose === 'transport-smoke'
+      ? 'smoke'
+      : permit.purpose === 'human-review'
+        ? 'human-review'
+        : 'baseline',
   );
   validatePermit(permit, prepared);
   // No transport exists until authorization, identity, archive protection and journal all validate.

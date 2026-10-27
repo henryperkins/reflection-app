@@ -25,7 +25,7 @@ export { digest } from './provider-evaluation-corpus.ts';
 export const EvaluationPermit = z.strictObject({
   version: z.literal('reflection-evaluation-permit.v1'),
   scope: z.literal('evaluation'),
-  purpose: z.enum(['transport-smoke', 'synthetic-research']),
+  purpose: z.enum(['transport-smoke', 'synthetic-research', 'human-review']),
   runId: z.uuid(),
   authorizedBy: z.string().trim().min(1).max(200),
   authorizedAt: z.iso.datetime(),
@@ -134,7 +134,12 @@ export function validatePermit(
     p.policyHash !== m.policyHash ||
     p.contentHash !== m.contentHash ||
     p.corpusHash !== m.corpusHash ||
-    (p.purpose === 'transport-smoke' && m.profile !== 'smoke')
+    m.profile !==
+      (p.purpose === 'transport-smoke'
+        ? 'smoke'
+        : p.purpose === 'human-review'
+          ? 'human-review'
+          : 'baseline')
   )
     throw new Error('Evaluation permit rejected');
   return p;
