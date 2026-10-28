@@ -384,7 +384,7 @@ test('resume reserves persistent exclusion while awaiting evidence and refuses a
   ).toBe('offline');
 });
 
-test('an expired writer registration drains without a quiescence proof and never opens ingress early', async () => {
+test('a legacy writer expiry cannot drain the fence without actual cleanup or quiescence proof', async () => {
   const { a, b, environment } = clients();
   const stub = env.OFFLINE_COORDINATOR.getByName(environment);
   await stub.registerWriter(secret, environment, 'leaked-writer');
@@ -394,8 +394,11 @@ test('an expired writer registration drains without a quiescence proof and never
   await runInDurableObject(stub, async (_: OfflineControl, state) => {
     state.storage.sql.exec('UPDATE writers SET expires_at=1 WHERE id=?', 'leaked-writer');
   });
-  expect((await a.inspectRegistrations()).writers).toEqual([]);
-  // Past its hard deadline the fence drains to offline; it never reopens.
+  expect((await a.inspectRegistrations()).writers).toEqual([
+    { id: 'leaked-writer', operationId: null },
+  ]);
+  await expect(b.assertCurrent(lease)).rejects.toThrow();
+  await stub.finishWriter(secret, environment, 'leaked-writer');
   await b.assertCurrent(lease);
   await expect(a.withWriter(async () => 42)).rejects.toThrow();
 });
