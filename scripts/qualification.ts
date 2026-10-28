@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { sourceDigest } from './verification-state.ts';
 
 export const qualificationGates = {
-  identity: ['production identity and real-device recovery', 'hosted-synthetic'],
+  identity: ['hosted identity and automated recovery', 'hosted-synthetic'],
   keys: ['production key rotation and retained-key receipts', 'hosted-synthetic'],
   content: ['verified launch content and attribution', 'automated-review'],
   provider: ['provider qualification and billing reconciliation', 'provider-evaluation'],
