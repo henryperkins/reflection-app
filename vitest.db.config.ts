@@ -5,6 +5,7 @@ export default defineConfig({
   plugins: [
     cloudflareTest(async () => {
       const keys = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
+      const validationKeys = await crypto.subtle.generateKey('Ed25519', true, ['sign', 'verify']);
       return {
         main: './src/worker/index.ts',
         miniflare: {
@@ -21,6 +22,14 @@ export default defineConfig({
             }),
             TEST_QUIESCENCE_SIGNING_KEY: JSON.stringify({
               ...(await crypto.subtle.exportKey('jwk', keys.privateKey)),
+              alg: undefined,
+            }),
+            RECOVERY_VALIDATION_TRUST: JSON.stringify({
+              ...(await crypto.subtle.exportKey('jwk', validationKeys.publicKey)),
+              alg: undefined,
+            }),
+            TEST_RECOVERY_VALIDATION_SIGNING_KEY: JSON.stringify({
+              ...(await crypto.subtle.exportKey('jwk', validationKeys.privateKey)),
               alg: undefined,
             }),
             TEST_MIGRATIONS: await readD1Migrations('src/worker/db/migrations'),

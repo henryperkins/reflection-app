@@ -41,6 +41,14 @@ Ed25519 `QUIESCENCE_TRUST` pin and a signed exact-snapshot termination artifact.
 Keep that verifier's private signing key out of application bindings. A missing
 pin/proof never triggers TTL clearing; see the hosted recovery runbook.
 
+Hosted resumption likewise requires a server-only public Ed25519
+`RECOVERY_VALIDATION_TRUST` pin. The matching validator private key belongs
+only to the trusted `recovery:resume` executor, never to the application
+Worker, which therefore cannot forge the signed `RecoveryValidation` it
+verifies. Normal-writer registrations carry a five-minute hard deadline and
+are unregistered through `ctx.waitUntil`; a cleanup failure cannot replace a
+committed response.
+
 Cron runs every minute. The bounded driver reserves the active provider deadline
 plus 30 seconds (90 seconds for the current policy), serves security/erasure and
 retention first, and starts no new inference that cannot fit its remaining budget.

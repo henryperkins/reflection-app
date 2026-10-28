@@ -12,6 +12,8 @@ declare global {
       TEST_MIGRATIONS: D1Migration[];
       QUIESCENCE_TRUST: string;
       TEST_QUIESCENCE_SIGNING_KEY: string;
+      RECOVERY_VALIDATION_TRUST: string;
+      TEST_RECOVERY_VALIDATION_SIGNING_KEY: string;
     }
   }
 }

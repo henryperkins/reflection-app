@@ -22,6 +22,7 @@ export interface RuntimeBindings extends Env {
   OFFLINE_COORDINATOR?: DurableObjectNamespace<OfflineControl>;
   RECOVERY_CONTROL_SECRET?: string;
   QUIESCENCE_TRUST?: string;
+  RECOVERY_VALIDATION_TRUST?: string;
   BACKUP_INVENTORY?: R2Bucket;
   RUNTIME_MANIFEST?: string;
   RUNTIME_RESOURCE_IDENTITIES?: string;
@@ -329,16 +330,19 @@ export function createRuntimeWorker(fetcher: typeof fetch = fetch) {
           return new Response('Origin required', { status: 403 });
         if (new URL(request.url).pathname.startsWith('/api/') && runtime.manifest.ingress === 'off')
           return Response.json({ error: 'Application admission is disabled' }, { status: 503 });
+        // Keep the writer unregistration alive past a client disconnect; a
+        // cleanup failure must never replace a response that already committed.
+        const waitUntil = ctx ? (promise: Promise<unknown>) => ctx.waitUntil(promise) : undefined;
         if (new URL(request.url).pathname === '/health' && runtime.coordinator) {
           try {
-            await runtime.coordinator.withWriter(async () => {});
+            await runtime.coordinator.withWriter(async () => {}, waitUntil);
           } catch {
             runtime.health.generationReady = false;
           }
         }
         const handle = async () => createWorker(undefined, runtime).fetch(request, env, ctx);
         return await (new URL(request.url).pathname.startsWith('/api/') && runtime.coordinator
-          ? runtime.coordinator.withWriter(handle)
+          ? runtime.coordinator.withWriter(handle, waitUntil)
           : handle());
       } catch {
         return Response.json(
@@ -347,11 +351,7 @@ export function createRuntimeWorker(fetcher: typeof fetch = fetch) {
         );
       }
     },
-    async scheduled(
-      _controller: ScheduledController,
-      env: RuntimeBindings,
-      _ctx: ExecutionContext,
-    ) {
+    async scheduled(_controller: ScheduledController, env: RuntimeBindings, ctx: ExecutionContext) {
       try {
         const runtime = await createRuntime(env, fetcher);
         const work = () =>
@@ -359,7 +359,9 @@ export function createRuntimeWorker(fetcher: typeof fetch = fetch) {
             deadlineMs: Date.now() + runtime.generation.providerTimeoutMs + 30000,
             concurrency: 4,
           });
-        const summary = await (runtime.coordinator ? runtime.coordinator.withWriter(work) : work());
+        const summary = await (runtime.coordinator
+          ? runtime.coordinator.withWriter(work, (promise) => ctx.waitUntil(promise))
+          : work());
         console.info(JSON.stringify(summary));
         return summary;
       } catch {

@@ -105,6 +105,49 @@ test('v2 approval binds rich fields and permits reviewed position-specific entri
   );
 });
 
+test('automated validation still rejects draft markers in relationship text and limits', async () => {
+  const b = await approvedV2Fixture(),
+    input = await v2Input();
+  for (const s of b.sources) {
+    s.review.kind = 'automated_validated';
+    s.rights.status = 'unknown';
+    s.rights.evidence = '';
+    s.rights.territory = '';
+    s.hash = await reviewedRecordHash(s);
+    s.review.reviewedHash = s.hash;
+  }
+  const note = await relationship(input, 'relationship-automated');
+  note.deckEdition = b.deckEdition;
+  note.sourceIds = b.sources.slice(0, 2).map((s) => s.id);
+  note.review.kind = 'automated_validated';
+  note.review.reviewer = 'validator-a';
+  (note.rights as { status: string }).status = 'unknown';
+  note.rights.evidence = '';
+  note.rights.attribution = '';
+  note.rights.territory = '';
+  note.hash = await reviewedRecordHash(note);
+  note.review.reviewedHash = note.hash;
+  b.relationships = [note];
+  b.editionHash = await contentHashV2(b);
+  // Deferred rights evidence for automated records does not defer prose checks.
+  await expect(inspectReviewedBundle(b)).resolves.toHaveProperty('schemaVersion', 2);
+  for (const mutate of [
+    (v: typeof note) => {
+      v.text = 'A synthetic relationship note.';
+    },
+    (v: typeof note) => {
+      v.limits = 'Pending codex draft limits.';
+    },
+  ]) {
+    const changed = structuredClone(b);
+    mutate(changed.relationships[0]! as typeof note);
+    changed.relationships[0]!.hash = await reviewedRecordHash(changed.relationships[0]!);
+    changed.relationships[0]!.review.reviewedHash = changed.relationships[0]!.hash;
+    changed.editionHash = await contentHashV2(changed);
+    await expect(inspectReviewedBundle(changed)).rejects.toThrow('Content not approved');
+  }
+});
+
 test('unreviewed relationship cannot enter an otherwise approved v2 edition', async () => {
   const b = await approvedV2Fixture(),
     input = await v2Input();

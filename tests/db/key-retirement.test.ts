@@ -346,9 +346,9 @@ test('a synthetic candidate supports all three backup formats, exact reads/expor
   }
   const closure = await inventoryKeyReferences(runtime, f.context, f.backups.inventory);
   expect(closure.complete).toBe(true);
-  const financial = await env.DB.prepare(
-    'SELECT state,count(*) n FROM cost_reservations GROUP BY state',
-  ).all();
+  const { financialReconciliationDigest } = await import(
+    '../../src/worker/recovery/hosted-coordinator.ts'
+  );
   const validation = {
     version: 1,
     producer: 'restore-validator.v1',
@@ -360,11 +360,30 @@ test('a synthetic candidate supports all three backup formats, exact reads/expor
     configurationDigest: 'b'.repeat(64),
     backupInventoryDigest: closure.manifestDigest,
     recoveryValidationDigest: closure.referenceDigest,
-    financialReconciliationDigest: await sha256Json(financial.results),
+    financialReconciliationDigest: await financialReconciliationDigest(env.DB),
     validatedAt: new Date().toISOString(),
     generation: 'off',
   };
-  const bytes = new TextEncoder().encode(canonicalJson(validation)),
+  const signingKey = await crypto.subtle.importKey(
+    'jwk',
+    JSON.parse(env.TEST_RECOVERY_VALIDATION_SIGNING_KEY),
+    'Ed25519',
+    false,
+    ['sign'],
+  );
+  const envelope = {
+    document: validation,
+    signature: encode(
+      new Uint8Array(
+        await crypto.subtle.sign(
+          'Ed25519',
+          signingKey,
+          new TextEncoder().encode(canonicalJson(validation)),
+        ),
+      ),
+    ),
+  };
+  const bytes = new TextEncoder().encode(canonicalJson(envelope)),
     digest = await bytesDigest(bytes);
   await env.BACKUP_INVENTORY.put('recovery-validation/' + digest + '.json', bytes);
   await env.DB.prepare(

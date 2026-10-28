@@ -41,6 +41,7 @@
     "hosted:stage-synthetic": "tsx scripts/hosted-release.ts --stage-synthetic",
     "hosted:qualify": "tsx scripts/hosted-qualify.ts",
     "hosted:restore": "tsx scripts/hosted-restore.ts",
+    "recovery:resume": "tsx scripts/recovery-resume.ts",
     "monitoring:check": "tsx scripts/monitoring-check.ts"
   },
   "dependencies": {

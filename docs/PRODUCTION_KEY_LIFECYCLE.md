@@ -26,6 +26,6 @@ Retain old wraps through interruption and validation. Explicitly adopt a current
 
 ## Resume and evidence
 
-Follow [hosted recovery](HOSTED_RESTORE_RUNBOOK.md). Completion never opens ingress. Protected `RecoveryValidation`, matching D1 mirror/coordinator epoch, drained writers and generation off are required. Secret installation/destruction remain separate explicit operations after backup verification.
+Follow [hosted recovery](HOSTED_RESTORE_RUNBOOK.md). Completion never opens ingress. Produce the signed `RecoveryValidation` with `npm run recovery:resume` through a trusted adapter holding the independent validator private key (public pin: `RECOVERY_VALIDATION_TRUST`); matching D1 mirror/coordinator epoch, drained writers and generation off are required. Secret installation/destruction remain separate explicit operations after backup verification.
 
 Public evidence contains environment/build identity, artifact/source/configuration digests, counts, fixed assertions, times and limitations. Protect account/record IDs, key files, raw queries and detailed journals separately. The `keys` acceptance gate stays pending until actual hosted lifecycle and every supported backup class have been exercised.

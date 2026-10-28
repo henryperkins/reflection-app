@@ -150,9 +150,10 @@ export async function inspectReviewedBundle(
           r.review.reviewedHash !== r.hash ||
           r.review.reviewedAt === null ||
           (r.rights.status !== 'cleared' && (!automated || r.rights.status !== 'unknown')) ||
-          [r.rights.evidence, r.rights.attribution, r.rights.territory, r.text, r.limits].some(
+          [r.rights.evidence, r.rights.attribution, r.rights.territory].some(
             (t) => (!automated || r.rights.status === 'cleared') && (!t.trim() || marker.test(t)),
           ) ||
+          [r.text, r.limits].some((t) => !t.trim() || marker.test(t)) ||
           new Set(r.sourceIds).size !== r.sourceIds.length ||
           supporting.length !== r.sourceIds.length ||
           (r.cards.length === 0 && r.themes.length === 0) ||
