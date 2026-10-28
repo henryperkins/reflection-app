@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "status": "prepared-not-connected",
+  "expectedIntervalMs": 60000,
+  "missingAfterIntervals": 3,
+  "independentClockRequired": true,
+  "inputEvents": ["maintenance_health", "maintenance_failed"],
+  "invocationLogs": false,
+  "requestResponseBodyTracing": false,
+  "distributedTracing": false,
+  "rawExceptionForwarding": false,
+  "platformMetadataReview": "pending",
+  "retentionDays": null,
+  "recipient": null,
+  "backupRecipient": null,
+  "channel": null,
+  "syntheticNotification": "Reflection synthetic monitor rehearsal: HEARTBEAT_MISSING. No customer data. Delivery test only.",
+  "externalSendingAuthorized": false
+}

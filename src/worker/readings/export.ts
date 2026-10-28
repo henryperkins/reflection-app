@@ -254,10 +254,13 @@ export class ReadingExports {
     if (row.kind === 'session') {
       const question = row.value_enc
         ? await this.base.opened<z.infer<typeof Question>>(
-            owner,
-            'reading_sessions',
-            'question_enc',
-            row.id,
+            {
+              ownerId: owner,
+              table: 'reading_sessions',
+              column: 'question_enc',
+              recordId: row.id,
+              aadRevision: 1,
+            },
             row.value_enc,
             Question,
           )
@@ -291,14 +294,15 @@ export class ReadingExports {
           unavailableAt: iso(Number(metadata.unavailableAt)),
         };
       const value = await this.base.opened<z.infer<typeof Reading>>(
-        owner,
-        'reading_editions',
-        'body_enc',
-        row.id,
+        {
+          ownerId: owner,
+          table: 'reading_editions',
+          column: 'body_enc',
+          recordId: row.id,
+          aadRevision: 1,
+        },
         row.value_enc,
         Reading,
-        1,
-        row.key_version,
       );
       if (
         value.editionId !== row.id ||
@@ -311,14 +315,15 @@ export class ReadingExports {
     if (row.kind === 'reflection') {
       if (!row.value_enc) throw new RecordError(503, 'KEY_UNAVAILABLE');
       const value = await this.base.opened<z.infer<typeof Reflection>>(
-        owner,
-        'reflection_revisions',
-        'body_enc',
-        `${row.id}:${row.revision}`,
+        {
+          ownerId: owner,
+          table: 'reflection_revisions',
+          column: 'body_enc',
+          recordId: `${row.id}:${row.revision}`,
+          aadRevision: row.revision,
+        },
         row.value_enc,
         Reflection,
-        row.revision,
-        row.key_version,
       );
       if (
         value.id !== row.id ||
@@ -336,10 +341,13 @@ export class ReadingExports {
           payload: string;
           contextReceipt?: z.infer<typeof WriterReceiptV2> | null;
         }>(
-          owner,
-          'provider_dispatches',
-          'transmission_enc',
-          String(metadata.dispatchId),
+          {
+            ownerId: owner,
+            table: 'provider_dispatches',
+            column: 'transmission_enc',
+            recordId: String(metadata.dispatchId),
+            aadRevision: 1,
+          },
           row.value_enc,
           z.strictObject({
             v: z.literal(1),
@@ -347,8 +355,6 @@ export class ReadingExports {
             payload: z.string().max(200000),
             contextReceipt: WriterReceiptV2.nullable().optional(),
           }),
-          1,
-          row.key_version,
         )
       : null;
     return {

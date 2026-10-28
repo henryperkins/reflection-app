@@ -29,14 +29,15 @@ export class Reflections {
     if ((revision === undefined && row.deleted_at) || row.erased_at || !row.body_enc)
       throw new RecordError(410, 'CONTENT_UNAVAILABLE');
     const value = await this.base.opened<z.infer<typeof Reflection>>(
-      session.subjectId,
-      'reflection_revisions',
-      'body_enc',
-      `${id}:${row.revision}`,
+      {
+        ownerId: session.subjectId,
+        table: 'reflection_revisions',
+        column: 'body_enc',
+        recordId: `${id}:${row.revision}`,
+        aadRevision: row.revision,
+      },
       row.body_enc,
       Reflection,
-      row.revision,
-      row.key_version,
     );
     if (
       value.id !== id ||
@@ -55,6 +56,7 @@ export class Reflections {
     key: string,
     edit?: { id: string; revision: number },
   ) {
+    const account = await this.base.account(session);
     await this.base.ownedSession(session, sessionId);
     const edition = await q(
       this.base.db,
@@ -91,20 +93,24 @@ export class Reflections {
       updatedAt: iso(Date.now()),
     });
     const encrypted = await this.base.crypt.seal(
-      session.subjectId,
-      'reflection_revisions',
-      'body_enc',
-      `${id}:${revision}`,
+      {
+        ownerId: session.subjectId,
+        table: 'reflection_revisions',
+        column: 'body_enc',
+        recordId: `${id}:${revision}`,
+        aadRevision: revision,
+      },
       value,
-      revision,
+      account.key_version,
     );
     try {
       await this.base.atomic(session, [
         this.base.sessionGuard(session, sessionId),
         assertion(
           this.base.db,
-          'EXISTS(SELECT 1 FROM accounts WHERE id=? AND recovery_ack_at IS NOT NULL AND key_version=1)',
+          'EXISTS(SELECT 1 FROM accounts WHERE id=? AND recovery_ack_at IS NOT NULL AND key_version=?)',
           session.subjectId,
+          account.key_version,
         ),
         assertion(
           this.base.db,
@@ -163,11 +169,12 @@ export class Reflections {
             ]),
         q(
           this.base.db,
-          'INSERT INTO reflection_revisions(reflection_id,owner_id,revision,body_enc,key_version,created_at) VALUES (?,?,?,?,1,?)',
+          'INSERT INTO reflection_revisions(reflection_id,owner_id,revision,body_enc,key_version,created_at) VALUES (?,?,?,?,?,?)',
           id,
           session.subjectId,
           revision,
           encrypted,
+          account.key_version,
           Date.parse(value.updatedAt),
         ),
         q(

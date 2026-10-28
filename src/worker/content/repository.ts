@@ -63,9 +63,9 @@ export class D1ContentRepository implements ContentRepository {
         !row ||
         !['approved', 'superseded'].includes(row.state) ||
         row.reviewed_hash !== row.hash ||
-        row.reviewer_kind !== 'human_approved' ||
+        !['human_approved', 'automated_validated'].includes(row.reviewer_kind) ||
         row.reviewer_id !== this.trust.reviewerId ||
-        row.rights_status !== 'cleared' ||
+        !['cleared', 'unknown'].includes(row.rights_status) ||
         !row.approval_json
       )
         throw new Error();
@@ -79,6 +79,16 @@ export class D1ContentRepository implements ContentRepository {
         active,
       );
       if (
+        row.reviewer_kind !==
+          (signed.document.version === 'content-approval.v3'
+            ? 'automated_validated'
+            : 'human_approved') ||
+        row.rights_status !==
+          (bundle.sources.every((s) => s.rights.status === 'cleared') &&
+          (bundle.schemaVersion === 1 ||
+            bundle.relationships.every((r) => r.rights.status === 'cleared'))
+            ? 'cleared'
+            : 'unknown') ||
         bundle.editionHash !== row.hash ||
         (await sha256Json(signed)) !== row.approval_hash ||
         canonicalJson(signed) !== row.approval_json

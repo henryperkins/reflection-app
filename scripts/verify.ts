@@ -68,6 +68,7 @@ const stages = [
   ],
   ['specification package links', 'python3', ['checks/check-package.py']],
 ] as const;
+export const verificationStageNames = stages.map(([name]) => name);
 
 function run(command: string, args: readonly string[], remainingMs: number): Promise<void> {
   return new Promise((accept, reject) => {

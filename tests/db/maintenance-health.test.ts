@@ -57,3 +57,22 @@ test('a database failure cannot be reported as healthy zero counters', async () 
   } as unknown as D1Database;
   await expect(maintenanceHealth(unavailable)).rejects.toThrow();
 });
+
+test('unknown cost, old erasure and actual configured spend limits remain visible', async () => {
+  const { client } = await readingAccount();
+  await client.create();
+  await env.DB.prepare("UPDATE cost_reservations SET state='unknown'").run();
+  await env.DB.prepare('UPDATE spend_buckets SET ceiling_microusd=1,committed_microusd=2').run();
+  await env.DB.prepare(
+    `INSERT INTO deletion_jobs(id,scope,target_hmac,state,ledger_key,next_run_at,created_at) VALUES(?,'session',?,'erasing',?,1,${DB_NOW}-86400001)`,
+  )
+    .bind(crypto.randomUUID(), 'f'.repeat(64), 'PRIVATE_LEDGER_SENTINEL')
+    .run();
+  const health = await maintenanceHealth(env.DB);
+  expect(health).toMatchObject({
+    dailyLimitMicrousd: 1,
+    monthlyLimitMicrousd: 1,
+    alerts: expect.arrayContaining(['ERASURE_LAG', 'PROVIDER_COST_UNKNOWN', 'SPEND_LIMIT']),
+  });
+  expect(JSON.stringify(health)).not.toContain('PRIVATE_LEDGER_SENTINEL');
+});

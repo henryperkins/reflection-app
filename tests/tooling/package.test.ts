@@ -20,6 +20,7 @@ function fixture() {
     'node_modules',
     'evaluation',
     'evaluation/private',
+    'config',
   ])
     mkdirSync(join(root, dir));
   writeFileSync(join(root, 'src/app.ts'), 'export const app = true;');
@@ -27,6 +28,7 @@ function fixture() {
   writeFileSync(join(root, 'package-lock.json'), '{}');
   writeFileSync(join(root, '.node-version'), '26.12.1\n');
   writeFileSync(join(root, '.npmrc'), 'engine-strict=true\n');
+  writeFileSync(join(root, 'config/runtime.template.json'), '{"generation":"off"}');
   writeFileSync(join(root, '.env'), 'SECRET=must-not-be-shipped');
   writeFileSync(join(root, '.wrangler/private.sqlite'), 'private database');
   writeFileSync(join(root, 'node_modules/private.key'), 'private key');
@@ -73,6 +75,7 @@ test('the ZIP is reproducible, includes verification evidence, and excludes loca
   ).stdout;
   expect(contents).toContain('reflection-app/src/app.ts');
   expect(contents).toContain('reflection-app/artifacts/verify.json');
+  expect(contents).toContain('reflection-app/config/runtime.template.json');
   expect(contents).toContain('reflection-app/evaluation/corpus.json');
   expect(contents).toContain('reflection-app/evaluation/manifest.json');
   expect(contents).not.toContain('evaluation/private');

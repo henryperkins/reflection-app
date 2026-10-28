@@ -34,7 +34,15 @@
     "key:rotate": "tsx scripts/key-rotation.ts",
     "check:publication-guard": "tsx scripts/generate-publication-guard.ts --check",
     "content:activate": "tsx scripts/content-activate.ts",
-    "provider:reconcile": "tsx scripts/provider-reconcile.ts"
+    "provider:reconcile": "tsx scripts/provider-reconcile.ts",
+    "key:rotate-account": "tsx scripts/key-rotate-account.ts",
+    "key:retire": "tsx scripts/key-retire.ts",
+    "hosted:build": "tsx scripts/hosted-release.ts --build",
+    "hosted:stage-synthetic": "tsx scripts/hosted-release.ts --stage-synthetic",
+    "hosted:qualify": "tsx scripts/hosted-qualify.ts",
+    "hosted:restore": "tsx scripts/hosted-restore.ts",
+    "recovery:resume": "tsx scripts/recovery-resume.ts",
+    "monitoring:check": "tsx scripts/monitoring-check.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",
@@ -60,5 +68,6 @@
     "vitest": "5.0.5",
     "wrangler": "4.153.0",
     "yaml": "2.9.1"
-  }
+  },
+  "packageManager": "npm@11.20.0"
 }

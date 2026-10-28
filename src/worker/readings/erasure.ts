@@ -400,12 +400,13 @@ export class SessionErasure {
       backupExpiresBy: chain.pending ? null : (chain.completion?.backupExpiresBy ?? null),
     });
   }
-  async maintenance() {
+  async maintenance(deadlineMs = Infinity) {
     const expired = await q(
       this.base.db,
       `SELECT id,owner_id FROM reading_sessions WHERE status='open' AND retention_expires_at<=${DB_NOW} ORDER BY retention_expires_at LIMIT 20`,
     ).all<{ id: string; owner_id: string }>();
     for (const row of expired.results) {
+      if (Date.now() >= deadlineMs) break;
       try {
         await this.queue(
           { scope: 'session', subjectId: row.owner_id, sessionId: row.id },
@@ -421,6 +422,7 @@ export class SessionErasure {
       `SELECT id FROM deletion_jobs WHERE state!='complete' AND next_run_at<=${DB_NOW} ORDER BY next_run_at LIMIT 20`,
     ).all<{ id: string }>();
     for (const row of jobs.results) {
+      if (Date.now() >= deadlineMs) break;
       try {
         await this.resume(row.id);
       } catch {

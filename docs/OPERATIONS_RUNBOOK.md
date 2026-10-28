@@ -4,7 +4,7 @@ These procedures accompany local implementation. Hosted alert delivery, backup a
 
 ## Content-free maintenance signals
 
-Scheduled maintenance emits `maintenance_health` after completing identity, generation, erasure and retention work. Fields contain only counts, oldest ages and aggregate micro-USD amounts. No account/request IDs, questions, ciphertexts, provider response text or recovery material is selected for telemetry. Errors emit `maintenance_failed` without the caught exception's payload.
+Scheduled maintenance emits `maintenance_health` after completing identity, erasure, retention and bounded generation work. The hosted driver includes completion time, duration and work counts. No account/request IDs, questions, ciphertexts, provider response text or recovery material is selected. Errors emit `maintenance_failed` without the caught exception's payload. See [hosted monitoring preparation](HOSTED_OPERATIONS.md) for independent heartbeat-loss detection and the unsent notification configuration.
 
 | Signal | Trigger | Operator action |
 | --- | --- | --- |
@@ -12,7 +12,7 @@ Scheduled maintenance emits `maintenance_health` after completing identity, gene
 | `SECURITY_LAG` | Unapplied security operation older than five minutes | Preserve write fences; check independent recovery storage and retained keys. Replay the operation through the existing maintenance service. |
 | `ERASURE_LAG` | Incomplete deletion older than 24 hours | Preserve immediate logical erasure, repair the independent ledger/store dependency, retry bounded erasure, confirm receipts. Never erase a pending intent to silence the alert. |
 | `PROVIDER_COST_UNKNOWN` | At least one unknown cost reservation | Keep the full reserved liability. Reconcile against verified provider usage/account billing; a timeout or local quota refund is not evidence of zero cost. |
-| `SPEND_LIMIT` | At least $10 daily or $100 monthly committed spend | Keep dispatch disabled; confirm limits and reconcile actual liabilities before any separately authorized change. These are technical defaults, not an owner-approved production budget. |
+| `SPEND_LIMIT` | Committed spend reaches the current D1 bucket ceiling | Keep dispatch disabled; reconcile liabilities before any separately authorized change. $10 daily/$100 monthly are technical defaults, not an owner-approved production budget. |
 | `maintenance_failed` | Scheduled work throws | Check the content-free failure count and dependency health. Do not print database exceptions or private rows into monitoring. |
 
 Hosted monitoring must also detect **absence** of the minute heartbeat; absence of log entries does not mean zero backlog. Before production, prove delivery of a synthetic alert to the chosen operator, acknowledgement, and recovery. This repository does not configure a notification recipient or send external messages.
@@ -25,7 +25,7 @@ Use the supported system-state generation switch to deny new dispatch/publicatio
 
 Establish the persistent offline/restore fence before recovery work. Preserve all earlier keys and independent recovery objects. Follow [the restore runbook](LOCAL_RESTORE_RUNBOOK.md) and [cleanup runbook](LOCAL_CLEANUP_RUNBOOK.md); a successful local cleanup is not proof that hosted backups expired. Keep the system offline on missing keys, invalid chains, missing independent targets, or unknown source inventory.
 
-The local key-rotation operator validates explicit current/candidate key files and supports add-only keyring transitions and envelope rewrapping. It does not authorize retirement of keys needed by external backups or rewrite all account record DEKs. Use `npm run key:rotate -- --help` and its documented check/rewrap commands. Keep key files outside the checkout and out of command arguments; the operator produces redacted receipts. Do not reuse the published synthetic fixture secrets for a hosted environment.
+The local key-rotation operator supports add-only keyring transitions and envelope rewrapping. Separate private operators support journaled DEK replacement and guarded inventory-based retirement; see [key lifecycle procedures](PRODUCTION_KEY_LIFECYCLE.md). Actual hosted backup/key evidence remains pending. Keep key files outside the checkout and command arguments; operators produce redacted receipts. Do not reuse public synthetic fixture secrets for a hosted environment.
 
 ## Deletion delay
 

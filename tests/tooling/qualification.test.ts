@@ -115,11 +115,25 @@ test('an edited evidence file and a newly verified implementation invalidate old
 
 test('local test evidence cannot stand in for hosted evidence and traversal cannot escape the evidence directory', () => {
   const fixture = reviewedFixture();
-  fixture.manifest.gates[0]!.scope = 'human-review';
+  fixture.manifest.gates[0]!.scope = 'automated-review';
   fixture.refresh();
   expect(() => checkRelease(fixture.root)).toThrow('Wrong evidence scope');
   const next = reviewedFixture();
   next.manifest.gates[0]!.evidence.path = 'qualification/evidence/../../source.ts.md';
   next.refresh();
   expect(() => checkRelease(next.root)).toThrow('Unsafe evidence path');
+});
+
+test('owner scope uses automated content and accessibility evidence without human sign-off', () => {
+  expect(qualificationGates.content[1]).toBe('automated-review');
+  expect(qualificationGates.accessibility[1]).toBe('automated-review');
+  const { root, manifest, refresh } = reviewedFixture();
+  for (const gate of manifest.gates) {
+    if (gate.id === 'content' || gate.id === 'accessibility') {
+      gate.scope = 'automated-review' as typeof gate.scope;
+      gate.reviewedBy = 'reflection automated qualification';
+    }
+  }
+  refresh();
+  expect(checkRelease(root).milestone2Complete).toBe(true);
 });

@@ -7442,6 +7442,7 @@ components:
                           - unreviewed
                           - agent_reviewed
                           - human_approved
+                          - automated_validated
                       reviewer:
                         type:
                           - string
@@ -7910,6 +7911,7 @@ components:
                           - unreviewed
                           - agent_reviewed
                           - human_approved
+                          - automated_validated
                       reviewer:
                         type:
                           - string
@@ -8338,6 +8340,7 @@ components:
                           - unreviewed
                           - agent_reviewed
                           - human_approved
+                          - automated_validated
                       reviewer:
                         type:
                           - string
@@ -9595,6 +9598,7 @@ components:
                                         - unreviewed
                                         - agent_reviewed
                                         - human_approved
+                                        - automated_validated
                                     reviewer:
                                       type:
                                         - string
@@ -10063,6 +10067,7 @@ components:
                                         - unreviewed
                                         - agent_reviewed
                                         - human_approved
+                                        - automated_validated
                                     reviewer:
                                       type:
                                         - string
@@ -10491,6 +10496,7 @@ components:
                                         - unreviewed
                                         - agent_reviewed
                                         - human_approved
+                                        - automated_validated
                                     reviewer:
                                       type:
                                         - string

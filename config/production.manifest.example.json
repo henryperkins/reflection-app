@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "mode": "production",
+  "environmentId": "REQUIRED_PRODUCTION_ENVIRONMENT",
+  "workerName": "REQUIRED_PRODUCTION_WORKER",
+  "origin": "https://production-domain-required.invalid",
+  "rpId": "production-domain-required.invalid",
+  "resources": {
+    "databaseId": "REQUIRED_PRODUCTION_DATABASE_ID",
+    "recoveryBucket": "REQUIRED_PRODUCTION_RECOVERY",
+    "coordinatorId": "REQUIRED_PRODUCTION_COORDINATOR",
+    "backupInventoryBucket": "REQUIRED_INDEPENDENT_BACKUP_INVENTORY",
+    "qualificationBucket": "REQUIRED_PRODUCTION_EVIDENCE"
+  },
+  "isolatedFrom": [
+    {
+      "environmentId": "REQUIRED_RESERVED_ENVIRONMENT",
+      "databaseId": "REQUIRED_RESERVED_DATABASE_ID",
+      "recoveryBucket": "REQUIRED_RESERVED_RECOVERY",
+      "coordinatorId": "REQUIRED_RESERVED_COORDINATOR",
+      "backupInventoryBucket": "REQUIRED_RESERVED_BACKUPS",
+      "qualificationBucket": "REQUIRED_RESERVED_EVIDENCE"
+    }
+  ],
+  "generation": "off",
+  "ingress": "off",
+  "policyHash": "REQUIRED_POLICY_HASH",
+  "contentHash": "REQUIRED_CONTENT_HASH",
+  "qualificationEvidenceDigest": null
+}

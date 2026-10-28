@@ -27,7 +27,7 @@ export async function contentReviewPacket(
     lines = [
       '# UNAPPROVED content review packet',
       '',
-      'This packet records an agent-prepared draft. It grants no human approval, rights clearance or production activation. Review every card and reversal, fallback, position frame, disclosure and license. Keep private evidence outside the checkout.',
+      'This packet records an unvalidated draft. Validate every card and reversal, fallback, position frame, disclosure and provenance. Automated validation does not clear unknown rights or enable production. Keep private evidence outside the checkout.',
       '',
       `Bundle: ${bundle.editionHash}`,
       `Deck: ${bundle.deckEdition}`,
@@ -120,7 +120,7 @@ export async function contentReviewPacket(
   lines.push(
     '## Human decision still required',
     '',
-    `Record the named reviewer, exact reviewed hashes, rights evidence digest, attribution and territories in an externally signed content-approval.v${bundle.schemaVersion} document. A trusted public key must be configured independently. Agent and synthetic markers cannot satisfy activation. No approval record has been generated.`,
+    'Record the validator identity, exact reviewed hashes, provenance evidence digest and attribution in a signed content-approval.v3 document with reviewMethod automated and runnerVersion content-validator.v1. Unknown rights remain unknown. Configure a trusted public key independently. Synthetic fixture markers cannot satisfy activation. No approval record has been generated.',
     '',
   );
   return lines.join('\n');

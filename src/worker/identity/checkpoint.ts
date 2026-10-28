@@ -34,22 +34,42 @@ export class IdentityCheckpoints {
   ) {}
   async commit(
     input: Checkpoint,
-    options: { initialKeys?: WrappedKeys; expected?: Checkpoint; guards?: D1PreparedStatement[] },
+    options: {
+      initialKeys?: WrappedKeys;
+      expected?: Checkpoint;
+      guards?: D1PreparedStatement[];
+      lease?: RecoveryLease;
+    },
   ): Promise<void> {
-    return recoveryWrite(this.crypt.secrets.environment, () =>
-      this.commitOperation(input, options),
+    return recoveryWrite(
+      this.crypt.secrets.environment,
+      () => this.commitOperation(input, options),
+      options.lease,
     );
   }
   private async commitOperation(
     input: Checkpoint,
-    options: { initialKeys?: WrappedKeys; expected?: Checkpoint; guards?: D1PreparedStatement[] },
+    options: {
+      initialKeys?: WrappedKeys;
+      expected?: Checkpoint;
+      guards?: D1PreparedStatement[];
+      lease?: RecoveryLease;
+    },
   ): Promise<void> {
     const snapshot = IdentityCheckpoint.parse(input);
     const encrypted = await this.crypt.sealCheckpoint(snapshot);
     const key = await this.crypt.checkpointKey(snapshot);
     const now = Date.now(),
       fence = `security:${snapshot.operationId}`;
-    const writes = [onlineGuard(this.db), ...(options.guards ?? [])];
+    const writes = [
+      options.lease
+        ? assertion(
+            this.db,
+            "EXISTS(SELECT 1 FROM system_state WHERE id=1 AND restore_in_progress=1 AND generation_enabled=0 AND dispatch_mode='off')",
+          )
+        : onlineGuard(this.db),
+      ...(options.guards ?? []),
+    ];
     if (options.initialKeys) {
       if (snapshot.epoch !== 1) throw new Error('Invalid initial epoch');
       writes.push(
@@ -165,7 +185,7 @@ export class IdentityCheckpoints {
       ),
     );
     await this.db.batch(writes);
-    await this.apply(snapshot.operationId);
+    await this.apply(snapshot.operationId, options.lease);
   }
   async apply(id: string, lease?: RecoveryLease): Promise<void> {
     return recoveryWrite(
@@ -274,13 +294,14 @@ export class IdentityCheckpoints {
       if (state !== 'applied') throw error;
     }
   }
-  async resumePending(): Promise<void> {
+  async resumePending(deadlineMs = Infinity): Promise<void> {
     const pending = await this.db
       .prepare(
         `SELECT id,created_at FROM security_operations WHERE state<>'applied' AND next_run_at<=${DB_NOW} ORDER BY next_run_at LIMIT 20`,
       )
       .all<{ id: string; created_at: number }>();
     for (const operation of pending.results) {
+      if (Date.now() >= deadlineMs) break;
       try {
         await this.apply(operation.id);
       } catch {

@@ -262,6 +262,33 @@ test('reading inspection has semantic labels, keyboard source expansion and comp
   await page.setViewportSize({ width: 320, height: 740 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: '/tmp/reflection-request-inspection-mobile.png', fullPage: true });
+  // CSS zoom exercises doubled rendered text and layout. This is Chromium
+  // automation, not evidence for OS accessibility settings or screen readers.
+  await page.setViewportSize({ width: 640, height: 900 });
+  await page.evaluate(() => {
+    document.documentElement.style.zoom = '2';
+  });
+  expect(await page.locator('html').evaluate((el) => getComputedStyle(el).zoom)).toBe('2');
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  for (const control of [
+    page.getByRole('button', { name: 'Save reading', exact: true }),
+    page.getByLabel('Your reflection', { exact: true }),
+  ]) {
+    await expect(control).toBeVisible();
+    expect(
+      await control.evaluate((el) => {
+        const r = el.getBoundingClientRect();
+        return r.left >= 0 && r.right <= innerWidth;
+      }),
+    ).toBe(true);
+  }
+  const semantics = await accepted.ariaSnapshot();
+  expect(semantics).toContain('heading "Traditional source material"');
+  expect(semantics).toContain('heading "Putting it together"');
+  await page.screenshot({
+    path: '/tmp/reflection-request-inspection-200percent.png',
+    fullPage: false,
+  });
   expect(errors).toEqual([]);
 });
 

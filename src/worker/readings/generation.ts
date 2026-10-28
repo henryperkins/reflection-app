@@ -52,6 +52,11 @@ export type GenerationDependencies = DependencyBase &
     | {
         policy: ReadingProviderPolicy;
         writer: WritingProvider;
+        authorization: { kind: 'disabled' };
+      }
+    | {
+        policy: ReadingProviderPolicy;
+        writer: WritingProvider;
         authorization: { kind: 'application'; qualification: ProviderQualification };
       }
     | {
@@ -123,12 +128,19 @@ export class ReadingGeneration extends RequestState {
       guards: [snapshot.guard, assertion(this.base.db, `?>${DB_NOW}`, expires)],
     };
   }
-  private guard(session: Session, permission: number, content: string, policy: string) {
+  private guard(
+    session: Session,
+    permission: number,
+    content: string,
+    policy: string,
+    version: number,
+  ) {
     return assertion(
       this.base.db,
-      `EXISTS(SELECT 1 FROM accounts a JOIN permission_revisions p ON p.owner_id=a.id AND p.revision=a.permission_revision JOIN system_state sys ON sys.id=1 JOIN content_editions c ON c.hash=sys.active_content_hash WHERE a.id=? AND a.permission_revision=? AND p.model_allowed=1 AND a.recovery_ack_at IS NOT NULL AND a.key_version=1 AND sys.generation_enabled=1 AND sys.dispatch_mode IN('model','outage_template') AND c.hash=? AND c.state='${this.development ? 'staged' : 'approved'}' AND sys.provider_policy_hash=?)`,
+      `EXISTS(SELECT 1 FROM accounts a JOIN permission_revisions p ON p.owner_id=a.id AND p.revision=a.permission_revision JOIN system_state sys ON sys.id=1 JOIN content_editions c ON c.hash=sys.active_content_hash WHERE a.id=? AND a.permission_revision=? AND p.model_allowed=1 AND a.recovery_ack_at IS NOT NULL AND a.key_version=? AND sys.generation_enabled=1 AND sys.dispatch_mode IN('model','outage_template') AND c.hash=? AND c.state='${this.development ? 'staged' : 'approved'}' AND sys.provider_policy_hash=?)`,
       session.subjectId,
       permission,
+      version,
       content,
       policy,
     );
@@ -214,7 +226,7 @@ export class ReadingGeneration extends RequestState {
         parentEditionId: null,
         selected: [],
         permissionRevision: input.permissionRevision,
-        keyVersion: 1,
+        keyVersion: account.key_version,
         promptHash: policyHash,
         validatorHash: policyHash,
         generationPolicyHash: policyHash,
@@ -230,7 +242,11 @@ export class ReadingGeneration extends RequestState {
       throw error;
     }
     const seal = (table: string, column: string, id: string, value: unknown) =>
-      this.base.crypt.seal(session.subjectId, table, column, id, value);
+      this.base.crypt.seal(
+        { ownerId: session.subjectId, table: table, column: column, recordId: id, aadRevision: 1 },
+        value,
+        account.key_version,
+      );
     const question = await seal('reading_sessions', 'question_enc', sessionId, {
       v: 1,
       text: input.question,
@@ -242,7 +258,13 @@ export class ReadingGeneration extends RequestState {
     try {
       await this.base.atomic(session, [
         ...ready.guards,
-        this.guard(session, input.permissionRevision, content.editionHash, policyHash),
+        this.guard(
+          session,
+          input.permissionRevision,
+          content.editionHash,
+          policyHash,
+          account.key_version,
+        ),
         assertion(
           this.base.db,
           `(SELECT count(*) FROM generation_requests WHERE owner_id=? AND state NOT IN (${terminalStates}))<2`,
@@ -269,15 +291,16 @@ export class ReadingGeneration extends RequestState {
         ),
         q(
           this.base.db,
-          `INSERT INTO basis_snapshots(id,owner_id,session_id,kind,schema_version,body_enc,key_version,created_at) VALUES (?,?,?,'tarot.v1',1,?,1,${DB_NOW})`,
+          `INSERT INTO basis_snapshots(id,owner_id,session_id,kind,schema_version,body_enc,key_version,created_at) VALUES (?,?,?,'tarot.v1',1,?,?,${DB_NOW})`,
           basisId,
           session.subjectId,
           sessionId,
           basisEnc,
+          account.key_version,
         ),
         q(
           this.base.db,
-          `INSERT INTO generation_requests(id,owner_id,session_id,client_intent_id,basis_id,operation,payload_hmac,state,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,created_at,expires_at) VALUES (?,?,?,?,?,'initial',?,'prepared',${DB_NOW},?,1,?,?,?,?,?,?,${DB_NOW},${DB_NOW}+180000)`,
+          `INSERT INTO generation_requests(id,owner_id,session_id,client_intent_id,basis_id,operation,payload_hmac,state,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,created_at,expires_at) VALUES (?,?,?,?,?,'initial',?,'prepared',${DB_NOW},?,?,?,?,?,?,?,?,${DB_NOW},${DB_NOW}+180000)`,
           requestId,
           session.subjectId,
           sessionId,
@@ -285,6 +308,7 @@ export class ReadingGeneration extends RequestState {
           basisId,
           mutation.payloadHash,
           input.permissionRevision,
+          account.key_version,
           content.editionHash,
           ready.policyRevision,
           policyHash,
@@ -332,18 +356,41 @@ export class ReadingGeneration extends RequestState {
   }
 
   /** Durable D1 work is authoritative; waitUntil only reduces latency. */
-  async maintenance() {
+  get providerTimeoutMs() {
+    return this.dependencies.policy.timeoutMs;
+  }
+  async maintenance(
+    budget: { deadlineMs: number; concurrency: 4 } = {
+      deadlineMs: Date.now() + 90000,
+      concurrency: 4,
+    },
+  ) {
     if (this.synthetic) await this.dependencies.ensureReady();
     await this.base.db.batch([onlineGuard(this.base.db)]);
     await this.reconcileStopped();
     const due = await q(
       this.base.db,
-      `SELECT id FROM generation_requests WHERE state NOT IN (${terminalStates}) AND (expires_at<=${DB_NOW} OR (next_run_at<=${DB_NOW} AND (lease_expires_at IS NULL OR lease_expires_at<=${DB_NOW}))) ORDER BY next_run_at,id LIMIT 20`,
-    ).all<{ id: string }>();
-    const started = Date.now();
-    for (let i = 0; i < due.results.length && Date.now() - started < 30000; i += 4)
-      await Promise.allSettled(due.results.slice(i, i + 4).map((row) => this.drive(row.id)));
+      `SELECT id,expires_at<=${DB_NOW} expired,EXISTS(SELECT 1 FROM provider_dispatches d WHERE d.request_id=generation_requests.id) dispatched FROM generation_requests WHERE state NOT IN (${terminalStates}) AND (expires_at<=${DB_NOW} OR (next_run_at<=${DB_NOW} AND (lease_expires_at IS NULL OR lease_expires_at<=${DB_NOW}))) ORDER BY next_run_at,id LIMIT 20`,
+    ).all<{ id: string; expired: number; dispatched: number }>();
+    let attempted = 0;
+    for (
+      let i = 0;
+      i < due.results.length && Date.now() < budget.deadlineMs;
+      i += budget.concurrency
+    ) {
+      const eligible = due.results
+        .slice(i, i + budget.concurrency)
+        .filter(
+          (row) =>
+            row.expired ||
+            row.dispatched ||
+            budget.deadlineMs - Date.now() >= this.providerTimeoutMs + 6000,
+        );
+      attempted += eligible.length;
+      await Promise.allSettled(eligible.map((row) => this.drive(row.id)));
+    }
     await this.base.db.batch([onlineGuard(this.base.db)]);
+    return { attempted };
   }
 
   private async reconcileStopped() {
@@ -543,27 +590,29 @@ export class ReadingGeneration extends RequestState {
       let plan: VersionedPlan;
       if (h.plan_enc) {
         plan = await this.base.crypt.open(
-          h.owner_id,
-          'generation_requests',
-          'plan_enc',
-          h.id,
+          {
+            ownerId: h.owner_id,
+            table: 'generation_requests',
+            column: 'plan_enc',
+            recordId: h.id,
+            aadRevision: 1,
+          },
           h.plan_enc,
           AnyPreparedPlan,
-          1,
-          h.key_version,
         );
       } else {
         if (h.state !== 'reserved' || !h.input_enc || !h.basis_id)
           throw new GenerationFailure('CONTENT_UNAVAILABLE');
         const input = await this.base.crypt.open(
-          h.owner_id,
-          'generation_requests',
-          'input_enc',
-          h.id,
+          {
+            ownerId: h.owner_id,
+            table: 'generation_requests',
+            column: 'input_enc',
+            recordId: h.id,
+            aadRevision: 1,
+          },
           h.input_enc,
           StartRequest,
-          1,
-          h.key_version,
         );
         const basisRow = await q(
           this.base.db,
@@ -573,14 +622,15 @@ export class ReadingGeneration extends RequestState {
         ).first<{ body_enc: string }>();
         if (!basisRow) throw new GenerationFailure('CONTENT_UNAVAILABLE');
         const basis = await this.base.crypt.open(
-          h.owner_id,
-          'basis_snapshots',
-          'body_enc',
-          h.basis_id,
+          {
+            ownerId: h.owner_id,
+            table: 'basis_snapshots',
+            column: 'body_enc',
+            recordId: h.basis_id,
+            aadRevision: 1,
+          },
           basisRow.body_enc,
           TarotBasis,
-          1,
-          h.key_version,
         );
         const content = await this.dependencies.content.byHash(h.content_hash);
         plan = await buildWriterPlan(
@@ -603,12 +653,14 @@ export class ReadingGeneration extends RequestState {
           this.synthetic || this.development,
         );
         const enc = await this.base.crypt.seal(
-          h.owner_id,
-          'generation_requests',
-          'plan_enc',
-          h.id,
+          {
+            ownerId: h.owner_id,
+            table: 'generation_requests',
+            column: 'plan_enc',
+            recordId: h.id,
+            aadRevision: 1,
+          },
           plan,
-          1,
           h.key_version,
         );
         h.plan_hmac = await this.base.crypt.hash(h.owner_id, 'plan', plan);
@@ -697,12 +749,14 @@ export class ReadingGeneration extends RequestState {
       text = new TextDecoder().decode(payload),
       id = crypto.randomUUID();
     const transmission = await this.base.crypt.seal(
-      h.owner_id,
-      'provider_dispatches',
-      'transmission_enc',
-      id,
+      {
+        ownerId: h.owner_id,
+        table: 'provider_dispatches',
+        column: 'transmission_enc',
+        recordId: id,
+        aadRevision: 1,
+      },
       { v: 1, syntheticOnly: this.synthetic, payload: text, contextReceipt },
-      1,
       h.key_version,
     );
     const hash = await this.base.crypt.hash(h.owner_id, 'transmission', text);
@@ -802,12 +856,14 @@ export class ReadingGeneration extends RequestState {
       receipt?.responseId == null
         ? null
         : await this.base.crypt.seal(
-            h.owner_id,
-            'provider_dispatches',
-            'provider_response_id_enc',
-            id,
+            {
+              ownerId: h.owner_id,
+              table: 'provider_dispatches',
+              column: 'provider_response_id_enc',
+              recordId: id,
+              aadRevision: 1,
+            },
             { v: 1, id: receipt.responseId },
-            1,
             h.key_version,
           );
     if (outcome.kind !== 'candidate' || !receipt) {
@@ -856,12 +912,14 @@ export class ReadingGeneration extends RequestState {
       return (await this.dispatchRow(h.id))!;
     }
     const candidate = await this.base.crypt.seal(
-      h.owner_id,
-      'provider_dispatches',
-      'candidate_enc',
-      id,
+      {
+        ownerId: h.owner_id,
+        table: 'provider_dispatches',
+        column: 'candidate_enc',
+        recordId: id,
+        aadRevision: 1,
+      },
       outcome.candidate,
-      1,
       h.key_version,
     );
     await this.base.db.batch([
@@ -911,14 +969,15 @@ export class ReadingGeneration extends RequestState {
       if (!dispatch?.candidate_enc) throw new GenerationFailure('INVALID_CANDIDATE');
       try {
         const stored = await this.base.crypt.open(
-          h.owner_id,
-          'provider_dispatches',
-          'candidate_enc',
-          dispatch.id,
+          {
+            ownerId: h.owner_id,
+            table: 'provider_dispatches',
+            column: 'candidate_enc',
+            recordId: dispatch.id,
+            aadRevision: 1,
+          },
           dispatch.candidate_enc,
           AnyModelCandidate,
-          1,
-          h.key_version,
         );
         candidate = await checkWriterCandidate(plan, stored, receipt);
       } catch {
@@ -981,12 +1040,14 @@ export class ReadingGeneration extends RequestState {
       },
     });
     const enc = await this.base.crypt.seal(
-      h.owner_id,
-      'reading_editions',
-      'body_enc',
-      editionId,
+      {
+        ownerId: h.owner_id,
+        table: 'reading_editions',
+        column: 'body_enc',
+        recordId: editionId,
+        aadRevision: 1,
+      },
       reading,
-      1,
       h.key_version,
     );
     const ready = await this.ready(h.content_hash);

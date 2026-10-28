@@ -18,8 +18,8 @@ export class IdentityService {
     this.sessions = new IdentitySessions(db, crypt);
     this.checkpoints = new IdentityCheckpoints(db, bucket, crypt);
   }
-  async maintenance(): Promise<void> {
-    await this.checkpoints.resumePending();
+  async maintenance(deadlineMs = Infinity): Promise<void> {
+    await this.checkpoints.resumePending(deadlineMs);
   }
   async rate(scope: string, identity: string, limit: number, period: number): Promise<void> {
     const now = Date.now(),

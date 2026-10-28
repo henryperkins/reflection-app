@@ -1,3 +1,9 @@
+import { ACCOUNT_FIELD_HANDLERS } from './private-fields.ts';
+import type { ApplicationRuntime } from '../runtime/application.ts';
+import type { HostedCoordinator, OfflineContext } from './hosted-coordinator.ts';
+import type { ProtectedBackupInventory } from './backup-inventory.ts';
+import { verifyAttestedRecoveryObjects } from './attested-inventory.ts';
+import { bytesDigest } from './digest.ts';
 import { z } from 'zod';
 import type { Env } from '../index.ts';
 import { IdentityCheckpoint } from '../../contracts/index.ts';
@@ -10,6 +16,7 @@ import {
   type Checkpoint,
 } from '../identity/crypto.ts';
 import { localIdentity } from '../identity/routes.ts';
+import { assertion } from '../identity/checkpoint.ts';
 import { RecordBase } from '../readings/base.ts';
 import { SessionErasure } from '../readings/erasure.ts';
 import { syntheticBundle, localDevelopmentBundle } from '../readings/local-content.ts';
@@ -17,33 +24,91 @@ import { objects, erasureJobIds, type Chain } from './ledger.ts';
 import { recoveryExclusive, type RecoveryLease } from './coordination.ts';
 import { CleanupJournal, CLEANUP_STATE_KEY } from './cleanup-state.ts';
 
+export interface OfflineRestoreOptions {
+  retainedKeys?: IdentitySecrets[];
+  now?: () => number;
+  runtime?: ApplicationRuntime;
+  offline?: { coordinator: HostedCoordinator; context: OfflineContext };
+  validateContent?: (hash: string) => Promise<boolean>;
+  backupInventory?: ProtectedBackupInventory;
+}
 const uuid = '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}';
 /** Local operator service only. No HTTP route imports this module. One offline runner owns D1/R2. */
 export class OfflineRestore {
   readonly base: RecordBase;
   readonly erasure: SessionErasure;
   readonly now: () => number;
+  private readonly recoveryMutations = new Map<string, string | null>();
   constructor(
     readonly env: Env,
-    options: { retainedKeys?: IdentitySecrets[]; now?: () => number } = {},
+    readonly options: OfflineRestoreOptions = {},
   ) {
-    const identity = localIdentity(env);
+    const identity = options.runtime?.identity ?? localIdentity(env);
     if (
       env.RESTORE_MODE !== 'offline' ||
-      env.READING_MODE !== 'synthetic-local' ||
       !identity ||
-      identity.crypt.secrets.environment !== 'synthetic-local'
+      (options.runtime
+        ? !options.offline ||
+          !options.validateContent ||
+          options.runtime.environmentId !== identity.crypt.secrets.environment ||
+          options.offline.context.environmentId !== options.runtime.environmentId ||
+          options.offline.coordinator.environmentId !== options.runtime.environmentId
+        : env.READING_MODE !== 'synthetic-local' ||
+          identity.crypt.secrets.environment !== 'synthetic-local')
     )
-      throw new Error('Restore requires explicit synthetic offline bindings');
+      throw new Error('Restore requires explicit offline identity and coordinator bindings');
     this.base = new RecordBase(env.DB, identity);
     this.erasure = new SessionErasure(
       this.base,
-      env.RECOVERY!,
+      options.runtime ? this.trackedRecovery(env.RECOVERY!) : env.RECOVERY!,
       options.retainedKeys?.map((k) => new IdentityCrypto(k)),
     );
     this.now = options.now ?? Date.now;
   }
+  private trackedRecovery(bucket: R2Bucket): R2Bucket {
+    const mutations = this.recoveryMutations;
+    return new Proxy(bucket, {
+      get(target, key) {
+        if (key === 'put')
+          return async (...args: Parameters<R2Bucket['put']>) => {
+            const result = await target.put(...args);
+            if (result) {
+              const stored = await target.get(args[0]);
+              if (!stored || stored.etag !== result.etag || stored.size > 64 * 1024 * 1024)
+                throw new Error('Recovery mutation proof unavailable');
+              mutations.set(args[0], await bytesDigest(await stored.arrayBuffer()));
+            }
+            return result;
+          };
+        if (key === 'delete')
+          return async (keys: string | string[]) => {
+            await target.delete(keys);
+            for (const name of typeof keys === 'string' ? [keys] : keys) mutations.set(name, null);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+  }
   async fence() {
+    if (this.options.offline) {
+      const { coordinator, context } = this.options.offline;
+      await coordinator.assertCurrent(context);
+      await this.env.DB.batch([
+        assertion(
+          this.env.DB,
+          'NOT EXISTS(SELECT 1 FROM hosted_coordination WHERE environment_id=? AND epoch>?)',
+          context.environmentId,
+          context.epoch,
+        ),
+        q(
+          this.env.DB,
+          `INSERT INTO hosted_coordination(environment_id,epoch,state,evidence_hash,updated_at) VALUES(?,?,'offline',NULL,${DB_NOW}) ON CONFLICT(environment_id) DO UPDATE SET epoch=excluded.epoch,state='offline',evidence_hash=NULL,updated_at=excluded.updated_at`,
+          context.environmentId,
+          context.epoch,
+        ),
+      ]);
+    }
     await this.env.DB.batch([
       q(
         this.env.DB,
@@ -56,7 +121,11 @@ export class OfflineRestore {
       ),
     ]);
   }
-  private async exclusive<T>(work: (lease: RecoveryLease) => Promise<T>): Promise<T> {
+  async exclusive<T>(work: (lease: RecoveryLease) => Promise<T>): Promise<T> {
+    if (this.options.offline) {
+      const lease = this.options.offline;
+      return lease.coordinator.withOffline(lease.context, () => work(lease));
+    }
     return recoveryExclusive(this.base.identity.crypt.secrets.environment, work);
   }
   /** Flush accessible operations before taking the database back to an older bookmark. */
@@ -87,6 +156,17 @@ export class OfflineRestore {
   async replay() {
     return this.exclusive(async () => {
       await this.fence();
+      this.recoveryMutations.clear();
+      if (this.options.offline && !this.options.backupInventory)
+        throw new Error('Independent hosted recovery inventory required');
+      const attested = this.options.offline
+        ? await verifyAttestedRecoveryObjects(
+            this.options.backupInventory!,
+            this.env.RECOVERY!,
+            this.options.offline.context.environmentId,
+            this.options.offline.context.epoch,
+          )
+        : null;
       await new CleanupJournal(this.erasure.ledger).requireRestorable(this.env.DB);
       const inventory = await this.inventory();
       const jobs = erasureJobIds(inventory.erasures);
@@ -141,15 +221,35 @@ export class OfflineRestore {
         "SELECT 1 FROM deletion_jobs WHERE state!='complete' LIMIT 1",
       ).first();
       if (pending) throw new Error('Unflushed erasure remains pending');
+      const resulting = this.options.offline
+        ? await verifyAttestedRecoveryObjects(
+            this.options.backupInventory!,
+            this.env.RECOVERY!,
+            this.options.offline.context.environmentId,
+            this.options.offline.context.epoch,
+            this.recoveryMutations,
+          )
+        : null;
+      if (attested && resulting?.manifestDigest !== attested.manifestDigest)
+        throw new Error('Independent recovery inventory changed during replay');
       // Only the local runner can now remove its explicit offline binding. Dispatch stays off.
-      await q(this.env.DB, 'UPDATE system_state SET restore_in_progress=0 WHERE id=1').run();
+      if (!this.options.offline)
+        await q(this.env.DB, 'UPDATE system_state SET restore_in_progress=0 WHERE id=1').run();
       return {
         status: 'verified' as const,
-        scope: 'synthetic-local-only' as const,
+        scope: this.options.offline
+          ? ('hosted-synthetic' as const)
+          : ('synthetic-local-only' as const),
         erasureJobs: chains.length,
         identityCheckpoints: checkpoints.size,
         generationEnabled: false as const,
         inventorySha256: await sha256Json(inventory),
+        ...(attested && resulting
+          ? {
+              independentInventorySha256: attested.manifestDigest,
+              recoveryResultSha256: resulting.objectDigest,
+            }
+          : {}),
       };
     });
   }
@@ -324,11 +424,22 @@ export class OfflineRestore {
   }
   private async checkContent() {
     // Exact localhost fixture editions only; this is not a production approval list.
-    const fixtures = [(await syntheticBundle()).editionHash, localDevelopmentBundle().editionHash];
+    let fixtures: string[];
+    if (this.options.validateContent) {
+      fixtures = [];
+      const entries = await q(
+        this.env.DB,
+        "SELECT hash FROM content_editions WHERE state!='withdrawn'",
+      ).all<{ hash: string }>();
+      for (const entry of entries.results)
+        if (await this.options.validateContent(entry.hash)) fixtures.push(entry.hash);
+    } else fixtures = [(await syntheticBundle()).editionHash, localDevelopmentBundle().editionHash];
+    // An empty verified set withdraws everything, without interpolating any identity.
+    if (!fixtures.length) fixtures = ['0'.repeat(64)];
     await this.env.DB.batch([
       q(
         this.env.DB,
-        `UPDATE content_editions SET state='withdrawn',withdrawn_at=coalesce(withdrawn_at,${DB_NOW}) WHERE hash NOT IN (?,?) AND state!='withdrawn'`,
+        `UPDATE content_editions SET state='withdrawn',withdrawn_at=coalesce(withdrawn_at,${DB_NOW}) WHERE hash NOT IN (${fixtures.map(() => '?').join(',')}) AND state!='withdrawn'`,
         ...fixtures,
       ),
       q(
@@ -338,93 +449,22 @@ export class OfflineRestore {
     ]);
   }
   private async validateBodies() {
-    for (const table of [
-      'import_batches',
-      'import_items',
-      'import_identities',
-      'generation_context',
-      'revisits',
-    ])
-      if (await q(this.env.DB, `SELECT 1 FROM ${table} LIMIT 1`).first())
-        throw new Error('Unsupported restored record family');
-    const families: Array<{
-      table: string;
-      columns: string[];
-      id: string;
-      revision: string;
-      version: string;
-    }> = [
-      {
-        table: 'reading_sessions',
-        columns: ['question_enc'],
-        id: 'id',
-        revision: '1',
-        version: '1',
-      },
-      {
-        table: 'basis_snapshots',
-        columns: ['body_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-      {
-        table: 'reading_editions',
-        columns: ['body_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-      {
-        table: 'reflection_revisions',
-        columns: ['body_enc'],
-        id: "reflection_id||':'||revision",
-        revision: 'revision',
-        version: 'key_version',
-      },
-      {
-        table: 'generation_requests',
-        columns: ['input_enc', 'plan_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-      {
-        table: 'provider_dispatches',
-        columns: ['transmission_enc', 'candidate_enc', 'provider_response_id_enc'],
-        id: 'id',
-        revision: '1',
-        version: 'key_version',
-      },
-    ];
-    for (const family of families)
-      for (const column of family.columns)
-        for (let offset = 0; ; offset += 100) {
-          const rows = (
-            await q(
-              this.env.DB,
-              `SELECT owner_id,${family.id} AS record_id,${family.revision} AS revision,${family.version} AS version,${column} AS body FROM ${family.table} WHERE ${column} IS NOT NULL ORDER BY owner_id,record_id LIMIT 100 OFFSET ?`,
-              offset,
-            ).all<{
-              owner_id: string;
-              record_id: string;
-              revision: number;
-              version: number;
-              body: string;
-            }>()
-          ).results;
-          for (const row of rows)
-            await this.base.crypt.open(
-              row.owner_id,
-              family.table,
-              column,
-              row.record_id,
-              row.body,
-              z.unknown(),
-              row.revision,
-              row.version,
-            );
-          if (rows.length < 100) break;
+    for (const field of ACCOUNT_FIELD_HANDLERS) {
+      for (let offset = 0; ; offset += 100) {
+        const rows = (
+          await q(
+            this.env.DB,
+            `SELECT * FROM ${field.table} WHERE ${field.column} IS NOT NULL ORDER BY owner_id,${field.keyColumns.join(',')} LIMIT 100 OFFSET ?`,
+            offset,
+          ).all<Record<string, unknown>>()
+        ).results;
+        for (const row of rows) {
+          const body = row[field.column];
+          if (typeof body !== 'string') throw new Error('Encrypted field unavailable');
+          await this.base.crypt.open(field.identity(row, body), body, z.unknown());
         }
+        if (rows.length < 100) break;
+      }
+    }
   }
 }

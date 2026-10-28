@@ -311,10 +311,13 @@ test('a refusal receipt is encrypted before terminalization and usage survives s
   const { z } = await import('zod');
   expect(
     await f.generation.base.crypt.open(
-      f.session.subjectId,
-      'provider_dispatches',
-      'provider_response_id_enc',
-      row!.id,
+      {
+        ownerId: f.session.subjectId,
+        table: 'provider_dispatches',
+        column: 'provider_response_id_enc',
+        recordId: row!.id,
+        aadRevision: 1,
+      },
       row!.provider_response_id_enc,
       z.unknown(),
     ),
@@ -517,11 +520,15 @@ test('a policy upgrade preserves exact saved 5.6 content and provenance without 
   historical.provenance.returnedModel = 'gpt-5.6-terra';
   historical.provenance.policyHash = previous;
   const ciphertext = await f.generation.base.crypt.seal(
-    f.session.subjectId,
-    'reading_editions',
-    'body_enc',
-    historical.editionId,
+    {
+      ownerId: f.session.subjectId,
+      table: 'reading_editions',
+      column: 'body_enc',
+      recordId: historical.editionId,
+      aadRevision: 1,
+    },
     historical,
+    1,
   );
   await env.DB.batch([
     env.DB.prepare('UPDATE reading_editions SET body_enc=?').bind(ciphertext),
@@ -563,10 +570,13 @@ test('recovery rejects a prepared plan under an unrecognized policy without repl
     'plan_enc',
   ))!;
   const plan = await f.generation.base.crypt.open(
-    f.session.subjectId,
-    'generation_requests',
-    'plan_enc',
-    old.requestId,
+    {
+      ownerId: f.session.subjectId,
+      table: 'generation_requests',
+      column: 'plan_enc',
+      recordId: old.requestId,
+      aadRevision: 1,
+    },
     encrypted,
     AnyPreparedPlan,
   );
@@ -575,11 +585,15 @@ test('recovery rejects a prepared plan under an unrecognized policy without repl
   plan.promptHash = unknown;
   plan.validatorHash = unknown;
   const ciphertext = await f.generation.base.crypt.seal(
-    f.session.subjectId,
-    'generation_requests',
-    'plan_enc',
-    old.requestId,
+    {
+      ownerId: f.session.subjectId,
+      table: 'generation_requests',
+      column: 'plan_enc',
+      recordId: old.requestId,
+      aadRevision: 1,
+    },
     plan,
+    1,
   );
   const hmac = await f.generation.base.crypt.hash(f.session.subjectId, 'plan', plan);
   await env.DB.batch([

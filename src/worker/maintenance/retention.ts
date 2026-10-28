@@ -16,9 +16,10 @@ export class RetentionMaintenance {
       ...values,
     );
   }
-  async run() {
+  async run(deadlineMs = Infinity) {
     const counts: Record<string, number> = {};
     const batch = async (name: string, statements: D1PreparedStatement[]) => {
+      if (Date.now() >= deadlineMs) return;
       const results = await this.db.batch([
         assertion(this.db, 'NOT EXISTS(SELECT 1 FROM system_state WHERE restore_in_progress=1)'),
         q(this.db, 'PRAGMA defer_foreign_keys=ON'),

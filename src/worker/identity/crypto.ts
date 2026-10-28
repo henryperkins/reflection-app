@@ -220,6 +220,20 @@ export class IdentityCrypto {
       wrappedIndexKey: await this.wrapAccountKey(owner, 'index', randomToken(), version),
     };
   }
+  /** Replace only the DEK; ordinary rotation retains the separate stable index key. */
+  async createAccountDataVersion(
+    owner: string,
+    version: number,
+    index: Uint8Array<ArrayBuffer>,
+  ): Promise<WrappedKeys> {
+    if (!Number.isSafeInteger(version) || version < 2 || index.length !== 32)
+      throw new Error('Invalid data-key version');
+    return {
+      wrapKeyId: this.secrets.keyId,
+      wrappedKey: await this.wrapAccountKey(owner, 'data', randomToken(), version),
+      wrappedIndexKey: await this.wrapAccountKey(owner, 'index', encode(index), version),
+    };
+  }
   async unwrapAccountKey(
     owner: string,
     value: string,

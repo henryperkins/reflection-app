@@ -218,7 +218,7 @@ export const CanonSource = z.strictObject({
     territory: z.string().max(200),
   }),
   review: z.strictObject({
-    kind: z.enum(['unreviewed', 'agent_reviewed', 'human_approved']),
+    kind: z.enum(['unreviewed', 'agent_reviewed', 'human_approved', 'automated_validated']),
     reviewer: z.string().nullable(),
     reviewedHash: Hash.nullable(),
     reviewedAt: Instant.nullable(),
