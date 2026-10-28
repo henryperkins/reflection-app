@@ -291,6 +291,28 @@ test('registration failures name the actionable cause while staying in the gener
   expect(used.message).toContain('already used');
   expect(used.retry).toBe('refresh_then_retry');
 });
+test('registration accepts a passkey whose browser does not report credProps', async () => {
+  const client = new Client(),
+    key = await syntheticPasskey(),
+    options = await client.options();
+  const credential = await key.register(options);
+  const response = await client.request('/auth/register', {
+    challengeId: options.challengeId,
+    credential: { ...credential, clientExtensionResults: {} },
+  });
+  expect(response.status).toBe(200);
+  const result = AuthResult.parse(await response.json());
+  client.csrf = result.csrfToken;
+  expect(result.recoveryCodes).toHaveLength(10);
+  // The resulting credential still works in the discoverable sign-in flow.
+  expect((await client.request('/auth/logout', {})).status).toBe(204);
+  const signInOptions = await client.options('authenticate');
+  const signedIn = await client.request('/auth/authenticate', {
+    challengeId: signInOptions.challengeId,
+    credential: await key.authenticate(signInOptions, encode(uuidBytes(result.subjectId))),
+  });
+  expect(signedIn.status).toBe(200);
+});
 test('rate limits deny new challenges and do not store raw addresses', async () => {
   const client = new Client();
   for (let i = 0; i < 10; i++)

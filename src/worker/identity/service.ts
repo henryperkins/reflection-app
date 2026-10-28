@@ -267,7 +267,10 @@ export class IdentityService {
     const credential = input.credential;
     if (credential.id !== credential.rawId)
       throw new IdentityError(401, 'PASSKEY_VERIFICATION_FAILED');
-    if (credential.clientExtensionResults.credProps?.rk !== true)
+    // Only an explicit rk:false proves the credential is not discoverable.
+    // Several browsers/managers never return credProps; for them the
+    // residentKey:'required' creation option already guarantees discoverability.
+    if (credential.clientExtensionResults.credProps?.rk === false)
       throw new IdentityError(401, 'PASSKEY_NOT_DISCOVERABLE');
     const verified = await verifyRegistrationResponse({
       response: {
