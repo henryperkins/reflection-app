@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Produce the implementation and genuine hosted/manual evidence needed to qualify the existing MVP for real use, then present a concrete launch decision.
+**Goal:** Produce the implementation and genuine hosted/automated evidence needed to qualify the existing MVP for real use, then present a concrete launch decision.
 
 **Architecture:** Keep the established Workers/D1/R2 design, with explicitly isolated local, hosted-synthetic and production runtimes. Qualify one final source candidate through controlled synthetic deployment, independent recovery storage, bounded scheduler work, automated identity and accessibility checks with explicit physical-device limitations. Evidence is content-free, integrity-checked and bound to exact source/configuration hashes; production activation remains a separate action.
 
@@ -10,11 +10,15 @@
 
 **Spec:** [Production gates](../../PRODUCTION_ACCEPTANCE.md), [verification requirements](../../architecture/VERIFICATION_PLAN.md), [security/restore](../../architecture/SECURITY_RESTORE.md), [operations runbook](../../OPERATIONS_RUNBOOK.md), and the owner's 2026-10-27 request to plan live AI readings and production qualification. Companion implementation plans: [GPT-6.1 Terra readings](2026-10-27-live-ai-readings.md) and [key lifecycle](2026-10-27-production-key-lifecycle.md).
 
+## Execution status — 2026-10-28
+
+Implementation began from merged main `6b9b1fc`. P1/P2 and companion K1–K4 are implemented and locally verified. P3 guarded build/content tooling, P4 private scenario orchestration and P5 heartbeat/monitoring preparation are implemented; their actual hosted procedures remain pending isolated accounts, target configuration and operational choices. P6 local Chromium journeys include 320px reflow, doubled rendered text and semantic/focus checks, with physical/screen-reader limitations. P7's concrete [release packet](../../LAUNCH_DECISION.md) records the remaining dependencies. All ten external gates remain pending; production activation is disabled. Checkboxes below preserve the full qualification procedures and do not imply unrun hosted steps are complete.
+
 ## Global Constraints
 
 - Baseline `main` at `a553695`; all ten entries in `qualification/acceptance.json` are pending. Source/test-definition review is not new executed acceptance.
 - Node `26.12.1`, the checked-in lockfile and Worker compatibility date `2026-10-23` remain the starting runtime. Qualify any required upgrade separately.
-- `npm run verify` retains its `540-second` deadline and rejects skipped/flaky/failed evidence. Its scope remains local; hosted/manual receipts have separate scopes.
+- `npm run verify` retains its `540-second` deadline and rejects skipped/flaky/failed evidence. Its scope remains local; hosted/automated receipts have separate scopes.
 - Keep `npm run release -- --check` non-deploying and `deploymentAllowed:false`. Verified gates do not themselves grant deployment authorization.
 - Before real private persistence or application provider egress, satisfy the applicable identity/privacy/content/provider/release/database/restore/accessibility/operations/owner gates. Synthetic staging and bounded evaluation have separate, explicit authority.
 - Preserve all implemented account/reading/save/history/reflection/privacy workflows and the fixed cursor behavior. Milestone 3 remains deferred.
@@ -56,10 +60,10 @@ Local implementation, synthetic tests, review packets and dry-run configuration 
 
 | Decision needed | Prepare first | Needed before |
 | --- | --- | --- |
-| Stable production origin/RP ID, launch countries and minimum age | Proposed origin/resource manifest, support matrix, copy/rights constraints | Physical-domain qualification and final content/owner acceptance |
+| Stable production origin/RP ID | Proposed origin/resource manifest, support matrix, copy/rights constraints | Hosted-domain qualification and final content/owner acceptance |
 | Evaluation project/settings and spend authority | L5/L7 exact corpus, call schedule, retention and cost ceiling | First paid evaluation call |
 | Hosting account/region, resources, secrets and budget | P1/P3 rendered configuration, permission scopes, expected costs and isolation checks | Provisioning/deploying synthetic qualification environment |
-| Editorial rights and identified automated validationers | L3 exact hash-bound review packet | Approved content activation and provider qualification |
+| Source provenance and automated validator identity | L3 exact hash-bound review packet | Approved content activation and provider qualification |
 | Operators, alert destination, backup custody and targets | P4/P5 runbooks and a concrete synthetic alert/drill | Sending an alert and closing operations/restore gates |
 | Production launch | P7 completed evidence, known limitations, rollback and monitoring packet | Enabling production admission/dispatch |
 
@@ -69,7 +73,7 @@ The repository's `$10/day`, `$100/month`, `$40` evaluation caps and backup windo
 
 | Existing gate ID | Work owner | Required evidence scope and decisive result |
 | --- | --- | --- |
-| `identity` | P1/P6 | `hosted-synthetic`: exact origin/RP ID; physical/synced passkeys; same-account complete-kit recovery and unchanged saved reading |
+| `identity` | P1/P6 | `hosted-synthetic`: exact origin/RP ID; automated passkey journeys with physical/synced limitations; same-account complete-kit recovery and unchanged saved reading |
 | `keys` | K1–K4/P4 | `hosted-synthetic`: secret custody, resumable rekey/rewrap, retained receipts, complete inventory, safe retirement and key-loss refusal |
 | `content` | L3 | `automated-review`: exact launch sources, positions, fallbacks, product/privacy copy, rights and attribution approved by named humans |
 | `provider` | Deferred full qualification, original L7 scope | `provider-evaluation`: GPT-6.1 Terra project/privacy settings, frozen corpus, human quality scores, bounded latency/tokens, actual cost reconciliation |

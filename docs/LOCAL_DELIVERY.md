@@ -1,6 +1,6 @@
 # Local application delivery
 
-This delivery is a runnable local application with deployment disabled. The owner clarified on 2026-10-26 that production domain, audience and budget decisions must not hold up this delivery. They remain deferred production decisions; this does not invent hosted, provider, human editorial or real-device evidence.
+This delivery is a runnable local application with deployment disabled. The owner clarified on 2026-10-26 that production domain and budget decisions must not hold up this delivery. They remain deferred production decisions; this does not invent hosted, provider or physical-device evidence.
 
 Use Node 26.x and Python 3. From the extracted `reflection-app` directory:
 
@@ -16,7 +16,7 @@ The normal application flow supports registration, downloading and acknowledging
 
 `npm run dev:identity` persists local synthetic state under `.wrangler/identity-development`; restarting the server keeps those local accounts. The downloaded recovery kit is intentionally not part of the source ZIP. Do not share a real kit. Browser clearing removes browser state, not the local service database.
 
-The UI and driver still use the synthetic writer in this delivery. The disabled OpenAI adapter is tested with intercepted responses; no live model evaluation or paid request was performed. The draft launch canon is review material, not activated content.
+The default local UI and driver use the synthetic writer. Separate local/hosted development entrypoints support live GPT-6.1 Terra calls; the recorded development evaluation and one-reading preview smoke do not qualify production. The draft launch canon still requires final automated validation and signed activation.
 
 The deterministic gate requires Playwright's matching Chromium binary. If absent, install it with the pinned Playwright CLI before running verification. A missing browser is a setup failure, never a passing/skipped acceptance result.
 

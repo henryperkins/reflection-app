@@ -1,11 +1,11 @@
-# Deferred production acceptance
+# Production qualification status
 
 Production acceptance remains open. The current development application supports live GPT-6.1 Terra readings locally and on an isolated hosted preview. The merged application at `6b9b1fc` passed 14 local verification stages and 724 tests; its [hosted preview smoke record](superpowers/evidence/2026-10-27-hosted-preview-smoke.json) covers one live reading, save/reopen, passkey sign-in, fresh-browser recovery, consent-off export and test-account deletion. These are development results; all ten entries in `qualification/acceptance.json` remain pending. Production domain, budgets and operational ownership still require owner decisions. At the owner’s instruction, launch-country and minimum-age requirements and human-review sign-offs are excluded. Automated evidence records actual coverage; untested physical-device and screen-reader behavior remains a documented limitation.
 
 | Gate | Concrete evidence needed before a real-data rollout |
 | --- | --- |
 | Identity | Exact stable origin/RP ID, supported browser/device versions, additional-passkey enrollment/removal, last-factor protection, logout-all, automated passkey flows and downloaded-kit recovery after browser clearing, identical saved-content reopening. |
-| Key custody | Provisioned production keys, secret access restrictions, tested retained-key receipts/restore, wrap rotation and independent inventory of every backup needing old keys. Local add-only rewrap is not complete key retirement or account-DEK rotation. |
+| Key custody | Provisioned production keys, secret access restrictions, tested retained-key receipts/restore and independent inventory of every backup needing old keys. Journaled DEK replacement, checkpoint rollover and guarded retirement are implemented locally; actual hosted custody/backup recovery remains open. |
 | Editorial content | Automated validation of all 156 source entries, positions, fallback/refusal copy and privacy disclosures; source provenance, attribution and signed artifact hashes. Unknown provenance remains visible; no human approval is required. |
 | Provider | Project/model access, actual privacy settings and retention, frozen-corpus evaluation, schema/refusal/timeout behavior, latency and token distributions, actual usage/cost reconciliation and accepted hard limits. An injected response is not a live evaluation. |
 | Release isolation | Controlled hosted main build with an intentional failing test that prevents release; rejected non-main production attempt; preview markers proving separate resources/keys/tokens. GitHub Actions is not assumed available. |
@@ -18,6 +18,8 @@ Production acceptance remains open. The current development application supports
 The active development provider policy is defined in [`src/contracts/provider-policy.ts`](../src/contracts/provider-policy.ts): GPT-6.1 Terra with separately versioned parameters, accounting and provenance. The completed four-case development check and one-reading hosted smoke do not establish production project privacy settings, approved launch content, a reviewed final corpus or reconciled production billing. `store:false` does not establish zero provider retention.
 
 The hosted development preview uses its own D1 database, recovery bucket and server secrets. Production admission/dispatch and deployment authorization remain separate; completed evidence does not itself activate production.
+
+The current foundations branch adds isolated hosted runtimes, persistent offline coordination, bounded maintenance, complete key lifecycle services, automated content approval, guarded synthetic builds and private qualification/monitoring tools. See the [release packet](LAUNCH_DECISION.md), [hosted build](HOSTED_RELEASE_RUNBOOK.md), [recovery](HOSTED_RESTORE_RUNBOOK.md) and [browser coverage](BROWSER_QUALIFICATION.md). These local implementations do not close external gates.
 
 ## Recording evidence
 

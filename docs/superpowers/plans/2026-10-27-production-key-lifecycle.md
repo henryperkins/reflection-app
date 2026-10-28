@@ -10,6 +10,10 @@
 
 **Spec:** [Security/restore](../../architecture/SECURITY_RESTORE.md), [data lifecycle](../../architecture/DATA_LIFECYCLE.md), [local key rotation](../../LOCAL_KEY_ROTATION.md), [production acceptance](../../PRODUCTION_ACCEPTANCE.md), and [production qualification plan](2026-10-27-production-qualification.md).
 
+## Execution status — 2026-10-28
+
+K1–K4 are implemented and locally verified, including retained versions, journaled replacement, registry-complete field coverage, independent inventory, rollover and guarded retirement. Synthetic format/restore tests are local evidence; actual hosted lifecycle, Time Travel and secret custody remain P4 work. See [operator procedures](../../PRODUCTION_KEY_LIFECYCLE.md).
+
 ## Global Constraints
 
 - Baseline `a553695` already supports retained keys, retained receipts and add-only KEK rewrap. Do not repeat that implementation as new work.

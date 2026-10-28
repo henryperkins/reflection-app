@@ -4,12 +4,12 @@
     {
       "id": "identity",
       "status": "pending",
-      "reason": "Stable domain/RP ID and real physical/synced authenticator evidence are not recorded."
+      "reason": "Exact hosted origin/RP ID and automated same-account recovery journeys on the frozen candidate remain open. Physical/synced authenticators are untested limitations, not human-review gates."
     },
     {
       "id": "keys",
       "status": "pending",
-      "reason": "Local keyring and rotation tests do not prove production secret custody, recovery or backup key retention."
+      "reason": "Retained DEKs, journaled replacement, complete authenticated inventory, checkpoint rollover and guarded retirement pass local tests. Actual hosted secret custody, recovery and backup-retention evidence remain open."
     },
     {
       "id": "content",
@@ -44,7 +44,7 @@
     {
       "id": "operations",
       "status": "pending",
-      "reason": "Local content-free telemetry and runbooks exist; hosted alert delivery, scheduler heartbeat and operator recovery drills remain unverified."
+      "reason": "Content-free completed heartbeats, configured spend alerts, independent missing-wake checks and runbooks are implemented locally. Independent monitor, alert delivery and hosted recovery drills remain unverified."
     },
     {
       "id": "owner",
