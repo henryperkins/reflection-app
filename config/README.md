@@ -45,9 +45,10 @@ Hosted resumption likewise requires a server-only public Ed25519
 `RECOVERY_VALIDATION_TRUST` pin. The matching validator private key belongs
 only to the trusted `recovery:resume` executor, never to the application
 Worker, which therefore cannot forge the signed `RecoveryValidation` it
-verifies. Normal-writer registrations carry a five-minute hard deadline and
-are unregistered through `ctx.waitUntil`; a cleanup failure cannot replace a
-committed response.
+verifies. Writer cleanup is offered to `ctx.waitUntil`; a cleanup failure cannot
+replace a committed response. A registration remains until actual completion or
+independently signed quiescence reconciliation. Elapsed wall time cannot establish
+that an HTTP invocation has ended.
 
 Cron runs every minute. The bounded driver reserves the active provider deadline
 plus 30 seconds (90 seconds for the current policy), serves security/erasure and
