@@ -108,7 +108,13 @@ export function renderHostedConfig(value: unknown) {
     durable_objects: { bindings: [{ name: 'OFFLINE_COORDINATOR', class_name: 'OfflineControl' }] },
     migrations: [{ tag: 'offline-control-v1', new_sqlite_classes: ['OfflineControl'] }],
     triggers: { crons: ['* * * * *'] },
-    observability: { enabled: false },
+    observability: {
+      enabled: true,
+      head_sampling_rate: 1,
+      redact_query_string: true,
+      logs: { enabled: true, head_sampling_rate: 1, invocation_logs: false },
+      traces: { enabled: false },
+    },
     send_metrics: false,
   };
 }

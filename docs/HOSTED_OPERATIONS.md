@@ -1,0 +1,15 @@
+# Hosted monitoring preparation
+
+The hosted driver emits a completed `maintenance_health` heartbeat with completion time, duration, bounded work counts, queue ages and aggregate spend/liability. Failure emits only `maintenance_failed`; caught query/provider exception text is discarded. Completion means the awaited driver finished, not that every queue is empty.
+
+Run `npm run monitoring:check -- --dry-run /private/aggregate-sample.json`. Input is `{now,lastCompletedAt,summary}`; summary is the exact completed event or `{event:"maintenance_failed"}`. The command validates a bounded aggregate sample, evaluates fixed alert codes and prints `delivery:not-sent`. It has no network client. Unknown fields such as URLs, user IDs, secrets and exceptions are rejected.
+
+The [prepared configuration](../config/monitoring.json) requires an independent monitor with its own clock. It retains the last completed heartbeat and evaluates every minute even when no new event arrives. Three missing intervals (`>=180000ms`) alerts; a failed event never advances the completion time. No completion record reports missing. Reject clock inversion; deduplicate unchanged incidents and notify on meaningful change and recovery.
+
+Limits are 100 unfinished generation requests or oldest over 60 seconds, security over five minutes, erasure over 24 hours, unknown costs, provider cost overruns and actual D1 bucket spend ceilings. Technical defaults do not become approved production budgets. Preserve full unknown liability when generation is disabled.
+
+Hosted configuration enables explicit custom logs, disables invocation logs and traces, and redacts query strings. It adds no body logging. Inspect actual platform metadata, error collection, export configuration and account retention before external forwarding. Forward only validated signals; discard surrounding platform events/metadata. [Cloudflare Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
+
+No independent monitor, recipient, channel, retention policy or delivery authorization is configured. The exact synthetic notification is in the configuration. Send it only after explicit instruction identifies the destination, then capture delivery, acknowledgement, three missed heartbeats and recovery. A local printout does not establish these outcomes. Primary/backup incident contacts, account access, escalation and accepted response targets remain outstanding. Content/accessibility human review is not required.
+
+Disable generation through supported system-state controls while preserving safe history, reflection, export and deletion. Keep cost reservations and erasure intents. For key/dependency incidents, establish the persistent fence and follow [hosted recovery](HOSTED_RESTORE_RUNBOOK.md) and [key lifecycle](PRODUCTION_KEY_LIFECYCLE.md). Failed recovery stays closed; validated ingress resumption still leaves generation off. Never restore obsolete private data or reset financial liability to resolve an incident.

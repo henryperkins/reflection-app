@@ -351,13 +351,20 @@ export function createRuntimeWorker(fetcher: typeof fetch = fetch) {
       env: RuntimeBindings,
       _ctx: ExecutionContext,
     ) {
-      const runtime = await createRuntime(env, fetcher);
-      const work = () =>
-        runMaintenance(runtime, {
-          deadlineMs: Date.now() + runtime.generation.providerTimeoutMs + 30000,
-          concurrency: 4,
-        });
-      return runtime.coordinator ? runtime.coordinator.withWriter(work) : work();
+      try {
+        const runtime = await createRuntime(env, fetcher);
+        const work = () =>
+          runMaintenance(runtime, {
+            deadlineMs: Date.now() + runtime.generation.providerTimeoutMs + 30000,
+            concurrency: 4,
+          });
+        const summary = await (runtime.coordinator ? runtime.coordinator.withWriter(work) : work());
+        console.info(JSON.stringify(summary));
+        return summary;
+      } catch {
+        console.error(JSON.stringify({ event: 'maintenance_failed' }));
+        throw new Error('Scheduled maintenance failed');
+      }
     },
   };
 }

@@ -2,7 +2,7 @@ import { DB_NOW } from '../db/core.ts';
 
 /** Operator-only aggregate telemetry. No question, identifier, ciphertext or provider response is selected. */
 export async function maintenanceHealth(db: D1Database) {
-  const results = await db.batch<{ n: number; age: number; amount: number }>([
+  const results = await db.batch<{ n: number; age: number; amount: number; ceiling: number }>([
     db.prepare(
       `SELECT count(*) n,coalesce(max(${DB_NOW}-created_at),0) age FROM generation_requests WHERE state NOT IN ('published','cancelled','expired','blocked','failed')`,
     ),
@@ -16,10 +16,10 @@ export async function maintenanceHealth(db: D1Database) {
       "SELECT count(*) n,coalesce(sum(reserved_microusd),0) amount FROM cost_reservations WHERE state='unknown'",
     ),
     db.prepare(
-      "SELECT committed_microusd amount FROM spend_buckets WHERE period='day:'||strftime('%Y-%m-%d','now')",
+      "SELECT committed_microusd amount,ceiling_microusd ceiling FROM spend_buckets WHERE period='day:'||strftime('%Y-%m-%d','now')",
     ),
     db.prepare(
-      "SELECT committed_microusd amount FROM spend_buckets WHERE period='month:'||strftime('%Y-%m','now')",
+      "SELECT committed_microusd amount,ceiling_microusd ceiling FROM spend_buckets WHERE period='month:'||strftime('%Y-%m','now')",
     ),
     db.prepare(
       "SELECT count(*) n FROM cost_reservations WHERE state='actual' AND actual_microusd>reserved_microusd",
@@ -33,13 +33,18 @@ export async function maintenanceHealth(db: D1Database) {
   const liability = results[3]!.results[0]!;
   const dailySpendMicrousd = results[4]!.results[0]?.amount ?? 0;
   const monthlySpendMicrousd = results[5]!.results[0]?.amount ?? 0;
+  const dailyLimitMicrousd = results[4]!.results[0]?.ceiling ?? null;
+  const monthlyLimitMicrousd = results[5]!.results[0]?.ceiling ?? null;
   const alerts: string[] = [];
   if (generation.n >= 100 || generation.age > 60_000) alerts.push('GENERATION_BACKLOG');
   if (security.age > 300_000) alerts.push('SECURITY_LAG');
   if (erasure.age > 86_400_000) alerts.push('ERASURE_LAG');
   if (liability.n) alerts.push('PROVIDER_COST_UNKNOWN');
   if (results[6]!.results[0]!.n) alerts.push('PROVIDER_COST_OVERRUN');
-  if (dailySpendMicrousd >= 10_000_000 || monthlySpendMicrousd >= 100_000_000)
+  if (
+    (dailyLimitMicrousd !== null && dailySpendMicrousd >= dailyLimitMicrousd) ||
+    (monthlyLimitMicrousd !== null && monthlySpendMicrousd >= monthlyLimitMicrousd)
+  )
     alerts.push('SPEND_LIMIT');
   return {
     event: 'maintenance_health',
@@ -53,6 +58,8 @@ export async function maintenanceHealth(db: D1Database) {
     unknownLiabilityMicrousd: liability.amount,
     dailySpendMicrousd,
     monthlySpendMicrousd,
+    dailyLimitMicrousd,
+    monthlyLimitMicrousd,
     alerts,
   } as const;
 }

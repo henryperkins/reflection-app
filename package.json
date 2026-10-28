@@ -40,7 +40,8 @@
     "hosted:build": "tsx scripts/hosted-release.ts --build",
     "hosted:stage-synthetic": "tsx scripts/hosted-release.ts --stage-synthetic",
     "hosted:qualify": "tsx scripts/hosted-qualify.ts",
-    "hosted:restore": "tsx scripts/hosted-restore.ts"
+    "hosted:restore": "tsx scripts/hosted-restore.ts",
+    "monitoring:check": "tsx scripts/monitoring-check.ts"
   },
   "dependencies": {
     "@simplewebauthn/browser": "14.0.0",

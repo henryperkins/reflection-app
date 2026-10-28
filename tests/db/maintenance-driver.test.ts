@@ -1,6 +1,6 @@
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
-import { beforeAll, beforeEach, expect, test } from 'vitest';
+import { beforeAll, beforeEach, expect, test, vi } from 'vitest';
 import {
   createRuntime,
   createRuntimeWorker,
@@ -80,6 +80,28 @@ test('exhausted budgets do not start work and sub-policy budgets cannot dispatch
   const summary = await runMaintenance(runtime, { deadlineMs: Date.now() + 1000, concurrency: 4 });
   expect(summary.work.generation.attempted).toBe(0);
   expect(await env.DB.prepare('SELECT count(*) n FROM provider_dispatches').first('n')).toBe(0);
+});
+
+test('the hosted Cron emits a completed content-free heartbeat', async () => {
+  const { b } = bindings(),
+    worker = createRuntimeWorker(),
+    client = new ReadingClient(b, worker);
+  await readingAccount(true, true, client);
+  await client.create('PRIVATE_HEARTBEAT_SENTINEL');
+  const info = vi.spyOn(console, 'info').mockImplementation(() => {});
+  try {
+    await worker.scheduled({} as ScheduledController, b, {} as ExecutionContext);
+    expect(info).toHaveBeenCalledTimes(1);
+    const output = info.mock.calls[0]![0] as string;
+    expect(JSON.parse(output)).toMatchObject({
+      event: 'maintenance_health',
+      completedAt: expect.any(Number),
+      work: { identity: 1 },
+    });
+    expect(output).not.toContain('PRIVATE_HEARTBEAT_SENTINEL');
+  } finally {
+    info.mockRestore();
+  }
 });
 
 test('a prepared v2 request waits for a fitting budget then recovers once with its original quota period', async () => {

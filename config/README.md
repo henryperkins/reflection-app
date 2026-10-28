@@ -41,3 +41,10 @@ plus 30 seconds (90 seconds for the current policy), serves security/erasure and
 retention first, and starts no new inference that cannot fit its remaining budget.
 The hosted HTTP handler awaits initial generation instead of depending on the
 30-second post-response waitUntil extension for a 60-second call.
+
+`hosted-builds.json` records the guarded synthetic build commands and account
+separation. `monitoring.json` records the independent heartbeat policy and unsent
+synthetic notification. Both are preparation packets, not provisioned services.
+See [release](../docs/HOSTED_RELEASE_RUNBOOK.md),
+[recovery](../docs/HOSTED_RESTORE_RUNBOOK.md) and
+[operations](../docs/HOSTED_OPERATIONS.md) for actual hosted evidence still needed.
