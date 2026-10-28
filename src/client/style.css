@@ -1153,13 +1153,32 @@ button.history-link:hover:enabled {
 .orientation {
   text-transform: capitalize;
 }
-.reading-closing {
+p.reading-closing {
   padding-inline: 4px;
   font-size: 18px;
   line-height: 28px;
 }
+div.reading-closing {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px;
+}
+.reading-closing h3 {
+  font-family: var(--font-sans);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 20px;
+  color: var(--muted-foreground);
+}
+.reading-closing p {
+  margin-top: 4px;
+}
 .reading-sources {
   margin: 0;
+}
+.reading-sources > h3 {
+  margin-top: 4px;
 }
 .reading-sources > .muted {
   margin-top: 4px;
@@ -1184,7 +1203,10 @@ button.history-link:hover:enabled {
   transform-origin: center;
 }
 .source-copy {
+  display: flex;
   flex: 1;
+  flex-direction: column;
+  gap: 6px;
   min-width: 0;
 }
 .source h3 {
@@ -1194,7 +1216,14 @@ button.history-link:hover:enabled {
   text-transform: none;
 }
 .source p {
-  margin-top: 8px;
+  margin: 0;
+}
+.source ul {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
 }
 .source-attribution {
   font-size: 14px;
