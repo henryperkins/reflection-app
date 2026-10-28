@@ -157,7 +157,7 @@ test('cancelling the passkey prompt leaves credentials unchanged and account con
     });
   });
   await page.getByRole('button', { name: 'Add a passkey', exact: true }).click();
-  await expect(page.getByRole('alert')).toContainText('not completed');
+  await expect(page.getByRole('alert')).toContainText('prompt was closed or timed out');
   await expect(page.getByRole('list', { name: 'Passkeys' }).getByRole('listitem')).toHaveCount(1);
   await expect(page.getByRole('button', { name: 'Add a passkey', exact: true })).toBeEnabled();
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();

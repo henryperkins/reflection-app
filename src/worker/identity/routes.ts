@@ -63,7 +63,56 @@ export async function identityRoute(
     'Referrer-Policy': 'no-referrer',
     'X-Content-Type-Options': 'nosniff',
   });
-  const reply = (body: unknown, status = 200) => {
+  // User-facing text per internal failure code. Codes that could reveal whether
+  // an account, credential, or recovery code exists stay deliberately generic;
+  // failures about the caller's own browser, passkey, or attempt are specific.
+  const messages: Record<string, string> = {
+    AUTH_REQUIRED: 'Your session has ended. Please sign in again.',
+    REAUTH_REQUIRED:
+      'Please verify with your passkey again to continue. This confirmation lasts five minutes.',
+    AUTH_FAILED:
+      'That passkey could not be verified. Start again and choose the passkey for this account, or recover your account with your recovery kit.',
+    RECOVERY_FAILED:
+      'That recovery handle and code were not accepted. Check both for typing errors; a code also stops working once it has been used. You can try another unused code from your kit.',
+    ACCOUNT_UNAVAILABLE:
+      'Your account is not available right now. Sign in again; if this continues, recover your account with your recovery kit.',
+    CHALLENGE_MISSING:
+      'That attempt was not found in this browser. Allow cookies for this site, then start again.',
+    CHALLENGE_INVALID:
+      'That attempt does not match this browser. Start again here and finish in the same browser and tab.',
+    CHALLENGE_EXPIRED:
+      'That attempt expired; attempts last five minutes. Start again and complete the passkey prompt promptly.',
+    CHALLENGE_USED: 'That attempt was already used. Start again to create a fresh one.',
+    PASSKEY_NOT_DISCOVERABLE:
+      'That passkey was not saved as a discoverable account passkey, so it cannot sign you in here. Try your device passkey, iCloud Keychain, Google Password Manager, or Windows Hello.',
+    PASSKEY_ORIGIN_MISMATCH:
+      'That passkey was created for a different site address. Open Reflection at its exact address and try again.',
+    PASSKEY_VERIFICATION_REQUIRED:
+      'Passkey verification was not completed. Try again and confirm with your fingerprint, face, or device PIN when prompted.',
+    PASSKEY_UNSUPPORTED:
+      'That passkey type is not supported here. Try a passkey from your phone, tablet, or computer, or from iCloud Keychain or Google Password Manager.',
+    PASSKEY_VERIFICATION_FAILED:
+      'Your new passkey could not be verified. Start again; if this keeps happening, try a different passkey provider.',
+    CREDENTIAL_LIMIT: 'You already have ten passkeys. Remove one before adding another.',
+    CREDENTIAL_EXISTS: 'That passkey is already added to your account.',
+    LAST_CREDENTIAL: 'You must keep at least one passkey on your account.',
+    RATE_LIMITED: 'Too many attempts. Please try again later.',
+    DEPENDENCY_UNAVAILABLE:
+      'The account service is temporarily unavailable. Please try again shortly.',
+    NOT_AVAILABLE: 'The account service is temporarily unavailable. Please try again shortly.',
+    FORBIDDEN:
+      'This request was blocked, possibly because the page was left open or your session changed. Refresh the page and try again.',
+    BAD_INPUT: 'Some information was missing or in an unexpected format. Check it and try again.',
+    NOT_FOUND: 'That item was not found. Refresh the page and try again.',
+  };
+  const retryable = new Set([
+    'CHALLENGE_MISSING',
+    'CHALLENGE_INVALID',
+    'CHALLENGE_EXPIRED',
+    'CHALLENGE_USED',
+    'REAUTH_REQUIRED',
+  ]);
+  const reply = (body: unknown, status = 200, internalCode?: string) => {
     if (status >= 400) {
       const code =
         status === 401
@@ -79,19 +128,39 @@ export async function identityRoute(
                   : status === 409
                     ? 'CONFLICT'
                     : 'BAD_INPUT';
+      const correlationId = crypto.randomUUID();
+      // The correlation ID is the only detail logged, so a user can quote it
+      // and an operator can find this exact failure without seeing credentials.
+      // Routine signed-out session probes (AUTH_REQUIRED) are not failures.
+      if (internalCode !== 'AUTH_REQUIRED')
+        console.error(
+          JSON.stringify({
+            event: 'identity_failure',
+            correlationId,
+            status,
+            code: internalCode ?? code,
+            path,
+          }),
+        );
       body = apiSchemas.ErrorEnvelope.parse({
         error: {
           code,
           message:
-            status === 401
+            (internalCode ? messages[internalCode] : undefined) ??
+            (status === 401
               ? 'Sign-in or recovery could not be verified.'
               : status === 429
                 ? 'Too many attempts. Please try again later.'
                 : status === 503
                   ? 'The account service is temporarily unavailable.'
-                  : 'This request could not be accepted.',
-          correlationId: crypto.randomUUID(),
-          retry: status === 429 ? 'after_delay' : status === 503 ? 'refresh_then_retry' : 'never',
+                  : 'This request could not be accepted.'),
+          correlationId,
+          retry:
+            status === 429
+              ? 'after_delay'
+              : status === 503 || (internalCode !== undefined && retryable.has(internalCode))
+                ? 'refresh_then_retry'
+                : 'never',
           retryAfterSeconds: status === 429 ? 3600 : null,
           currentRevision: null,
         },
@@ -106,18 +175,18 @@ export async function identityRoute(
     if (request.headers.get('Sec-Fetch-Site') === 'cross-site')
       throw new IdentityError(403, 'FORBIDDEN');
     if (request.method !== 'GET' && request.method !== 'POST' && request.method !== 'DELETE')
-      return reply({ error: 'METHOD_NOT_ALLOWED' }, 405);
+      return reply({ error: 'METHOD_NOT_ALLOWED' }, 405, 'BAD_INPUT');
     const jar = cookies(request),
       sessionToken = jar.get('__Host-session');
     const session = () => service.sessions.get(sessionToken);
     if (request.method === 'GET') {
       if (path === '/me') return reply(await service.sessions.view(await session()));
       if (path === '/auth/credentials') return reply(await service.credentials(await session()));
-      return reply({ error: 'NOT_FOUND' }, 404);
+      return reply({ error: 'NOT_FOUND' }, 404, 'NOT_FOUND');
     }
     const removingCredential = request.method === 'DELETE' && path.startsWith('/auth/credentials/');
     if (request.method === 'DELETE' && !removingCredential)
-      return reply({ error: 'NOT_FOUND' }, 404);
+      return reply({ error: 'NOT_FOUND' }, 404, 'NOT_FOUND');
     if (
       request.headers.get('Origin') !== service.origin ||
       request.headers.get('Content-Type')?.split(';')[0]?.trim().toLowerCase() !==
@@ -240,10 +309,11 @@ export async function identityRoute(
       clearChallenge();
       return reply(null, 204);
     }
-    return reply({ error: 'NOT_AVAILABLE' }, 503);
+    return reply({ error: 'NOT_AVAILABLE' }, 503, 'NOT_AVAILABLE');
   } catch (error) {
-    if (error instanceof IdentityError) return reply({ error: error.code }, error.status);
-    if (error instanceof z.ZodError) return reply({ error: 'BAD_INPUT' }, 400);
+    if (error instanceof IdentityError)
+      return reply({ error: error.code }, error.status, error.code);
+    if (error instanceof z.ZodError) return reply({ error: 'BAD_INPUT' }, 400, 'BAD_INPUT');
     // Constraint races are generic authentication failures; dependency details never leave the server.
     if (
       error instanceof Error &&
@@ -251,7 +321,7 @@ export async function identityRoute(
         error.message,
       )
     )
-      return reply({ error: 'AUTH_FAILED' }, 401);
-    return reply({ error: 'DEPENDENCY_UNAVAILABLE' }, 503);
+      return reply({ error: 'AUTH_FAILED' }, 401, 'AUTH_FAILED');
+    return reply({ error: 'DEPENDENCY_UNAVAILABLE' }, 503, 'DEPENDENCY_UNAVAILABLE');
   }
 }

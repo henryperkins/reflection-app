@@ -205,8 +205,12 @@ export function IdentityApp() {
           tone: 'error',
           text:
             error instanceof ApiFailure
-              ? error.message
-              : 'The passkey action was not completed. Please try again.',
+              ? error.status >= 500 && error.correlationId
+                ? `${error.message} Reference: ${error.correlationId}`
+                : error.message
+              : error instanceof Error && error.message
+                ? error.message
+                : 'The passkey action was not completed. Please try again.',
         });
     } finally {
       if (isCurrent()) {
@@ -239,7 +243,7 @@ export function IdentityApp() {
     if (!requestFromPath()) navigate('/account');
   };
   const verifyExistingPasskey = async (isCurrent: () => boolean) => {
-    if (!session) throw new Error('Sign in again.');
+    if (!session) throw new Error('Your session has ended. Sign in again.');
     const verified = await signIn('reauthenticate', session.csrfToken);
     if (!isCurrent()) return null;
     // Keep the rotated session usable if the following passkey prompt is cancelled.

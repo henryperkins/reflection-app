@@ -2,6 +2,7 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import type { z } from 'zod';
 import { apiSchemas, type AuthOptions, AuthResult } from '../contracts/index.ts';
 import { api } from './api.ts';
+import { describePasskeyFailure } from './passkey-errors.ts';
 export async function enroll(options: z.infer<typeof AuthOptions>, csrf?: string) {
   if (!options.user) throw new Error('Registration is unavailable.');
   const response = await startRegistration({
@@ -19,6 +20,8 @@ export async function enroll(options: z.infer<typeof AuthOptions>, csrf?: string
       excludeCredentials: options.excludeCredentialIds.map((id) => ({ id, type: 'public-key' })),
       extensions: { credProps: true },
     },
+  }).catch((error: unknown) => {
+    throw describePasskeyFailure(error, 'create');
   });
   // Explicitly project the closed application contract; L3 convenience fields are not accepted inputs.
   const credential = {
@@ -50,6 +53,8 @@ export async function signIn(purpose: 'authenticate' | 'reauthenticate', csrf?: 
       timeout: options.timeout,
       userVerification: options.userVerification,
     },
+  }).catch((error: unknown) => {
+    throw describePasskeyFailure(error, 'sign-in');
   });
   const credential = {
     id: response.id,
