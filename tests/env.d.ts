@@ -10,6 +10,8 @@ declare global {
       BACKUP_INVENTORY: R2Bucket;
       OFFLINE_COORDINATOR: DurableObjectNamespace<OfflineControl>;
       TEST_MIGRATIONS: D1Migration[];
+      QUIESCENCE_TRUST: string;
+      TEST_QUIESCENCE_SIGNING_KEY: string;
     }
   }
 }

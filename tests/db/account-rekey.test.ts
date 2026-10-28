@@ -19,6 +19,7 @@ import { objects } from '../../src/worker/recovery/ledger.ts';
 import { runtimeManifest, runtimeSecrets } from '../fixtures/runtime.ts';
 import { readingAccount, ReadingClient } from '../fixtures/reading-client.ts';
 import { clearDatabase } from '../fixtures/database.ts';
+import { backupInventoryFixture, attestRecoveryFixture } from '../fixtures/backup-inventory.ts';
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
 beforeEach(async () => {
   await clearDatabase(env.DB);
@@ -379,6 +380,8 @@ test.each(['before', 'during', 'after'] as const)(
     );
     await f.runtime.coordinator!.complete(oldContext, 'a'.repeat(64));
     const restoreContext = await f.runtime.coordinator!.acquire('restore');
+    const backups = await backupInventoryFixture(0, f.runtime.environmentId);
+    await attestRecoveryFixture(backups, restoreContext);
     await restoreSnapshot(env.DB, saved);
     const restore = new OfflineRestore(
       { ...f.b, RESTORE_MODE: 'offline' },
@@ -386,6 +389,7 @@ test.each(['before', 'during', 'after'] as const)(
         runtime: f.runtime,
         offline: { coordinator: f.runtime.coordinator!, context: restoreContext },
         validateContent: async (hash) => hash === localDevelopmentBundle().editionHash,
+        backupInventory: backups.inventory,
       },
     );
     await restore.replay();

@@ -11,6 +11,7 @@ import { clearDatabase } from '../fixtures/database.ts';
 import { runtimeManifest, runtimeSecrets } from '../fixtures/runtime.ts';
 import { readingAccount, ReadingClient } from '../fixtures/reading-client.ts';
 import { localDevelopmentBundle } from '../../src/worker/readings/local-content.ts';
+import { backupInventoryFixture, attestRecoveryFixture } from '../fixtures/backup-inventory.ts';
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
 beforeEach(() => clearDatabase(env.DB));
 
@@ -42,15 +43,18 @@ test('hosted restore uses configured identity/content, reestablishes the indepen
   const runtime = await createRuntime(bindings),
     coordinator = runtime.coordinator!;
   const context = await coordinator.acquire('restore');
+  const backups = await backupInventoryFixture(0, manifest.environmentId);
   const restore = new OfflineRestore(
     { ...bindings, RESTORE_MODE: 'offline' },
     {
       runtime,
       offline: { coordinator, context },
       validateContent: async (hash) => hash === localDevelopmentBundle().editionHash,
+      backupInventory: backups.inventory,
     },
   );
   await restore.prepare();
+  await attestRecoveryFixture(backups, context);
   await env.DB.prepare('DELETE FROM hosted_coordination').run();
   const result = await restore.replay();
   expect(result.scope).toBe('hosted-synthetic');

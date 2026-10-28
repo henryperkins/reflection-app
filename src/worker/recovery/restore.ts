@@ -2,6 +2,8 @@ import { ACCOUNT_FIELD_HANDLERS } from './private-fields.ts';
 import type { ApplicationRuntime } from '../runtime/application.ts';
 import type { HostedCoordinator, OfflineContext } from './hosted-coordinator.ts';
 import type { ProtectedBackupInventory } from './backup-inventory.ts';
+import { verifyAttestedRecoveryObjects } from './attested-inventory.ts';
+import { bytesDigest } from './digest.ts';
 import { z } from 'zod';
 import type { Env } from '../index.ts';
 import { IdentityCheckpoint } from '../../contracts/index.ts';
@@ -36,6 +38,7 @@ export class OfflineRestore {
   readonly base: RecordBase;
   readonly erasure: SessionErasure;
   readonly now: () => number;
+  private readonly recoveryMutations = new Map<string, string | null>();
   constructor(
     readonly env: Env,
     readonly options: OfflineRestoreOptions = {},
@@ -57,10 +60,35 @@ export class OfflineRestore {
     this.base = new RecordBase(env.DB, identity);
     this.erasure = new SessionErasure(
       this.base,
-      env.RECOVERY!,
+      options.runtime ? this.trackedRecovery(env.RECOVERY!) : env.RECOVERY!,
       options.retainedKeys?.map((k) => new IdentityCrypto(k)),
     );
     this.now = options.now ?? Date.now;
+  }
+  private trackedRecovery(bucket: R2Bucket): R2Bucket {
+    const mutations = this.recoveryMutations;
+    return new Proxy(bucket, {
+      get(target, key) {
+        if (key === 'put')
+          return async (...args: Parameters<R2Bucket['put']>) => {
+            const result = await target.put(...args);
+            if (result) {
+              const stored = await target.get(args[0]);
+              if (!stored || stored.etag !== result.etag || stored.size > 64 * 1024 * 1024)
+                throw new Error('Recovery mutation proof unavailable');
+              mutations.set(args[0], await bytesDigest(await stored.arrayBuffer()));
+            }
+            return result;
+          };
+        if (key === 'delete')
+          return async (keys: string | string[]) => {
+            await target.delete(keys);
+            for (const name of typeof keys === 'string' ? [keys] : keys) mutations.set(name, null);
+          };
+        const value = Reflect.get(target, key);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
   }
   async fence() {
     if (this.options.offline) {
@@ -128,6 +156,17 @@ export class OfflineRestore {
   async replay() {
     return this.exclusive(async () => {
       await this.fence();
+      this.recoveryMutations.clear();
+      if (this.options.offline && !this.options.backupInventory)
+        throw new Error('Independent hosted recovery inventory required');
+      const attested = this.options.offline
+        ? await verifyAttestedRecoveryObjects(
+            this.options.backupInventory!,
+            this.env.RECOVERY!,
+            this.options.offline.context.environmentId,
+            this.options.offline.context.epoch,
+          )
+        : null;
       await new CleanupJournal(this.erasure.ledger).requireRestorable(this.env.DB);
       const inventory = await this.inventory();
       const jobs = erasureJobIds(inventory.erasures);
@@ -182,6 +221,17 @@ export class OfflineRestore {
         "SELECT 1 FROM deletion_jobs WHERE state!='complete' LIMIT 1",
       ).first();
       if (pending) throw new Error('Unflushed erasure remains pending');
+      const resulting = this.options.offline
+        ? await verifyAttestedRecoveryObjects(
+            this.options.backupInventory!,
+            this.env.RECOVERY!,
+            this.options.offline.context.environmentId,
+            this.options.offline.context.epoch,
+            this.recoveryMutations,
+          )
+        : null;
+      if (attested && resulting?.manifestDigest !== attested.manifestDigest)
+        throw new Error('Independent recovery inventory changed during replay');
       // Only the local runner can now remove its explicit offline binding. Dispatch stays off.
       if (!this.options.offline)
         await q(this.env.DB, 'UPDATE system_state SET restore_in_progress=0 WHERE id=1').run();
@@ -194,6 +244,12 @@ export class OfflineRestore {
         identityCheckpoints: checkpoints.size,
         generationEnabled: false as const,
         inventorySha256: await sha256Json(inventory),
+        ...(attested && resulting
+          ? {
+              independentInventorySha256: attested.manifestDigest,
+              recoveryResultSha256: resulting.objectDigest,
+            }
+          : {}),
       };
     });
   }

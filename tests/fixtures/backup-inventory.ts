@@ -1,4 +1,6 @@
 import { env } from 'cloudflare:workers';
+import { objects } from '../../src/worker/recovery/ledger.ts';
+import type { OfflineContext } from '../../src/worker/recovery/hosted-coordinator.ts';
 import { canonicalJson } from '../../src/domain/json.ts';
 import { encode } from '../../src/worker/identity/crypto.ts';
 import { bytesDigest } from '../../src/worker/recovery/hosted-coordinator.ts';
@@ -65,4 +67,48 @@ export async function backupInventoryFixture(count = 3, environmentId?: string) 
     manifests,
     inventory: new ProtectedBackupInventory(env.BACKUP_INVENTORY, environment, keys.publicKey),
   };
+}
+
+export async function attestRecoveryFixture(
+  backups: Awaited<ReturnType<typeof backupInventoryFixture>>,
+  context: OfflineContext,
+  bucket = env.RECOVERY,
+) {
+  const recoveryObjects = [];
+  for (const object of await objects(bucket, ''))
+    recoveryObjects.push({
+      key: object.key,
+      sha256: await bytesDigest(await (await bucket.get(object.key))!.arrayBuffer()),
+    });
+  const id = crypto.randomUUID(),
+    objectKey = 'snapshots/' + backups.environment + '/' + id;
+  const bytes = new TextEncoder().encode(JSON.stringify(recoveryObjects));
+  const manifest: BackupManifest = {
+    version: 1,
+    id,
+    environmentId: backups.environment,
+    kind: 'recovery',
+    purpose: 'inventory',
+    coordinatorEpoch: context.epoch,
+    recoveryObjects,
+    objectKey,
+    sha256: await bytesDigest(bytes),
+    createdAt: new Date().toISOString(),
+    expiresAt: new Date(Date.now() + 86400000).toISOString(),
+    recoveryEpoch: 0,
+    requiredEnvironmentKeyIds: [],
+    requiredAccountKeys: [],
+  };
+  await env.BACKUP_INVENTORY.put(objectKey, bytes);
+  await env.BACKUP_INVENTORY.put(
+    backups.prefix + 'manifests/' + id + '.json',
+    JSON.stringify(await backups.sign(manifest)),
+  );
+  backups.index.manifestIds.push(id);
+  backups.manifests.push(manifest);
+  await env.BACKUP_INVENTORY.put(
+    backups.prefix + 'index.json',
+    JSON.stringify(await backups.sign(backups.index)),
+  );
+  return manifest;
 }

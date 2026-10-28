@@ -36,6 +36,11 @@ signed complete index and protected backup bytes are required for destructive
 cleanup and key-retirement checks. Completing an offline operation does not
 resume ingress; a separate evidence-checked operator action does that.
 
+Protected registration inspection and reconciliation use an independent public
+Ed25519 `QUIESCENCE_TRUST` pin and a signed exact-snapshot termination artifact.
+Keep that verifier's private signing key out of application bindings. A missing
+pin/proof never triggers TTL clearing; see the hosted recovery runbook.
+
 Cron runs every minute. The bounded driver reserves the active provider deadline
 plus 30 seconds (90 seconds for the current policy), serves security/erasure and
 retention first, and starts no new inference that cannot fit its remaining budget.

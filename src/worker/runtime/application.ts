@@ -21,6 +21,7 @@ import { z } from 'zod';
 export interface RuntimeBindings extends Env {
   OFFLINE_COORDINATOR?: DurableObjectNamespace<OfflineControl>;
   RECOVERY_CONTROL_SECRET?: string;
+  QUIESCENCE_TRUST?: string;
   BACKUP_INVENTORY?: R2Bucket;
   RUNTIME_MANIFEST?: string;
   RUNTIME_RESOURCE_IDENTITIES?: string;

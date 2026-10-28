@@ -4,8 +4,12 @@ import { beforeAll, expect, test } from 'vitest';
 import {
   HostedCoordinator,
   type OfflineControl,
+  type OfflineContext,
 } from '../../src/worker/recovery/hosted-coordinator.ts';
 import { ProtectedBackupInventory } from '../../src/worker/recovery/backup-inventory.ts';
+import { canonicalJson } from '../../src/domain/json.ts';
+import { encode } from '../../src/worker/identity/crypto.ts';
+import { bytesDigest } from '../../src/worker/recovery/digest.ts';
 
 beforeAll(() => applyD1Migrations(env.DB, env.TEST_MIGRATIONS));
 const secret = 'synthetic-offline-control-token-not-a-deployed-secret';
@@ -179,4 +183,151 @@ test('completion freezes further mutations, allows another offline operation, an
   const next = await b.acquire('restore');
   expect(next.epoch).toBeGreaterThan(context.epoch);
   await expect(a.withWriter(async () => 42)).rejects.toThrow();
+});
+
+test.each(['normal', 'offline'] as const)(
+  'signed independent quiescence can reconcile a killed %s invocation without reopening ingress',
+  async (kind) => {
+    const { a, b, environment } = clients(),
+      stub = env.OFFLINE_COORDINATOR.getByName(environment);
+    let context: OfflineContext;
+    if (kind === 'normal') {
+      await stub.registerWriter(secret, environment, 'lost-process-registration');
+      context = await a.acquire('restore');
+    } else {
+      context = await a.acquire('rekey');
+      await stub.beginOffline(secret, context, 'lost-process-registration');
+    }
+    const snapshot = await a.inspectRegistrations();
+    expect(snapshot.writers).toEqual([
+      {
+        id: 'lost-process-registration',
+        operationId: kind === 'normal' ? null : context.operationId,
+      },
+    ]);
+    const document = {
+      version: 1,
+      producer: 'platform-quiescence.v1',
+      status: 'quiescent',
+      environmentId: environment,
+      operationId: context.operationId,
+      epoch: context.epoch,
+      registrationDigest: snapshot.registrationDigest,
+      ingress: 'blocked',
+      egress: 'blocked',
+      terminationEvidenceDigest: 'a'.repeat(64),
+      sourceDigest: 'b'.repeat(64),
+      configurationDigest: 'c'.repeat(64),
+      observedAt: new Date().toISOString(),
+    };
+    const key = await crypto.subtle.importKey(
+      'jwk',
+      JSON.parse(env.TEST_QUIESCENCE_SIGNING_KEY),
+      'Ed25519',
+      false,
+      ['sign'],
+    );
+    const signed = {
+      document,
+      signature: encode(
+        new Uint8Array(
+          await crypto.subtle.sign(
+            'Ed25519',
+            key,
+            new TextEncoder().encode(canonicalJson(document)),
+          ),
+        ),
+      ),
+    };
+    async function store(envelope: unknown) {
+      const bytes = new TextEncoder().encode(JSON.stringify(envelope)),
+        digest = await bytesDigest(bytes);
+      await env.BACKUP_INVENTORY.put('quiescence/' + digest + '.json', bytes);
+      return digest;
+    }
+    await expect(
+      a.reconcileRegistrations(await store({ ...signed, signature: encode(new Uint8Array(64)) })),
+    ).rejects.toThrow();
+    expect((await b.inspectRegistrations()).writers).toHaveLength(1);
+    const next = await a.reconcileRegistrations(await store(signed));
+    expect(next.epoch).toBeGreaterThan(context.epoch);
+    await b.assertCurrent(next);
+    await expect(a.assertCurrent(context)).rejects.toThrow();
+    await expect(a.withWriter(async () => 42)).rejects.toThrow();
+    expect((await b.inspectRegistrations()).writers).toEqual([]);
+    await expect(a.reconcileRegistrations(await store(signed))).rejects.toThrow();
+  },
+);
+
+test('resume reserves persistent exclusion while awaiting evidence and refuses a changed D1 epoch atomically', async () => {
+  const { a, b, environment } = clients(),
+    context = await a.acquire('restore'),
+    stub = env.OFFLINE_COORDINATOR.getByName(environment);
+  const document = {
+    version: 1,
+    producer: 'restore-validator.v1',
+    status: 'passed',
+    environmentId: environment,
+    operationId: context.operationId,
+    epoch: context.epoch,
+    sourceDigest: 'a'.repeat(64),
+    configurationDigest: 'b'.repeat(64),
+    backupInventoryDigest: 'c'.repeat(64),
+    recoveryValidationDigest: 'd'.repeat(64),
+    financialReconciliationDigest: 'e'.repeat(64),
+    validatedAt: new Date().toISOString(),
+    generation: 'off',
+  };
+  const bytes = new TextEncoder().encode(JSON.stringify(document)),
+    digest = await bytesDigest(bytes);
+  await env.BACKUP_INVENTORY.put('recovery-validation/' + digest + '.json', bytes);
+  await env.DB.prepare("INSERT INTO hosted_coordination VALUES(?,?,'validated',?,?)")
+    .bind(environment, context.epoch, digest, Date.now())
+    .run();
+  await env.DB.prepare(
+    "INSERT INTO system_state(id,provider_policy_hash,restore_in_progress,generation_enabled,dispatch_mode,updated_at) VALUES(1,?,1,0,'off',?) ON CONFLICT(id) DO UPDATE SET restore_in_progress=1,generation_enabled=0,dispatch_mode='off'",
+  )
+    .bind('0'.repeat(64), Date.now())
+    .run();
+  await a.complete(context, digest);
+  await runInDurableObject(stub, async (instance: OfflineControl) => {
+    const binding = (instance as unknown as { env: { DB: D1Database } }).env,
+      original = binding.DB;
+    let entered!: () => void, release!: () => void;
+    const ready = new Promise<void>((r) => (entered = r)),
+      gate = new Promise<void>((r) => (release = r));
+    binding.DB = {
+      prepare: original.prepare.bind(original),
+      batch: async (statements: D1PreparedStatement[]) => {
+        entered();
+        await gate;
+        return original.batch(statements);
+      },
+    } as D1Database;
+    const resuming = a.resume(context, digest);
+    resuming.catch(() => {});
+    await ready;
+    try {
+      await expect(b.acquire('rekey')).rejects.toThrow();
+      await env.DB.prepare(
+        "UPDATE hosted_coordination SET epoch=epoch+1,state='offline' WHERE environment_id=?",
+      )
+        .bind(environment)
+        .run();
+    } finally {
+      release();
+    }
+    await expect(resuming).rejects.toThrow();
+    binding.DB = original;
+  });
+  expect(
+    await env.DB.prepare('SELECT restore_in_progress FROM system_state').first(
+      'restore_in_progress',
+    ),
+  ).toBe(1);
+  expect(
+    await env.DB.prepare('SELECT state FROM hosted_coordination WHERE environment_id=?')
+      .bind(environment)
+      .first('state'),
+  ).toBe('offline');
 });

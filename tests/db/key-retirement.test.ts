@@ -323,6 +323,7 @@ test('a synthetic candidate supports all three backup formats, exact reads/expor
         runtime,
         offline: { coordinator: runtime.coordinator!, context: f.context },
         validateContent: async (hash) => hash === localDevelopmentBundle().editionHash,
+        backupInventory: f.backups.inventory,
       },
     );
     expect((await restore.replay()).status).toBe('verified');

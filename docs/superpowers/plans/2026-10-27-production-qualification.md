@@ -75,12 +75,12 @@ The repository's `$10/day`, `$100/month`, `$40` evaluation caps and backup windo
 | --- | --- | --- |
 | `identity` | P1/P6 | `hosted-synthetic`: exact origin/RP ID; automated passkey journeys with physical/synced limitations; same-account complete-kit recovery and unchanged saved reading |
 | `keys` | K1–K4/P4 | `hosted-synthetic`: secret custody, resumable rekey/rewrap, retained receipts, complete inventory, safe retirement and key-loss refusal |
-| `content` | L3 | `automated-review`: exact launch sources, positions, fallbacks, product/privacy copy, rights and attribution approved by named humans |
-| `provider` | Deferred full qualification, original L7 scope | `provider-evaluation`: GPT-6.1 Terra project/privacy settings, frozen corpus, human quality scores, bounded latency/tokens, actual cost reconciliation |
+| `content` | L3 | `automated-review`: exact launch sources, positions, fallbacks, product/privacy copy, provenance and attribution validated by the named automated runner; signed artifact retains unknown rights |
+| `provider` | Deferred full qualification, original L7 scope | `provider-evaluation`: GPT-6.1 Terra project/privacy settings, frozen corpus, automated quality scores with runner/version, bounded latency/tokens, actual cost reconciliation |
 | `release` | P3 | `hosted-synthetic`: failed main build blocks release, non-main production attempt rejected, preview credentials cannot access production markers |
 | `database` | P2/P4 | `hosted-synthetic`: actual D1 rollback/races, overlap/missed Cron, crash recovery, no duplicate publication/quota/call |
 | `restore` | P4 | `hosted-synthetic`: stale snapshot replay preserves erasure/factor/code/permission/spend fences; independent loss stays offline; measured RPO/RTO |
-| `accessibility` | P6 | `automated-review`: supported browsers/devices, keyboard, VoiceOver/NVDA, focus, 320px and 200% text/zoom, interruption/conflict states |
+| `accessibility` | P6 | `automated-review`: recorded automated browser matrix, keyboard, semantic tree, focus, 320px and doubled text/layout, interruption/conflict states; VoiceOver/NVDA and physical devices remain untested limitations |
 | `operations` | P5 | `hosted-synthetic`: observed heartbeat and missing-heartbeat detection, received/acknowledged synthetic alerts, named incident owner, recovery practice |
 | `owner` | P7 | `owner-decision`: recorded domain, budgets and operational responsibility |
 
