@@ -21,6 +21,13 @@ export async function activateContent(
     throw new Error('Content activation revision required');
   const bundle = await inspectReviewedBundle(value);
   await verifyContentApproval(approval, bundle);
+  const reviewKind =
+    approval.document.version === 'content-approval.v3' ? 'automated_validated' : 'human_approved';
+  const rightsStatus =
+    bundle.sources.every((s) => s.rights.status === 'cleared') &&
+    (bundle.schemaVersion === 1 || bundle.relationships.every((r) => r.rights.status === 'cleared'))
+      ? 'cleared'
+      : 'unknown';
   const hash = bundle.editionHash,
     bytes = canonicalJson(bundle),
     signed = canonicalJson(approval),
@@ -45,20 +52,24 @@ export async function activateContent(
       ),
       assertion(
         db,
-        "NOT EXISTS(SELECT 1 FROM content_editions WHERE hash=? AND (state NOT IN ('staged','superseded') OR bundle_json!=? OR (state='superseded' AND (rights_status!='cleared' OR reviewer_kind!='human_approved' OR reviewer_id IS NULL OR reviewer_id!=? OR reviewed_hash IS NULL OR reviewed_hash!=hash OR approval_hash IS NULL OR approval_hash!=? OR approval_json IS NULL OR approval_json!=?))))",
+        "NOT EXISTS(SELECT 1 FROM content_editions WHERE hash=? AND (state NOT IN ('staged','superseded') OR bundle_json!=? OR (state='superseded' AND (rights_status!=? OR reviewer_kind!=? OR reviewer_id IS NULL OR reviewer_id!=? OR reviewed_hash IS NULL OR reviewed_hash!=hash OR approval_hash IS NULL OR approval_hash!=? OR approval_json IS NULL OR approval_json!=?))))",
         hash,
         bytes,
+        rightsStatus,
+        reviewKind,
         approval.document.reviewerId,
         approvalHash,
         signed,
       ),
       q(
         db,
-        `INSERT INTO content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at,approval_json,approval_hash) VALUES (?,'approved',?,?,'human_approved',?,'cleared',${DB_NOW},?,?,?) ON CONFLICT(hash) DO UPDATE SET state='approved',reviewed_hash=excluded.reviewed_hash,reviewer_kind=excluded.reviewer_kind,reviewer_id=excluded.reviewer_id,rights_status=excluded.rights_status,approved_at=excluded.approved_at,approval_json=excluded.approval_json,approval_hash=excluded.approval_hash,policy_revision=content_editions.policy_revision+1`,
+        `INSERT INTO content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at,approval_json,approval_hash) VALUES (?,'approved',?,?,?,?,?,${DB_NOW},?,?,?) ON CONFLICT(hash) DO UPDATE SET state='approved',reviewed_hash=excluded.reviewed_hash,reviewer_kind=excluded.reviewer_kind,reviewer_id=excluded.reviewer_id,rights_status=excluded.rights_status,approved_at=excluded.approved_at,approval_json=excluded.approval_json,approval_hash=excluded.approval_hash,policy_revision=content_editions.policy_revision+1`,
         hash,
         bytes,
         hash,
+        reviewKind,
         approval.document.reviewerId,
+        rightsStatus,
         Date.parse(approval.document.approvedAt),
         signed,
         approvalHash,

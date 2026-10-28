@@ -30,9 +30,11 @@ export function eligibleReview(
   if (record.rights.status === 'disallowed') return false;
   if (diagnosticOnly && record.review.kind === 'agent_reviewed') return true;
   return (
-    record.rights.status === 'cleared' &&
-    !!record.rights.evidence.trim() &&
-    record.review.kind === 'human_approved' &&
+    ((record.review.kind === 'human_approved' &&
+      record.rights.status === 'cleared' &&
+      !!record.rights.evidence.trim()) ||
+      (record.review.kind === 'automated_validated' &&
+        ['cleared', 'unknown'].includes(record.rights.status))) &&
     !!record.review.reviewer?.trim() &&
     record.review.reviewedAt !== null &&
     record.review.reviewedHash === record.hash

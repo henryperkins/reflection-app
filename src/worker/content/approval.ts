@@ -34,7 +34,14 @@ const DocumentV2 = DocumentV1.extend({
     .array(z.strictObject({ id: z.string(), version: z.number().int().positive(), hash: Hash }))
     .max(1000),
 });
-const Document = z.discriminatedUnion('version', [DocumentV1, DocumentV2]);
+const DocumentV3 = DocumentV2.extend({
+  version: z.literal('content-approval.v3'),
+  reviewMethod: z.literal('automated'),
+  runnerVersion: z.literal('content-validator.v1'),
+  spreadHash: Hash.nullable(),
+  fallbackHash: Hash.nullable(),
+});
+const Document = z.discriminatedUnion('version', [DocumentV1, DocumentV2, DocumentV3]);
 const Signed = z.strictObject({
   document: Document,
   signature: z.string().regex(/^[A-Za-z0-9_-]{86}$/),
@@ -53,9 +60,16 @@ export async function inspectReviewedBundle(
   value: unknown,
   reviewerId?: string,
   requireCompiledCopy = true,
+  expectedKind?: 'human_approved' | 'automated_validated',
 ): Promise<Bundle> {
   try {
     const b = AnyContentBundle.parse(value);
+    const reviewKind =
+      expectedKind ??
+      (b.sources.every((s) => s.review.kind === 'automated_validated')
+        ? 'automated_validated'
+        : 'human_approved');
+    const automated = reviewKind === 'automated_validated';
     if (
       b.editionHash !== (await bundleHash(b)) ||
       b.deckEdition !== (await sha256Json(b.deck)) ||
@@ -94,15 +108,15 @@ export async function inspectReviewedBundle(
         (b.schemaVersion === 1 && s.position !== null) ||
         !b.deck.some((c) => c.id === s.cardId) ||
         s.hash !== (await sourceHash(s)) ||
-        s.review.kind !== 'human_approved' ||
+        s.review.kind !== reviewKind ||
         !s.review.reviewer?.trim() ||
         marker.test(s.review.reviewer) ||
         (reviewerId !== undefined && s.review.reviewer !== reviewerId) ||
         s.review.reviewedHash !== s.hash ||
         s.review.reviewedAt === null ||
-        s.rights.status !== 'cleared' ||
+        (s.rights.status !== 'cleared' && (!automated || s.rights.status !== 'unknown')) ||
         [s.rights.evidence, s.rights.attribution, s.rights.territory].some(
-          (v) => !v.trim() || marker.test(v),
+          (v) => (!automated || s.rights.status === 'cleared') && (!v.trim() || marker.test(v)),
         ) ||
         [s.text, s.fallbackText, s.reflectionQuestion].some((v) => !v.trim())
       )
@@ -129,15 +143,15 @@ export async function inspectReviewedBundle(
           !r.id.trim() ||
           r.hash !== (await sourceHash(r)) ||
           r.deckEdition !== b.deckEdition ||
-          r.review.kind !== 'human_approved' ||
+          r.review.kind !== reviewKind ||
           !r.review.reviewer?.trim() ||
           marker.test(r.review.reviewer) ||
           (reviewerId !== undefined && r.review.reviewer !== reviewerId) ||
           r.review.reviewedHash !== r.hash ||
           r.review.reviewedAt === null ||
-          r.rights.status !== 'cleared' ||
+          (r.rights.status !== 'cleared' && (!automated || r.rights.status !== 'unknown')) ||
           [r.rights.evidence, r.rights.attribution, r.rights.territory, r.text, r.limits].some(
-            (t) => !t.trim() || marker.test(t),
+            (t) => (!automated || r.rights.status === 'cleared') && (!t.trim() || marker.test(t)),
           ) ||
           new Set(r.sourceIds).size !== r.sourceIds.length ||
           supporting.length !== r.sourceIds.length ||
@@ -167,7 +181,20 @@ export async function contentApprovalDocument(
 ) {
   const b = await inspectReviewedBundle(bundle, metadata.reviewerId, requireCompiledCopy);
   return Document.parse({
-    version: b.schemaVersion === 1 ? 'content-approval.v1' : 'content-approval.v2',
+    version: b.sources.every((s) => s.review.kind === 'automated_validated')
+      ? 'content-approval.v3'
+      : b.schemaVersion === 1
+        ? 'content-approval.v1'
+        : 'content-approval.v2',
+    ...(b.sources.every((s) => s.review.kind === 'automated_validated')
+      ? {
+          reviewMethod: 'automated',
+          runnerVersion: 'content-validator.v1',
+          ...(b.schemaVersion === 1
+            ? { spreadHash: null, fallbackHash: null, relationships: [] }
+            : {}),
+        }
+      : {}),
     scope: 'editorial-content',
     ...metadata,
     bundleHash: b.editionHash,
@@ -204,7 +231,12 @@ export async function verifySignedContentApproval(
   try {
     const signed = Signed.parse(value),
       d = signed.document,
-      b = await inspectReviewedBundle(bundle, trust.reviewerId, requireCompiledCopy);
+      b = await inspectReviewedBundle(
+        bundle,
+        trust.reviewerId,
+        requireCompiledCopy,
+        d.version === 'content-approval.v3' ? 'automated_validated' : 'human_approved',
+      );
     if (
       trust.publicKey.type !== 'public' ||
       trust.publicKey.algorithm.name !== 'Ed25519' ||

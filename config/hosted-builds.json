@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "status": "prepared-not-provisioned",
+  "node": "26.12.1",
+  "packageManager": "npm@11.20.0",
+  "installCommand": "npm ci",
+  "buildCommand": "npm run hosted:build",
+  "deployCommand": "npm run hosted:stage-synthetic",
+  "buildCachingEnabled": false,
+  "branchIncludes": ["main"],
+  "qualificationCredentials": "qualification account only; no production account membership",
+  "productionCredentials": "separate production account; absent from qualification builds",
+  "requiredProtectedVariables": ["REFLECTION_HOSTED_TARGET_JSON", "CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"],
+  "productionDeploymentEnabled": false
+}

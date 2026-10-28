@@ -8,7 +8,7 @@ export default defineConfig({
       miniflare: {
         compatibilityDate: '2026-10-23',
         compatibilityFlags: ['nodejs_compat'],
-        d1Databases: ['DB'],
+        d1Databases: ['DB', 'MIGRATION_DB'],
         r2Buckets: ['RECOVERY', 'BACKUP_INVENTORY'],
         durableObjects: { OFFLINE_COORDINATOR: { className: 'OfflineControl', useSQLite: true } },
         bindings: {

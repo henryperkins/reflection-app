@@ -78,7 +78,7 @@ export async function relationship(
         orientation: 'upright' | 'reversed';
         rights: unknown;
         review: {
-          kind: 'unreviewed' | 'agent_reviewed' | 'human_approved';
+          kind: 'unreviewed' | 'agent_reviewed' | 'human_approved' | 'automated_validated';
           reviewer: string | null;
           reviewedHash: string | null;
           reviewedAt: string | null;

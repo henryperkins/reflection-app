@@ -234,3 +234,70 @@ test('A to B to A rollback preserves signed bytes and fences old A work with new
   await withdrawContent(env.DB, a.editionHash, 4);
   await expect(activateContent(env.DB, a, approvalA, 5)).rejects.toThrow();
 });
+
+test('signed automated validation activates exact content without human sign-off or invented rights clearance', async () => {
+  await seedDatabase(env.DB);
+  const b = await editorialBundle();
+  for (const source of b.sources) {
+    source.review.kind = 'automated_validated';
+    source.rights.status = 'unknown';
+    source.rights.evidence = '';
+    source.rights.territory = '';
+    source.hash = await sourceHash(source);
+    source.review.reviewedHash = source.hash;
+  }
+  b.editionHash = await bundleHash(b);
+  const signed = await signedApproval(b);
+  expect(signed.signed.document).toMatchObject({
+    version: 'content-approval.v3',
+    reviewMethod: 'automated',
+  });
+  const approved = await signed.authenticate();
+  await activateContent(env.DB, b, approved, 1);
+  expect(
+    await env.DB.prepare('SELECT reviewer_kind,rights_status FROM content_editions WHERE hash=?')
+      .bind(b.editionHash)
+      .first(),
+  ).toEqual({ reviewer_kind: 'automated_validated', rights_status: 'unknown' });
+  expect(await new D1ContentRepository(env.DB, signed.trust).active()).toEqual(b);
+  const { syntheticPlanInput } = await import('../fixtures/canon.ts');
+  const { buildPlan } = await import('../../src/domain/tarot/plan.ts');
+  const input = await syntheticPlanInput();
+  await expect(
+    buildPlan({ ...input, content: b, basis: { ...input.basis, deckEdition: b.deckEdition } }),
+  ).resolves.toHaveProperty('contentHash', b.editionHash);
+
+  expect(
+    await env.DB.prepare('SELECT generation_enabled,dispatch_mode FROM system_state').first(),
+  ).toEqual({ generation_enabled: 0, dispatch_mode: 'off' });
+});
+
+test('the automated-content migration preserves populated parent and child rows', async () => {
+  const change = env.TEST_MIGRATIONS.find((m) => m.name.includes('0015_automated_content'))!;
+  await applyD1Migrations(
+    env.MIGRATION_DB,
+    env.TEST_MIGRATIONS.filter((m) => m !== change),
+  );
+  await seedDatabase(env.MIGRATION_DB);
+  const before = await env.MIGRATION_DB.prepare(
+    'SELECT hash,state,bundle_json FROM content_editions',
+  ).all();
+  const damagedCopy = {
+    ...change,
+    queries: change.queries.map((query) =>
+      query.replace('FROM content_editions', 'FROM content_editions WHERE 0'),
+    ),
+  };
+  await expect(applyD1Migrations(env.MIGRATION_DB, [damagedCopy])).rejects.toThrow();
+  expect(await env.MIGRATION_DB.prepare('SELECT count(*) n FROM content_editions').first('n')).toBe(
+    1,
+  );
+  await applyD1Migrations(env.MIGRATION_DB, [change]);
+  expect(
+    await env.MIGRATION_DB.prepare('SELECT hash,state,bundle_json FROM content_editions').all(),
+  ).toMatchObject({ results: before.results });
+  expect((await env.MIGRATION_DB.prepare('PRAGMA foreign_key_check').all()).results).toEqual([]);
+  expect(await env.MIGRATION_DB.prepare('SELECT count(*) n FROM reading_sessions').first('n')).toBe(
+    1,
+  );
+});

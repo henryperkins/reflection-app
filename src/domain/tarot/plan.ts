@@ -27,9 +27,11 @@ export async function bundleHash<T extends { editionHash: string }>(bundle: T): 
 }
 function approved(source: Source): boolean {
   return (
-    source.rights.status === 'cleared' &&
-    source.rights.evidence.trim().length > 0 &&
-    source.review.kind === 'human_approved' &&
+    ((source.review.kind === 'human_approved' &&
+      source.rights.status === 'cleared' &&
+      source.rights.evidence.trim().length > 0) ||
+      (source.review.kind === 'automated_validated' &&
+        ['cleared', 'unknown'].includes(source.rights.status))) &&
     !!source.review.reviewer?.trim() &&
     source.review.reviewedAt !== null &&
     source.review.reviewedHash === source.hash

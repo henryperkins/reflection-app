@@ -5,6 +5,7 @@ declare global {
   namespace Cloudflare {
     interface Env {
       DB: D1Database;
+      MIGRATION_DB: D1Database;
       RECOVERY: R2Bucket;
       BACKUP_INVENTORY: R2Bucket;
       OFFLINE_COORDINATOR: DurableObjectNamespace<OfflineControl>;
