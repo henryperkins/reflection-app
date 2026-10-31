@@ -1,0 +1,104 @@
+{
+  "spread-ribbon": {
+    "original": "spread-ribbon.png",
+    "width": 2172,
+    "height": 724,
+    "originalBytes": 1196767,
+    "sha256": "727ec323da5b66d1e928e297f7a6c70c939fcbb43a3c8b92cb377b7391b8ba02",
+    "variants": [
+      {
+        "file": "spread-ribbon-320.webp",
+        "width": 320,
+        "height": 107,
+        "bytes": 27476
+      },
+      {
+        "file": "spread-ribbon-640.webp",
+        "width": 640,
+        "height": 213,
+        "bytes": 85660
+      },
+      {
+        "file": "spread-ribbon-960.webp",
+        "width": 960,
+        "height": 320,
+        "bytes": 178842
+      }
+    ]
+  },
+  "account-sprig": {
+    "original": "account-sprig.png",
+    "width": 1945,
+    "height": 809,
+    "originalBytes": 1274288,
+    "sha256": "18054b6e74fef2abde718b26ffcc6803bb0e9b1ad97c87de94204ef790405d30",
+    "variants": [
+      {
+        "file": "account-sprig-160.webp",
+        "width": 160,
+        "height": 67,
+        "bytes": 10960
+      },
+      {
+        "file": "account-sprig-320.webp",
+        "width": 320,
+        "height": 133,
+        "bytes": 33300
+      },
+      {
+        "file": "account-sprig-560.webp",
+        "width": 560,
+        "height": 233,
+        "bytes": 86404
+      }
+    ]
+  },
+  "three-card-spread": {
+    "original": "three-card-spread.png",
+    "width": 1983,
+    "height": 793,
+    "originalBytes": 1875484,
+    "sha256": "eb3e8961d1df49c7153daf46b142bb8b3f293f378316217703b171f1a0635638",
+    "variants": [
+      {
+        "file": "three-card-spread-320.webp",
+        "width": 320,
+        "height": 128,
+        "bytes": 49364
+      },
+      {
+        "file": "three-card-spread-640.webp",
+        "width": 640,
+        "height": 256,
+        "bytes": 160384
+      }
+    ]
+  },
+  "mobile-corner": {
+    "original": "mobile-corner.png",
+    "width": 1222,
+    "height": 1287,
+    "originalBytes": 1257168,
+    "sha256": "5d7757ddb4c94fa4471839bcc9b227ec8683bef91b1540608700b1e46170f421",
+    "variants": [
+      {
+        "file": "mobile-corner-80.webp",
+        "width": 80,
+        "height": 84,
+        "bytes": 7134
+      },
+      {
+        "file": "mobile-corner-160.webp",
+        "width": 160,
+        "height": 169,
+        "bytes": 21638
+      },
+      {
+        "file": "mobile-corner-240.webp",
+        "width": 240,
+        "height": 253,
+        "bytes": 42886
+      }
+    ]
+  }
+}

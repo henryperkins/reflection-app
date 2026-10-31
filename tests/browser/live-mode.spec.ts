@@ -61,11 +61,13 @@ for (const mode of ['live-local', 'live-preview', 'production'] as const) {
     await backToReadings(page);
     await page.getByRole('button', { name: 'New reading', exact: true }).click();
     await expect(page.getByText(/Starting a reading sends this question to OpenAI/)).toBeVisible();
-    await expect(page.locator('#reading-spread-photo-help')).toContainText(
-      'sends your attached photo to Meta',
-    );
-    await expect(page.locator('#reading-spread-photo-help')).toContainText(
-      'zero retention is not guaranteed',
+    const preflight = page.getByRole('complementary', { name: 'Before you start' });
+    await expect(preflight).toContainText('sends your attached photo to Meta');
+    await expect(preflight).toContainText('zero retention is not guaranteed');
+    await expect(
+      page.getByRole('button', { name: 'Choose photo', exact: true }),
+    ).toHaveAccessibleDescription(
+      /sends your attached photo to Meta.*zero retention is not guaranteed/,
     );
     await page.getByLabel('Offline spread photo (optional)').setInputFiles({
       name: 'spread.png',

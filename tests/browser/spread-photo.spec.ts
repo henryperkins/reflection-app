@@ -66,6 +66,41 @@ test('starting while image preparation is pending keeps the chosen photo', async
   await expect(page.getByTestId('accepted-reading')).toBeVisible();
   expect(input.spreadPhoto).toBe(`data:image/png;base64,${image.toString('base64')}`);
   await expect(page.getByTestId('spread-photo-card')).toBeVisible();
+  const reference = page.getByRole('img', {
+    name: 'Your uploaded spread, for reference while writing',
+  });
+  await expect(reference).toHaveAttribute('src', input.spreadPhoto);
+  await page
+    .getByLabel('Your reflection', { exact: true })
+    .fill('Synthetic reflection on my spread');
+  await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Edit reflection', exact: true })).toBeVisible();
+  await expect(reference).toHaveAttribute('src', input.spreadPhoto);
+  expect(submissions).toBe(1);
+});
+
+test('the photo picker can replace and remove an attachment on mobile without starting a reading', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await form(page, '192.0.2.226');
+  let submissions = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/v1/requests')) submissions++;
+  });
+  for (const name of ['my-spread.png', 'replacement-spread.png']) {
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Choose photo', exact: true }).click();
+    await (await chooser).setFiles({ name, mimeType: 'image/png', buffer: image });
+    await expect(page.getByTestId('spread-photo-preview')).toContainText(name);
+    await expect(page.getByRole('button', { name: 'Start reading', exact: true })).toBeEnabled();
+  }
+  await page.getByRole('button', { name: 'Remove photo', exact: true }).click();
+  await expect(page.getByTestId('spread-photo-preview')).toHaveCount(0);
+  await expect(page.getByLabel('Your question')).toHaveValue('How can I compare my options?');
+  await expect(page.getByRole('button', { name: 'Choose photo', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Choose photo', exact: true })).toBeFocused();
+  expect(submissions).toBe(0);
 });
 
 test('the latest photo selection survives a slower previous read', async ({ page }) => {

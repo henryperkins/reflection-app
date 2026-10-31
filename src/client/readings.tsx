@@ -124,7 +124,15 @@ export function ReadingWorkspace({
   };
   const resultHeading = useRef<HTMLHeadingElement>(null);
   const focusResultOnCommit = useRef(false);
+  const historyHeading = useRef<HTMLHeadingElement>(null);
+  const focusHistoryOnCommit = useRef(false);
   const [history, setHistory] = useState<History>({ items: [], nextCursor: null });
+  useLayoutEffect(() => {
+    if (mode === 'history' && focusHistoryOnCommit.current) {
+      focusHistoryOnCommit.current = false;
+      historyHeading.current?.focus();
+    }
+  }, [mode]);
   const [record, setRecord] = useState<RecordView | null>(null);
   const [reading, setReading] = useState<z.infer<typeof AnyAcceptedReading> | null>(null);
   useLayoutEffect(() => {
@@ -154,8 +162,10 @@ export function ReadingWorkspace({
     [reversals, setReversals] = useState(false),
     [spreadPhoto, setSpreadPhoto] = useState<string | null>(null),
     [spreadPhotoName, setSpreadPhotoName] = useState<string | null>(null),
+    [photoAnnouncement, setPhotoAnnouncement] = useState(''),
     [preparingPhoto, setPreparingPhoto] = useState(false),
-    spreadInputRef = useRef<HTMLInputElement>(null);
+    spreadInputRef = useRef<HTMLInputElement>(null),
+    choosePhotoRef = useRef<HTMLButtonElement>(null);
   const photoSelection = useRef(0),
     photoPreparing = useRef(false);
   const clearPhoto = () => {
@@ -164,6 +174,7 @@ export function ReadingWorkspace({
     setPreparingPhoto(false);
     setSpreadPhoto(null);
     setSpreadPhotoName(null);
+    setPhotoAnnouncement('Photo removed.');
     if (spreadInputRef.current) spreadInputRef.current.value = '';
   };
   const [busy, setBusy] = useState(false),
@@ -171,6 +182,16 @@ export function ReadingWorkspace({
     [conflict, setConflict] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false),
     [deleteChecked, setDeleteChecked] = useState(false);
+  const deleteTrigger = useRef<HTMLButtonElement>(null);
+  const deleteConfirmation = useRef<HTMLInputElement>(null);
+  const restoreDeleteFocus = useRef(false);
+  useLayoutEffect(() => {
+    if (confirmDelete) deleteConfirmation.current?.focus();
+    else if (restoreDeleteFocus.current) {
+      restoreDeleteFocus.current = false;
+      deleteTrigger.current?.focus();
+    }
+  }, [confirmDelete]);
   const alive = useRef(true),
     epoch = useRef(0),
     inFlight = useRef(false),
@@ -337,6 +358,7 @@ export function ReadingWorkspace({
       });
       if (error instanceof ApiFailure && error.status === 410) {
         clearReading();
+        focusHistoryOnCommit.current = true;
         setMode('history');
         replacePath('/');
         await loadHistory(current).catch(() => undefined);
@@ -594,6 +616,7 @@ export function ReadingWorkspace({
           return;
         }
         clearReading();
+        focusHistoryOnCommit.current = true;
         setMode('history');
         replacePath('/');
         deletion.current = null;
@@ -669,7 +692,9 @@ export function ReadingWorkspace({
       )}
       {mode === 'history' && (
         <section className="history-section" aria-label="Saved reading history">
-          <h2 className="title-section">Saved readings</h2>
+          <h2 ref={historyHeading} tabIndex={-1} className="title-section">
+            Saved readings
+          </h2>
           <p className="muted">
             Return to the original reading, cards and sources. Reopening uses no new generation or
             allowance.
@@ -683,14 +708,16 @@ export function ReadingWorkspace({
             <ol className="reading-history">
               {history.items.map((item) => (
                 <li key={item.id}>
-                  <Art name={historyArt(item.id)} className="history-art" />
+                  <Art name={historyArt(item.id)} className="history-art" loading="lazy" />
                   <div className="history-copy">
                     <time dateTime={item.createdAt}>{date(item.createdAt)}</time>
                     <button
                       type="button"
                       className="history-link"
                       disabled={busy}
-                      onClick={() => void run((current) => open(item.id, current))}
+                      onClick={() =>
+                        void run((current) => open(item.id, current, false, false, true))
+                      }
                     >
                       <span>{item.questionPreview ?? 'Saved reading'}</span>
                       <Icon name="chevron" />
@@ -782,158 +809,207 @@ export function ReadingWorkspace({
             setMessage(null);
           }}
         >
-          <Art name="hero-rose" className="new-reading-art" />
-          <div className="new-reading-content">
+          <div className="new-reading-heading">
             <h2 className="title-section">A new reading</h2>
-            <label htmlFor="reading-question">Your question</label>
-            <p id="reading-question-help">
-              Include what you are considering, what already works, and anything you want the
-              reading to take into account.
-            </p>
-            <textarea
-              id="reading-question"
-              aria-describedby="reading-question-help"
-              rows={3}
-              maxLength={500}
-              required
-              value={question}
-              onChange={(event) => {
-                setQuestion(event.target.value);
-                setQuestionSubmitted(false);
-              }}
-              disabled={busy}
-            />
-            <div className="spread-upload-field">
-              <label htmlFor="reading-spread-photo">Offline spread photo (optional)</label>
-              <p id="reading-spread-photo-help" className="muted">
-                Dealt a 3-card spread yourself? Upload a photo (situation, tension, possibility from
-                left to right) to recognize your cards and orientations instead of drawing new ones.{' '}
+            <Art name="spread-ribbon" mobileName="mobile-corner" className="new-reading-art" />
+          </div>
+          <div className="new-reading-layout">
+            <div className="new-reading-content">
+              <label htmlFor="reading-question">Your question</label>
+              <p id="reading-question-help">
+                Include what you are considering, what already works, and anything you want the
+                reading to take into account.
+              </p>
+              <textarea
+                id="reading-question"
+                aria-describedby="reading-question-help"
+                rows={3}
+                maxLength={500}
+                required
+                value={question}
+                onChange={(event) => {
+                  setQuestion(event.target.value);
+                  setQuestionSubmitted(false);
+                }}
+                disabled={busy}
+              />
+              <div className="spread-upload-field">
+                <label htmlFor="reading-spread-photo">Offline spread photo (optional)</label>
+                <p id="reading-spread-photo-help" className="muted">
+                  Situation, tension, possibility — from left to right. Use a photo of three cards
+                  you have already drawn to recognize your cards and orientations instead of drawing
+                  new ones.
+                </p>
+                <input
+                  ref={spreadInputRef}
+                  id="reading-spread-photo"
+                  aria-describedby="reading-spread-photo-help reading-photo-processing"
+                  className="photo-file-input"
+                  tabIndex={-1}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  disabled={busy}
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) return;
+                    const selection = ++photoSelection.current;
+                    photoPreparing.current = true;
+                    setPreparingPhoto(true);
+                    setPhotoAnnouncement('Preparing photo…');
+                    setSpreadPhoto(null);
+                    setSpreadPhotoName(file.name);
+                    setQuestionSubmitted(false);
+                    const current = () => alive.current && photoSelection.current === selection;
+                    void prepareSpreadPhoto(file)
+                      .then((dataUrl) => {
+                        if (!current()) return;
+                        setSpreadPhoto(dataUrl);
+                        setSpreadPhotoName(file.name);
+                        setPhotoAnnouncement(`Photo attached: ${file.name}.`);
+                        setQuestionSubmitted(false);
+                        setMessage(null);
+                      })
+                      .catch((error) => {
+                        if (!current()) return;
+                        setSpreadPhoto(null);
+                        setSpreadPhotoName(null);
+                        setPhotoAnnouncement('');
+                        if (spreadInputRef.current) spreadInputRef.current.value = '';
+                        setMessage({
+                          tone: 'error',
+                          text:
+                            error instanceof Error
+                              ? error.message
+                              : 'Could not load the spread photo.',
+                        });
+                      })
+                      .finally(() => {
+                        if (!current()) return;
+                        photoPreparing.current = false;
+                        setPreparingPhoto(false);
+                      });
+                  }}
+                />
+                <div
+                  className={`spread-attachment ${spreadPhoto || preparingPhoto ? 'has-photo' : ''}`}
+                  data-testid={spreadPhoto || preparingPhoto ? 'spread-photo-preview' : undefined}
+                >
+                  <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+                    {photoAnnouncement}
+                  </p>
+                  {spreadPhoto || preparingPhoto ? (
+                    <div className="spread-photo-preview">
+                      {spreadPhoto && <img src={spreadPhoto} alt="Uploaded tarot spread preview" />}
+                      {preparingPhoto && <p className="photo-preparing">Preparing photo…</p>}
+                    </div>
+                  ) : (
+                    <div className="spread-photo-empty">
+                      <Art name="three-card-spread" className="spread-intro-art" />
+                      <p>Bring your own spread</p>
+                    </div>
+                  )}
+                  <div className="spread-photo-meta">
+                    <div className="spread-file-description">
+                      {(spreadPhoto || preparingPhoto) && (
+                        <p>{spreadPhotoName ?? 'Spread photo attached'}</p>
+                      )}
+                      <p className="muted">JPEG, PNG or WebP · up to 10 MB</p>
+                    </div>
+                    <div className="spread-photo-actions">
+                      <button
+                        ref={choosePhotoRef}
+                        type="button"
+                        className="secondary choose-photo"
+                        aria-describedby="reading-spread-photo-help reading-photo-processing"
+                        disabled={busy}
+                        onClick={() => spreadInputRef.current?.click()}
+                      >
+                        Choose photo
+                      </button>
+                      {(spreadPhoto || preparingPhoto) && (
+                        <button
+                          type="button"
+                          className="secondary"
+                          disabled={busy}
+                          onClick={() => {
+                            clearPhoto();
+                            setQuestionSubmitted(false);
+                            choosePhotoRef.current?.focus();
+                          }}
+                        >
+                          Remove photo
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={english}
+                  onChange={(event) => setEnglish(event.target.checked)}
+                  disabled={busy}
+                />
+                Use English for this reading
+              </label>
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={reversals}
+                  onChange={(event) => setReversals(event.target.checked)}
+                  disabled={busy}
+                />
+                Include reversed cards
+              </label>
+            </div>
+            <aside className="reading-preflight" aria-labelledby="reading-preflight-title">
+              <h3 id="reading-preflight-title">Before you start</h3>
+              <p id="reading-photo-processing">
                 {live === null
                   ? 'Refresh to check photo processing before submitting.'
                   : live
                     ? SPREAD_PHOTO_COPY.spreadPhotoProcessing
                     : 'This local simulation does not recognize real cards. Use a synthetic image only.'}
               </p>
-              <input
-                ref={spreadInputRef}
-                id="reading-spread-photo"
-                aria-describedby="reading-spread-photo-help"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                disabled={busy}
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) return;
-                  const selection = ++photoSelection.current;
-                  photoPreparing.current = true;
-                  setPreparingPhoto(true);
-                  setSpreadPhoto(null);
-                  setSpreadPhotoName(file.name);
-                  setQuestionSubmitted(false);
-                  const current = () => alive.current && photoSelection.current === selection;
-                  void prepareSpreadPhoto(file)
-                    .then((dataUrl) => {
-                      if (!current()) return;
-                      setSpreadPhoto(dataUrl);
-                      setSpreadPhotoName(file.name);
-                      setQuestionSubmitted(false);
-                      setMessage(null);
-                    })
-                    .catch((error) => {
-                      if (!current()) return;
-                      setSpreadPhoto(null);
-                      setSpreadPhotoName(null);
-                      if (spreadInputRef.current) spreadInputRef.current.value = '';
-                      setMessage({
-                        tone: 'error',
-                        text:
-                          error instanceof Error
-                            ? error.message
-                            : 'Could not load the spread photo.',
-                      });
-                    })
-                    .finally(() => {
-                      if (!current()) return;
-                      photoPreparing.current = false;
-                      setPreparingPhoto(false);
-                    });
-                }}
-              />
-              {(spreadPhoto || preparingPhoto) && (
-                <div className="spread-photo-preview" data-testid="spread-photo-preview">
-                  {spreadPhoto && <img src={spreadPhoto} alt="Uploaded tarot spread preview" />}
-                  <div className="spread-photo-meta">
-                    <p>{spreadPhotoName ?? 'Spread photo attached'}</p>
-                    {preparingPhoto && <p role="status">Preparing photo…</p>}
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() => {
-                        clearPhoto();
-                        setQuestionSubmitted(false);
-                      }}
-                    >
-                      Remove photo
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={english}
-                onChange={(event) => setEnglish(event.target.checked)}
-                disabled={busy}
-              />
-              Use English for this reading
-            </label>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={reversals}
-                onChange={(event) => setReversals(event.target.checked)}
-                disabled={busy}
-              />
-              Include reversed cards
-            </label>
-            <p className="storage-notice">
-              <Icon name="clock" />
-              <span>{READING_PRODUCT_COPY.startProcessing}</span>
-            </p>
-            <p className="test-notice">
-              {live === null
-                ? 'Refresh to check the reading service before submitting. Your draft stays in memory.'
-                : live
-                  ? `Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.${spreadPhoto || preparingPhoto ? ' Your attached photo is sent to Meta to recognize the cards.' : ''}`
-                  : 'Drafts stay in memory until submitted. This build uses a local simulated writer. Use synthetic text only.'}
-            </p>
-            <div className="new-reading-footer">
-              <button
-                type="submit"
-                className="large"
-                disabled={
-                  busy ||
-                  preparingPhoto ||
-                  !english ||
-                  !question.trim() ||
-                  !user.permission.modelAllowed ||
-                  live === null
-                }
-              >
-                Start reading
-              </button>
-              <p className="muted">
-                Local allowance: {user.remainingDay} today · {user.remainingMonth} this month.
+              <p>
+                {live === null
+                  ? 'Refresh to check the reading service before submitting. Your draft stays in memory.'
+                  : live
+                    ? `Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.${spreadPhoto || preparingPhoto ? ' Your attached photo is sent to Meta to recognize the cards.' : ''}`
+                    : 'Drafts stay in memory until submitted. This build uses a local simulated writer. Use synthetic text only.'}
               </p>
-            </div>
+              <p>{READING_PRODUCT_COPY.startProcessing}</p>
+              <div className="new-reading-footer">
+                <button
+                  type="submit"
+                  className="large"
+                  disabled={
+                    busy ||
+                    preparingPhoto ||
+                    !english ||
+                    !question.trim() ||
+                    !user.permission.modelAllowed ||
+                    live === null
+                  }
+                >
+                  Start reading
+                  <Icon name="chevron" />
+                </button>
+                <p className="muted">
+                  Local allowance: {user.remainingDay} today · {user.remainingMonth} this month.
+                </p>
+              </div>
+            </aside>
           </div>
         </form>
       )}
       {mode === 'reading' && record && reading && (
         <section className="reading-detail" aria-label="Reading detail">
-          <article data-testid="accepted-reading" className="accepted-reading">
+          <article
+            data-testid="accepted-reading"
+            className={`accepted-reading${reading.spreadPhoto ? ' has-spread-photo' : ''}`}
+          >
             <div className="reading-header">
               <div className="reading-title">
                 <p className="test-notice">
@@ -947,16 +1023,20 @@ export function ReadingWorkspace({
                   {reading.question}
                 </h2>
               </div>
-              <Art name="study-inquiry" className="question-art" />
+              {!reading.spreadPhoto && <Art name="study-inquiry" className="question-art" />}
             </div>
             {reading.spreadPhoto && (
-              <figure className="card spread-photo-card" data-testid="spread-photo-card">
+              <figure
+                className="card spread-photo-card"
+                data-testid="spread-photo-card"
+                aria-labelledby="reading-spread-caption"
+              >
                 <img
                   src={reading.spreadPhoto}
                   alt="Uploaded tarot spread for this reading"
                   className="spread-photo-image"
                 />
-                <figcaption className="muted">
+                <figcaption id="reading-spread-caption" className="muted">
                   Uploaded spread photo · Recognized 3-card spread (situation, tension, possibility)
                 </figcaption>
               </figure>
@@ -969,7 +1049,6 @@ export function ReadingWorkspace({
                   : card && cardName(reading.basis.deckEdition, card.cardId);
               return (
                 <section key={unit.position} className="card position-card">
-                  <Art name={`position-${unit.position}`} className="position-art" />
                   <div className="position-title">
                     <span className="position-number" aria-hidden="true">
                       {index + 1}
@@ -977,12 +1056,15 @@ export function ReadingWorkspace({
                     <h3>{unit.position}</h3>
                   </div>
                   <div className="position-body">
-                    {card && (
+                    {card && !reading.spreadPhoto && (
                       <CardFace cardId={card.cardId} orientation={card.orientation} name={name} />
                     )}
                     <div className="position-copy">
                       <div>
-                        <h4>Drawn card{name ? `: ${name}` : ''}</h4>
+                        <h4>
+                          {reading.spreadPhoto ? 'Recognized card' : 'Drawn card'}
+                          {name ? `: ${name}` : ''}
+                        </h4>
                         <p className="basis-text">{unit.basisText}</p>
                       </div>
                       <div>
@@ -1111,6 +1193,15 @@ export function ReadingWorkspace({
             <p>
               This is your own writing. It does not change the reading or request AI generation.
             </p>
+            {reading.spreadPhoto && (
+              <figure className="reflection-spread-reference">
+                <img
+                  src={reading.spreadPhoto}
+                  alt="Your uploaded spread, for reference while writing"
+                />
+                <figcaption>Your uploaded spread</figcaption>
+              </figure>
+            )}
             {conflict && (
               <div className="notice reflection-conflict">
                 <p>
@@ -1267,6 +1358,7 @@ export function ReadingWorkspace({
           <div className="deletion-actions reading-deletion">
             {!confirmDelete ? (
               <button
+                ref={deleteTrigger}
                 type="button"
                 className="text-button"
                 onClick={() => setConfirmDelete(true)}
@@ -1283,6 +1375,7 @@ export function ReadingWorkspace({
                 </p>
                 <label className="check">
                   <input
+                    ref={deleteConfirmation}
                     type="checkbox"
                     checked={deleteChecked}
                     onChange={(event) => setDeleteChecked(event.target.checked)}
@@ -1304,6 +1397,7 @@ export function ReadingWorkspace({
                     className="secondary"
                     disabled={busy}
                     onClick={() => {
+                      restoreDeleteFocus.current = true;
                       setConfirmDelete(false);
                       setDeleteChecked(false);
                     }}

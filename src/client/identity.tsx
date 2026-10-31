@@ -395,7 +395,7 @@ export function IdentityApp() {
   const authPage = !kit && (Boolean(grant) || !session);
   const landing = authPage && !grant && route !== '/recover';
   return (
-    <div className="app-shell">
+    <div className={`app-shell${accountPage ? ' account-shell' : ''}`}>
       <header className="site-header">
         <div className="shell-width">
           <a className="brand" href="/">
@@ -420,7 +420,11 @@ export function IdentityApp() {
         </div>
       </header>
       <main
-        className={authPage ? 'auth-layout' : `page-column ${kit ? 'kit-page' : 'account-page'}`}
+        className={
+          authPage
+            ? 'auth-layout'
+            : `page-column ${kit ? 'kit-page' : accountPage ? 'account-page account-settings' : 'account-page readings-page'}`
+        }
       >
         {authPage && <Art name={landing ? 'study-return' : 'study-inquiry'} className="auth-art" />}
         <div className={authPage ? 'auth-column' : 'page-stack'}>
@@ -469,7 +473,12 @@ export function IdentityApp() {
               </div>
               {kit && <Art name="study-perspective" className="title-art" />}
               {!kit && !grant && session && (
-                <Art name="study-stillness" className="title-art account-title-art" />
+                <Art
+                  name={accountPage ? 'account-sprig' : 'study-stillness'}
+                  {...(accountPage ? { mobileName: 'mobile-corner' as const } : {})}
+                  className="title-art account-title-art"
+                  loading={accountPage ? 'eager' : 'lazy'}
+                />
               )}
             </div>
             <Notice message={message} />
@@ -603,23 +612,14 @@ export function IdentityApp() {
                 </section>
               ) : session && accountPage ? (
                 <section className="account-content">
-                  <div className="consent">
-                    <Art name="study-return" className="consent-art" />
-                    <div className="consent-copy">
-                      <h2>AI readings are {session.permission.modelAllowed ? 'on' : 'off'}</h2>
-                      <p>{READING_PRODUCT_COPY.aiPermission}</p>
-                      <p className="muted">
-                        {live === null
-                          ? 'Refresh to check the reading service before enabling AI. Your saved readings and reflections remain available.'
-                          : live
-                            ? SPREAD_PHOTO_COPY.liveProviderRetention
-                            : READING_PRODUCT_COPY.providerRetention}
-                      </p>
-                      {!session.permission.modelAllowed && (
+                  <section className="consent" aria-label="AI reading permission">
+                    <div className="consent-summary">
+                      <div>
+                        <h2>AI readings are {session.permission.modelAllowed ? 'on' : 'off'}</h2>
                         <p>
                           History, reopening, reflections, export and deletion remain available.
                         </p>
-                      )}
+                      </div>
                       <button
                         type="button"
                         className="secondary"
@@ -633,7 +633,17 @@ export function IdentityApp() {
                           : 'Enable AI readings'}
                       </button>
                     </div>
-                  </div>
+                    <div className="consent-disclosures">
+                      <p>{READING_PRODUCT_COPY.aiPermission}</p>
+                      <p>
+                        {live === null
+                          ? 'Refresh to check the reading service before enabling AI. Your saved readings and reflections remain available.'
+                          : live
+                            ? SPREAD_PHOTO_COPY.liveProviderRetention
+                            : READING_PRODUCT_COPY.providerRetention}
+                      </p>
+                    </div>
+                  </section>
                   <section className="card passkeys-card" aria-label="Manage passkeys">
                     <h2>Your passkeys</h2>
                     <p>
@@ -649,15 +659,18 @@ export function IdentityApp() {
                             </span>
                             <p>
                               <strong>Passkey {credential.id.slice(0, 8)}</strong>
-                              Added {date(credential.createdAt, true)}
-                              {' · '}
-                              {credential.backedUp
-                                ? 'Backed up by your passkey provider'
-                                : 'Not reported as backed up'}
+                              <span className="passkey-detail">
+                                Added {date(credential.createdAt, true)}
+                              </span>
+                              <span className="passkey-detail">
+                                {credential.backedUp
+                                  ? 'Backed up by your passkey provider'
+                                  : 'Not reported as backed up'}
+                              </span>
                             </p>
                             <button
                               type="button"
-                              className="secondary"
+                              className="text-button remove-passkey"
                               disabled={busy || checking || credentials.items.length <= 1}
                               aria-label={`Remove passkey ${credential.id.slice(0, 8)}`}
                               onClick={() =>
@@ -699,7 +712,7 @@ export function IdentityApp() {
                     )}
                     <button
                       type="button"
-                      className="secondary"
+                      className="add-passkey"
                       disabled={busy || checking || !credentials || credentials.items.length >= 10}
                       onClick={() =>
                         void run(async (isCurrent) => {
@@ -729,8 +742,97 @@ export function IdentityApp() {
                       <p>You have ten passkeys. Remove one before adding another.</p>
                     )}
                   </section>
+                  <section className="account-tool-group" aria-labelledby="account-tools-title">
+                    <h2 id="account-tools-title">Account tools</h2>
+                    <div className="account-tools">
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={exportRecords}
+                      >
+                        <Icon name="download" />
+                        Export my records
+                        <Icon name="chevron" className="account-tool-chevron" />
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async (isCurrent) => {
+                            const csrf = await verifyExistingPasskey(isCurrent);
+                            if (!csrf || !isCurrent()) return;
+                            const rotated = await api(
+                              '/auth/recovery-codes',
+                              apiSchemas.RecoveryCodes,
+                              {},
+                              csrf,
+                            );
+                            if (!isCurrent()) return;
+                            receiveKit(rotated);
+                            const current = await readSession(isCurrent);
+                            if (!isCurrent()) return;
+                            setSession(current);
+                            channel.current?.postMessage('changed');
+                          })
+                        }
+                      >
+                        <Icon name="lock" />
+                        Replace recovery kit
+                        <Icon name="chevron" className="account-tool-chevron" />
+                      </button>
+                    </div>
+                  </section>
+                  <section
+                    className="account-tool-group account-signout"
+                    aria-labelledby="account-signout-title"
+                  >
+                    <h2 id="account-signout-title">Sign out</h2>
+                    <div className="account-session-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async (isCurrent) => {
+                            await api('/auth/logout', apiSchemas.Empty, {}, session.csrfToken);
+                            if (!isCurrent()) return;
+                            clear();
+                            channel.current?.postMessage('signed-out');
+                            show('/');
+                          })
+                        }
+                      >
+                        Sign out
+                        <Icon name="chevron" />
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(async (isCurrent) => {
+                            await api('/auth/logout-all', apiSchemas.Empty, {}, session.csrfToken);
+                            if (!isCurrent()) return;
+                            clear();
+                            channel.current?.postMessage('signed-out');
+                            show('/');
+                          })
+                        }
+                      >
+                        Sign out of all devices
+                        <Icon name="chevron" />
+                      </button>
+                    </div>
+                  </section>
                   <details className="deletion-actions">
-                    <summary>Delete account</summary>
+                    <summary>
+                      <span className="account-delete-label">
+                        <Icon name="delete" />
+                        Delete account
+                      </span>
+                    </summary>
                     <p>
                       This permanently deletes your account, readings, reflections and passkeys.
                       Your recovery kit will no longer restore this account. Downloaded copies are
@@ -783,7 +885,7 @@ export function IdentityApp() {
                           clear();
                           setDeletionReceipt({ proof, initial });
                           channel.current?.postMessage('signed-out');
-                          navigate('/');
+                          show('/');
                         })
                       }
                     >
@@ -794,74 +896,6 @@ export function IdentityApp() {
                     <Icon name="lock" />
                     <span>{READING_PRODUCT_COPY.serviceStorage}</span>
                   </p>
-                  <div className="actions account-actions">
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={exportRecords}
-                    >
-                      <Icon name="download" />
-                      Export my records
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async (isCurrent) => {
-                          const csrf = await verifyExistingPasskey(isCurrent);
-                          if (!csrf || !isCurrent()) return;
-                          const rotated = await api(
-                            '/auth/recovery-codes',
-                            apiSchemas.RecoveryCodes,
-                            {},
-                            csrf,
-                          );
-                          if (!isCurrent()) return;
-                          receiveKit(rotated);
-                          const current = await readSession(isCurrent);
-                          if (!isCurrent()) return;
-                          setSession(current);
-                          channel.current?.postMessage('changed');
-                        })
-                      }
-                    >
-                      Replace recovery kit
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async (isCurrent) => {
-                          await api('/auth/logout', apiSchemas.Empty, {}, session.csrfToken);
-                          if (!isCurrent()) return;
-                          clear();
-                          channel.current?.postMessage('signed-out');
-                          navigate('/');
-                        })
-                      }
-                    >
-                      Sign out
-                    </button>
-                    <button
-                      type="button"
-                      className="secondary"
-                      disabled={busy}
-                      onClick={() =>
-                        void run(async (isCurrent) => {
-                          await api('/auth/logout-all', apiSchemas.Empty, {}, session.csrfToken);
-                          if (!isCurrent()) return;
-                          clear();
-                          channel.current?.postMessage('signed-out');
-                          navigate('/');
-                        })
-                      }
-                    >
-                      Sign out of all devices
-                    </button>
-                  </div>
                 </section>
               ) : session ? (
                 <div inert={checking || busy}>
