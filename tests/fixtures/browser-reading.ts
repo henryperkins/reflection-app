@@ -24,7 +24,7 @@ export async function keepKit(page: Page) {
   const kit = JSON.parse(await readFile((await (await pending).path())!, 'utf8'));
   await page.getByLabel('I have saved the complete kit with the handle and codes.').check();
   await page.getByRole('button', { name: 'Continue to account' }).click();
-  await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your readings' })).toBeVisible();
   return kit;
 }
 export async function account(page: Page, ip: string) {
@@ -34,8 +34,26 @@ export async function account(page: Page, ip: string) {
   await page.getByRole('button', { name: 'Create a test account' }).click();
   return { auth, kit: await keepKit(page) };
 }
-export async function reading(page: Page, question: string) {
+export async function openAccount(page: Page) {
+  await page.getByRole('link', { name: 'Account', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+}
+export async function backToReadings(page: Page) {
+  await page.getByRole('link', { name: 'Back to readings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your readings' })).toBeVisible();
+}
+/** Returns with browser Back, so the readings keep their original history entry. */
+export async function enableAi(page: Page) {
+  await openAccount(page);
   await page.getByRole('button', { name: 'Enable AI readings', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'AI readings are on', exact: true }),
+  ).toBeVisible();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Your readings' })).toBeVisible();
+}
+export async function reading(page: Page, question: string) {
+  await enableAi(page);
   await page.getByRole('button', { name: 'New reading', exact: true }).click();
   await page.getByLabel('Your question').fill(question);
   await page.getByLabel('Use English for this reading').check();

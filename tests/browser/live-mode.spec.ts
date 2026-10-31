@@ -1,5 +1,10 @@
 import { expect, test } from '@playwright/test';
-import { authenticator, keepKit } from '../fixtures/browser-reading.ts';
+import {
+  authenticator,
+  backToReadings,
+  keepKit,
+  openAccount,
+} from '../fixtures/browser-reading.ts';
 
 test('failed runtime discovery never describes a possible live call as simulation', async ({
   page,
@@ -13,10 +18,12 @@ test('failed runtime discovery never describes a possible live call as simulatio
   );
   await page.getByRole('button', { name: 'Create an account', exact: true }).click();
   await keepKit(page);
+  await expect(page.getByRole('button', { name: 'Saved readings', exact: true })).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'New reading', exact: true })).toBeDisabled();
+  await openAccount(page);
   await expect(
     page.getByRole('button', { name: 'Enable AI readings', exact: true }),
   ).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'Saved readings', exact: true })).toBeEnabled();
 });
 
 for (const mode of ['live-local', 'live-preview', 'production'] as const) {
@@ -36,6 +43,7 @@ for (const mode of ['live-local', 'live-preview', 'production'] as const) {
     ).toBeVisible();
     await page.getByRole('button', { name: 'Create an account', exact: true }).click();
     await keepKit(page);
+    await openAccount(page);
     await expect(
       page.getByText(/Your question, cards and selected source meanings are sent to OpenAI/),
     ).toBeVisible();
@@ -47,6 +55,10 @@ for (const mode of ['live-local', 'live-preview', 'production'] as const) {
       page.getByText(/never contacts an AI provider|local simulated writer/),
     ).toHaveCount(0);
     await page.getByRole('button', { name: 'Enable AI readings', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'AI readings are on', exact: true }),
+    ).toBeVisible();
+    await backToReadings(page);
     await page.getByRole('button', { name: 'New reading', exact: true }).click();
     await expect(page.getByText(/Starting a reading sends this question to OpenAI/)).toBeVisible();
     await expect(page.locator('#reading-spread-photo-help')).toContainText(

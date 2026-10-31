@@ -419,6 +419,31 @@ footer {
   background: var(--primary);
   color: var(--primary-foreground);
 }
+.header-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px 12px;
+  min-width: 0;
+  text-align: right;
+}
+.header-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: var(--radius-full);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 20px;
+  text-decoration: none;
+}
+.header-link:hover,
+.header-link[aria-current="page"] {
+  color: var(--foreground);
+  background: var(--muted);
+}
 .site-footer {
   margin: 0;
   padding: 0;
@@ -679,6 +704,25 @@ main {
 .account-title-art {
   height: 180px;
   object-position: 58% 50%;
+}
+.back-link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: fit-content;
+  min-height: 44px;
+  margin: -12px 0 12px;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 20px;
+  text-decoration: none;
+}
+.back-link .icon {
+  transform: scaleX(-1);
+}
+.back-link[aria-disabled="true"] {
+  opacity: 0.5;
+  pointer-events: none;
 }
 .account-content {
   display: flex;

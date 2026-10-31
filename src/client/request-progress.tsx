@@ -55,6 +55,7 @@ export function RequestProgress(props: {
   onAccepted: (sessionId: string, focus: boolean) => void;
   onSession: (view: View) => void;
   onExpired: () => void;
+  onTarget: (target: ReadingRequest['target']) => void;
   onAllowNew: () => void;
 }) {
   const latest = useRef(props);
@@ -86,7 +87,7 @@ export function RequestProgress(props: {
       snapshot = value;
       cursor = Math.max(cursor, value.nextSequence);
       target = { kind: 'request', id: value.requestId };
-      window.history.replaceState(null, '', requestPath(target));
+      latest.current.onTarget(target);
       setStatus(value);
       setNotice('');
       setCanRetry(false);
