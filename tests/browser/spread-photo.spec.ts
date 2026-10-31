@@ -40,7 +40,7 @@ async function form(page: Page, ip: string) {
 test('starting while image preparation is pending keeps the chosen photo', async ({ page }) => {
   await form(page, '192.0.2.221');
   await page
-    .getByLabel('Offline spread photo (optional)')
+    .getByLabel('Photo of your spread (optional)')
     .setInputFiles({ name: 'slow-photo.png', mimeType: 'image/png', buffer: image });
   const submit = page.getByRole('button', { name: 'Start reading', exact: true });
   await expect(submit).toBeDisabled();
@@ -105,7 +105,7 @@ test('the photo picker can replace and remove an attachment on mobile without st
 
 test('the latest photo selection survives a slower previous read', async ({ page }) => {
   await form(page, '192.0.2.222');
-  const upload = page.getByLabel('Offline spread photo (optional)');
+  const upload = page.getByLabel('Photo of your spread (optional)');
   await upload.setInputFiles({ name: 'slow-first.png', mimeType: 'image/png', buffer: image });
   await upload.setInputFiles({ name: 'latest-photo.png', mimeType: 'image/png', buffer: image });
   await expect(page.getByTestId('spread-photo-preview')).toContainText('latest-photo.png');
@@ -120,7 +120,7 @@ test('the latest photo selection survives a slower previous read', async ({ page
 
 test('removing a photo invalidates an in-flight replacement', async ({ page }) => {
   await form(page, '192.0.2.223');
-  const upload = page.getByLabel('Offline spread photo (optional)');
+  const upload = page.getByLabel('Photo of your spread (optional)');
   await upload.setInputFiles({ name: 'original-photo.png', mimeType: 'image/png', buffer: image });
   await expect(page.getByTestId('spread-photo-preview')).toBeVisible();
   await upload.setInputFiles({

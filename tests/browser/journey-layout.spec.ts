@@ -120,7 +120,7 @@ for (const width of [320, 390, 768, 1280]) {
         'Optional-photo illustration must not stretch its frame',
       ).toBeLessThan(240);
       if (width <= 390) await expectNoArtOverlap(page);
-      await page.getByLabel('Offline spread photo (optional)').setInputFiles({
+      await page.getByLabel('Photo of your spread (optional)').setInputFiles({
         name: longFilename,
         mimeType: 'image/jpeg',
         buffer: await readFile(spreadPhotoPath),

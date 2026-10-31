@@ -72,20 +72,16 @@ a {
 a:hover {
   color: var(--primary);
 }
-.eyebrow,
 .muted {
   color: var(--muted-foreground);
   font-size: 14px;
   line-height: 20px;
 }
-.test-label,
 .test-notice {
+  margin-block: 16px;
   color: var(--muted-foreground);
   font-size: 12px;
   line-height: 16px;
-}
-.test-notice {
-  margin-block: 16px;
 }
 .body-lg {
   font-size: 18px;
@@ -468,13 +464,6 @@ footer {
   color: var(--foreground);
   background: var(--muted);
 }
-.site-footer {
-  margin: 0;
-  padding: 0;
-}
-.site-footer .shell-width {
-  padding-block: 20px;
-}
 main {
   max-width: 760px;
   padding: 20px;
@@ -540,9 +529,6 @@ main {
 }
 .title-copy {
   min-width: 0;
-}
-.title-copy h1 {
-  margin-top: 12px;
 }
 .title-copy .test-notice {
   margin: 12px 0 0;
@@ -626,9 +612,6 @@ main {
 }
 .page-column .title-copy {
   flex: 999 1 380px;
-}
-.page-column .title-copy h1 {
-  margin-top: 10px;
 }
 .page-column .title-copy .lead {
   margin-top: 10px;
@@ -731,9 +714,6 @@ main {
 }
 
 /* Account and saved readings. */
-.app-shell:has(.page-column) .site-footer .shell-width {
-  max-width: 760px;
-}
 .account-page .page-title {
   margin-bottom: 32px;
 }
@@ -744,17 +724,13 @@ main {
 .account-settings {
   max-width: 940px;
 }
-.app-shell.account-shell .site-header .shell-width,
-.app-shell.account-shell .site-footer .shell-width {
+.app-shell.account-shell .site-header .shell-width {
   max-width: 940px;
 }
 .account-settings .page-title {
   position: relative;
   align-items: flex-start;
   margin-bottom: 24px;
-}
-.account-settings .eyebrow {
-  display: none;
 }
 .account-settings .title-copy {
   flex: 1;
@@ -1078,14 +1054,12 @@ button.history-link:hover:enabled {
 .readings-page:has(.new-reading) {
   max-width: 1080px;
 }
-.app-shell:has(.new-reading) .site-header .shell-width,
-.app-shell:has(.new-reading) .site-footer .shell-width {
+.app-shell:has(.new-reading) .site-header .shell-width {
   max-width: 1080px;
 }
 .readings-page:has(.new-reading, .reading-detail) .page-title {
   margin-bottom: 16px;
 }
-.readings-page:has(.new-reading, .reading-detail) .page-title .eyebrow,
 .readings-page:has(.new-reading, .reading-detail) .page-title .title-art {
   display: none;
 }
@@ -1202,9 +1176,10 @@ button.history-link:hover:enabled {
   object-fit: contain;
 }
 .spread-photo-empty p {
-  margin: 12px 0 0;
-  font-family: var(--font-serif);
-  font-size: 22px;
+  margin: 8px 0 0;
+  color: var(--muted-foreground);
+  font-size: 14px;
+  line-height: 20px;
 }
 .spread-photo-meta {
   display: flex;

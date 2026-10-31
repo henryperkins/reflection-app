@@ -61,7 +61,7 @@ test('keyboard upload, processing, save, reflection, Account and exact return jo
   await page.keyboard.press('Enter');
   await expect(choose).toBeFocused();
   await expect(page.getByRole('status').filter({ hasText: 'Photo removed.' })).toBeVisible();
-  await page.getByLabel('Offline spread photo (optional)').setInputFiles(spreadPhotoPath);
+  await page.getByLabel('Photo of your spread (optional)').setInputFiles(spreadPhotoPath);
   await expect(page.getByRole('status').filter({ hasText: 'Photo attached:' })).toBeVisible();
 
   let starts = 0;
@@ -175,7 +175,12 @@ test('keyboard upload, processing, save, reflection, Account and exact return jo
   await expect(
     page.getByRole('heading', { name: 'A place to return to.', exact: true }),
   ).toBeFocused();
-  await expect(page.getByText('Active-store deletion complete.', { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Deletion is complete for active storage.' }),
+  ).toBeVisible();
+  await expect(page.getByText(/Backups are kept until/)).toBeVisible();
+  await expect(page.getByText(/Downloaded copies are unchanged/)).toBeVisible();
+  await expect(page.getByText('Active-store')).toHaveCount(0);
   expect(starts).toBe(1);
   expect(faults).toEqual([]);
 });

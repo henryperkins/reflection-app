@@ -145,7 +145,7 @@ export async function displayJourney(page: Page, capture: (state: string) => Pro
   await page.keyboard.press('Space');
   await expect(english).not.toBeChecked();
   await page.keyboard.press('Space');
-  const photo = page.getByLabel('Offline spread photo (optional)');
+  const photo = page.getByLabel('Photo of your spread (optional)');
   await photo.setInputFiles({
     name: longFilename,
     mimeType: 'image/jpeg',

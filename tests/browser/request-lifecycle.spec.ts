@@ -126,7 +126,7 @@ test('accepted completion refreshes displayed allowance even when progress unmou
     await expect(page.getByTestId('accepted-reading')).toBeVisible();
     release();
     await page.getByRole('button', { name: 'New reading', exact: true }).click();
-    await expect(page.getByText('Local allowance: 2 today · 29 this month.')).toBeVisible();
+    await expect(page.getByText('Readings left: 2 today · 29 this month.')).toBeVisible();
   } finally {
     release();
   }
@@ -150,7 +150,7 @@ test('explicit Start retry preserves its body and key and joins the original rea
     await route.fulfill({ response });
   });
   await page.getByRole('button', { name: 'Start reading', exact: true }).click();
-  await page.getByRole('button', { name: 'Retry the same Start' }).click();
+  await page.getByRole('button', { name: 'Retry this request' }).click();
   await expect(page.getByTestId('accepted-reading')).toBeVisible();
   expect(attempts).toHaveLength(2);
   expect(attempts[1]).toEqual(attempts[0]);
@@ -481,8 +481,8 @@ test('revoking AI during progress keeps the stopped request and history availabl
 for (const [state, errorCode, copy] of [
   ['blocked', 'PROVIDER_REFUSAL', 'The AI provider declined this request'],
   ['expired', 'EXPIRED', 'This reading request expired'],
-  ['failed', 'PROVIDER_UNCERTAIN', 'The writer did not confirm a result'],
-  ['failed', 'PROVIDER_UNAVAILABLE', 'The writer is unavailable'],
+  ['failed', 'PROVIDER_UNCERTAIN', 'The reading service did not confirm a result'],
+  ['failed', 'PROVIDER_UNAVAILABLE', 'The reading service is unavailable'],
 ] as const) {
   test(`progress explains ${errorCode} without another generation`, async ({ page }) => {
     await account(
@@ -535,7 +535,7 @@ test('explicit New reading after a stopped request uses a fresh identity for the
   });
   await page.getByRole('button', { name: 'Start reading', exact: true }).click();
   await expect(
-    page.getByRole('status').filter({ hasText: 'The writer is unavailable' }),
+    page.getByRole('status').filter({ hasText: 'The reading service is unavailable' }),
   ).toBeVisible();
   await page.getByRole('button', { name: 'New reading', exact: true }).click();
   await page.getByRole('button', { name: 'Start reading', exact: true }).click();
