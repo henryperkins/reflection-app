@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { type MouseEvent, useCallback, useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, type AuthResult } from '../contracts/index.ts';
-import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
+import { READING_PRODUCT_COPY, SPREAD_PHOTO_COPY } from '../contracts/product-copy.ts';
 import { api, ApiFailure } from './api.ts';
 import { enroll, signIn } from './passkeys.ts';
-import { ReadingWorkspace } from './readings.tsx';
+import { ReadingWorkspace, type WorkspaceHandle, type WorkspaceResume } from './readings.tsx';
 import { requestFromPath } from './request-progress.tsx';
 import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './deletion.tsx';
 import { date } from './date.ts';
@@ -27,6 +27,18 @@ function kitText(kit: Kit) {
     null,
     2,
   );
+}
+function downloadFile(name: string, chunks: BlobPart[], type: string) {
+  const url = URL.createObjectURL(new Blob(chunks, { type })),
+    anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = name;
+  anchor.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+/** Modified clicks keep the browser's own link behavior, such as opening a new tab. */
+function plainClick(event: MouseEvent) {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 export function IdentityApp() {
   const [live, setLive] = useState<boolean | null>(null);
@@ -58,6 +70,8 @@ export function IdentityApp() {
     null,
   );
   const [route, setRoute] = useState(window.location.pathname);
+  const [readingResume, setReadingResume] = useState<WorkspaceResume | null>(null);
+  const readingsPath = readingResume?.path ?? '/';
   const [busy, setBusy] = useState(false),
     [checking, setChecking] = useState(true);
   const [message, setMessage] = useState<NoticeMessage | null>(null);
@@ -72,6 +86,8 @@ export function IdentityApp() {
     [acknowledged, setAcknowledged] = useState(false);
   const inFlight = useRef(false);
   const authenticated = useRef(false);
+  const workspace = useRef<WorkspaceHandle>(null);
+  const permissionIntent = useRef<{ payload: string; key: string } | null>(null);
   useEffect(() => {
     authenticated.current = Boolean(session || kit);
   }, [session, kit]);
@@ -82,12 +98,14 @@ export function IdentityApp() {
     version.current++;
     inFlight.current = false;
     authenticated.current = false;
+    permissionIntent.current = null;
     setBusy(false);
     setChecking(false);
     setSession(null);
     setKit(null);
     setGrant(null);
     setCredentials(null);
+    setReadingResume(null);
     setHandle('');
     setCode('');
     setDownloaded(false);
@@ -107,7 +125,7 @@ export function IdentityApp() {
     navigator.serviceWorker?.controller?.postMessage({ type: 'PURGE_PRIVATE' });
   }, []);
   useEffect(() => {
-    if (!session || kit || busy) return;
+    if (!session || kit || busy || route !== '/account') return;
     let current = true;
     setCredentials(null);
     void api('/auth/credentials', apiSchemas.Credentials)
@@ -126,7 +144,7 @@ export function IdentityApp() {
     return () => {
       current = false;
     };
-  }, [session, kit, busy, clear]);
+  }, [session, kit, busy, route, clear]);
   const refresh = useCallback(async () => {
     if (inFlight.current) return;
     const requested = version.current;
@@ -149,6 +167,13 @@ export function IdentityApp() {
       if (requested === version.current) setChecking(false);
     }
   }, [clear]);
+  const leaveReadings = useCallback(() => {
+    const current = workspace.current;
+    if (!current) return true;
+    if (!current.confirmLeave()) return false;
+    setReadingResume(current.getResumeState());
+    return true;
+  }, []);
   useEffect(() => {
     void refresh();
     const updates = new BroadcastChannel('reflection-account');
@@ -164,6 +189,8 @@ export function IdentityApp() {
         if (authenticated.current) void refresh();
       },
       navigation = () => {
+        // The account page closes the readings, so unsaved writing there needs a choice first.
+        if (window.location.pathname === '/account' && !leaveReadings()) return;
         setRoute(window.location.pathname);
         setMessage(null);
       };
@@ -182,7 +209,7 @@ export function IdentityApp() {
       window.removeEventListener('popstate', navigation);
       window.removeEventListener('pageshow', pageshow);
     };
-  }, [refresh, clear]);
+  }, [refresh, clear, leaveReadings]);
   const navigate = (path: string) => {
     history.pushState(null, '', path);
     setRoute(path);
@@ -240,7 +267,8 @@ export function IdentityApp() {
     if (!isCurrent()) return;
     setSession(current);
     setGrant(null);
-    if (!requestFromPath()) navigate('/account');
+    // Saved readings are the default destination; a requested reading or the account page stays.
+    if (!requestFromPath() && window.location.pathname !== '/account') navigate('/');
   };
   const verifyExistingPasskey = async (isCurrent: () => boolean) => {
     if (!session) throw new Error('Your session has ended. Sign in again.');
@@ -257,20 +285,110 @@ export function IdentityApp() {
   };
   const download = () => {
     if (!kit) return;
-    const url = URL.createObjectURL(new Blob([kitText(kit)], { type: 'application/json' }));
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'reflection-recovery-kit.json';
-    anchor.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadFile('reflection-recovery-kit.json', [kitText(kit)], 'application/json');
     setDownloaded(true);
   };
+  const expire = () => {
+    clear();
+    setMessage({ tone: 'notice', text: 'Your session ended. Please sign in again.' });
+  };
+  // Record routes answer 401 only once the session has ended.
+  const expireIfEnded = (error: unknown, isCurrent: () => boolean) => {
+    if (isCurrent() && error instanceof ApiFailure && error.status === 401) expire();
+  };
+  const show = (path: string) => {
+    navigate(path);
+    setMessage(null);
+    requestAnimationFrame(() => heading.current?.focus());
+  };
+  const openAccount = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!plainClick(event)) return;
+    event.preventDefault();
+    if (route === '/account' || inFlight.current) return;
+    if (!leaveReadings()) return;
+    show('/account');
+  };
+  const backToReadings = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (!plainClick(event)) return;
+    event.preventDefault();
+    if (!inFlight.current) show(readingsPath);
+  };
+  const permission = () =>
+    void run(async (isCurrent) => {
+      if (!session) return;
+      const { permission: previous, csrfToken } = session;
+      const payload = { modelAllowed: !previous.modelAllowed, policyVersion: 'egress.v1' as const };
+      const intent = JSON.stringify([payload, previous.revision]);
+      // A retry of the same change reuses its idempotency key.
+      if (permissionIntent.current?.payload !== intent)
+        permissionIntent.current = { payload: intent, key: crypto.randomUUID() };
+      await api('/permissions/model', apiSchemas.Permission, payload, csrfToken, {
+        method: 'PUT',
+        revision: previous.revision,
+        key: permissionIntent.current.key,
+      }).catch((error: unknown) => {
+        expireIfEnded(error, isCurrent);
+        throw error;
+      });
+      if (!isCurrent()) return;
+      permissionIntent.current = null;
+      const updated = await readSession(isCurrent);
+      if (isCurrent()) setSession(updated);
+    });
+  const exportRecords = () =>
+    void run(async (isCurrent) => {
+      if (!session) return;
+      let view = session;
+      if (Date.parse(view.recentAuthUntil) <= Date.now()) {
+        await signIn('reauthenticate', view.csrfToken);
+        if (!isCurrent()) return;
+        view = await readSession(isCurrent);
+        if (!isCurrent()) return;
+        setSession(view);
+      }
+      const chunks: Uint8Array<ArrayBuffer>[] = [];
+      try {
+        const ticket = await api('/exports', apiSchemas.ExportTicket, {}, view.csrfToken, {
+          key: crypto.randomUUID(),
+        });
+        let cursor: string | null = null,
+          bytes = 0;
+        do {
+          if (!isCurrent()) return;
+          const page: z.infer<typeof apiSchemas.ExportPage> = await api(
+            `/exports/${ticket.id}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
+            apiSchemas.ExportPage,
+          );
+          if (!isCurrent()) return;
+          const chunk = new TextEncoder().encode(`${JSON.stringify(page)}\n`);
+          bytes += chunk.length;
+          if (bytes > 32 * 1024 * 1024)
+            throw new Error(
+              'This export is too large for the local build. No partial file was downloaded.',
+            );
+          chunks.push(chunk);
+          cursor = page.nextCursor;
+        } while (cursor);
+      } catch (error) {
+        expireIfEnded(error, isCurrent);
+        throw error;
+      }
+      if (!isCurrent()) return;
+      downloadFile('reflection-export.ndjson', chunks, 'application/x-ndjson');
+      setMessage({
+        tone: 'success',
+        text: 'Export downloaded. Keep it somewhere private; deleting records here cannot delete downloaded copies.',
+      });
+    });
+  const accountPage = Boolean(session) && !kit && !grant && route === '/account';
   const title = kit
     ? 'Keep your recovery kit'
     : grant
       ? 'Create your replacement passkey'
       : session
-        ? 'Your account'
+        ? accountPage
+          ? 'Your account'
+          : 'Your readings'
         : route === '/recover'
           ? 'Recover your account'
           : 'A place to return to.';
@@ -286,7 +404,19 @@ export function IdentityApp() {
             </span>
             Reflection
           </a>
-          <span className="test-label">Development build</span>
+          <div className="header-tools">
+            <span className="test-label">Development build</span>
+            {session && !kit && !grant && (
+              <a
+                className="header-link"
+                href="/account"
+                aria-current={accountPage ? 'page' : undefined}
+                onClick={openAccount}
+              >
+                Account
+              </a>
+            )}
+          </div>
         </div>
       </header>
       <main
@@ -301,6 +431,17 @@ export function IdentityApp() {
                 : 'page-panel'
             }
           >
+            {accountPage && (
+              <a
+                className="back-link"
+                href={readingsPath}
+                aria-disabled={busy || undefined}
+                onClick={backToReadings}
+              >
+                <Icon name="chevron" />
+                Back to readings
+              </a>
+            )}
             <div className="page-title">
               <div className="title-copy">
                 <p className="eyebrow">A private space for reflection</p>
@@ -320,7 +461,7 @@ export function IdentityApp() {
                     and one unused code if your passkeys are unavailable.
                   </p>
                 )}
-                {!kit && !grant && session && (
+                {accountPage && (
                   <p className="lead">
                     You’re signed in. Your passkey and recovery kit protect access to this account.
                   </p>
@@ -460,22 +601,38 @@ export function IdentityApp() {
                     Cancel enrollment
                   </button>
                 </section>
-              ) : session ? (
+              ) : session && accountPage ? (
                 <section className="account-content">
-                  <div inert={checking || busy}>
-                    <ReadingWorkspace
-                      live={live}
-                      key={session.subjectId}
-                      user={session}
-                      onSession={setSession}
-                      onExpired={() => {
-                        clear();
-                        setMessage({
-                          tone: 'notice',
-                          text: 'Your session ended. Please sign in again.',
-                        });
-                      }}
-                    />
+                  <div className="consent">
+                    <Art name="study-return" className="consent-art" />
+                    <div className="consent-copy">
+                      <h2>AI readings are {session.permission.modelAllowed ? 'on' : 'off'}</h2>
+                      <p>{READING_PRODUCT_COPY.aiPermission}</p>
+                      <p className="muted">
+                        {live === null
+                          ? 'Refresh to check the reading service before enabling AI. Your saved readings and reflections remain available.'
+                          : live
+                            ? SPREAD_PHOTO_COPY.liveProviderRetention
+                            : READING_PRODUCT_COPY.providerRetention}
+                      </p>
+                      {!session.permission.modelAllowed && (
+                        <p>
+                          History, reopening, reflections, export and deletion remain available.
+                        </p>
+                      )}
+                      <button
+                        type="button"
+                        className="secondary"
+                        disabled={
+                          busy || checking || (live === null && !session.permission.modelAllowed)
+                        }
+                        onClick={permission}
+                      >
+                        {session.permission.modelAllowed
+                          ? 'Turn off AI readings'
+                          : 'Enable AI readings'}
+                      </button>
+                    </div>
                   </div>
                   <section className="card passkeys-card" aria-label="Manage passkeys">
                     <h2>Your passkeys</h2>
@@ -642,6 +799,15 @@ export function IdentityApp() {
                       type="button"
                       className="secondary"
                       disabled={busy}
+                      onClick={exportRecords}
+                    >
+                      <Icon name="download" />
+                      Export my records
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
                       onClick={() =>
                         void run(async (isCurrent) => {
                           const csrf = await verifyExistingPasskey(isCurrent);
@@ -697,6 +863,19 @@ export function IdentityApp() {
                     </button>
                   </div>
                 </section>
+              ) : session ? (
+                <div inert={checking || busy}>
+                  <ReadingWorkspace
+                    ref={workspace}
+                    resume={readingResume}
+                    live={live}
+                    key={session.subjectId}
+                    user={session}
+                    onSession={setSession}
+                    onExpired={expire}
+                    onAccount={openAccount}
+                  />
+                </div>
               ) : route === '/recover' ? (
                 <form
                   className="recovery-form"

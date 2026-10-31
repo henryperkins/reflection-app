@@ -1,9 +1,21 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import {
+  type MouseEvent,
+  type Ref,
+  useEffect,
+  useImperativeHandle,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from 'react';
 import type { z } from 'zod';
-import { apiSchemas, type AnyAcceptedReading, type Reflection } from '../contracts/index.ts';
-import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
+import {
+  apiSchemas,
+  SpreadPhoto,
+  type AnyAcceptedReading,
+  type Reflection,
+} from '../contracts/index.ts';
+import { READING_PRODUCT_COPY, SPREAD_PHOTO_COPY } from '../contracts/product-copy.ts';
 import { api, ApiFailure } from './api.ts';
-import { signIn } from './passkeys.ts';
 import {
   RequestProgress,
   requestFromPath,
@@ -29,32 +41,87 @@ const stanceLabels: Record<Thought['stance'], string> = {
   unsure: 'Unsure',
   disagree: 'Disagree',
 };
-function download(name: string, chunks: BlobPart[], type: string) {
-  const url = URL.createObjectURL(new Blob(chunks, { type })),
-    anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = name;
-  anchor.click();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+async function prepareSpreadPhoto(file: File): Promise<string> {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
+    throw new Error('Choose a JPEG, PNG, or WebP photo of your spread.');
+  if (file.size > 10 * 1024 * 1024)
+    throw new Error('Spread photo is too large. Choose an image under 10 MB.');
+  const raw = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('Could not read the selected image.'));
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(file);
+  });
+  if (raw.length <= 150_000 && SpreadPhoto.safeParse(raw).success) return raw;
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error('Could not decode the selected image.'));
+    element.src = raw;
+  });
+  const maxDimension = 960;
+  const scale = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round((img.width || 1) * scale));
+  canvas.height = Math.max(1, Math.round((img.height || 1) * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not prepare the selected image.');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  for (const quality of [0.8, 0.65, 0.5]) {
+    const compressed = canvas.toDataURL('image/jpeg', quality);
+    if (SpreadPhoto.safeParse(compressed).success) return compressed;
+  }
+  throw new Error('Spread photo is too large after compression. Try a smaller image.');
+}
+/** Only navigation and request identity survive an account-page visit, in memory. */
+export interface WorkspaceResume {
+  path: string;
+  request: { target: ReadingRequest['target']; pending: boolean } | null;
+}
+export interface WorkspaceHandle {
+  /** Asks before discarding unsaved writing; true when the workspace may close. */
+  confirmLeave: () => boolean;
+  getResumeState: () => WorkspaceResume;
 }
 /** Mounted only for a verified account. All private state and unfinished actions die on unmount. */
 export function ReadingWorkspace({
+  ref,
+  resume,
   user,
   live = false,
   onSession,
   onExpired,
+  onAccount,
 }: {
+  ref?: Ref<WorkspaceHandle>;
+  resume: WorkspaceResume | null;
   user: View;
   live?: boolean | null;
   onSession: (value: View) => void;
   onExpired: () => void;
+  onAccount: (event: MouseEvent<HTMLAnchorElement>) => void;
 }) {
-  const [request, setRequest] = useState<ReadingRequest | null>(requestFromPath);
-  const [requestPending, setRequestPending] = useState(Boolean(request));
-  const [navigationVersion, setNavigationVersion] = useState(0);
-  const [mode, setMode] = useState<'history' | 'new' | 'reading' | 'request'>(
-    request ? 'request' : 'history',
+  const [request, setRequest] = useState<ReadingRequest | null>(
+    () =>
+      requestFromPath() ??
+      (resume?.request ? { target: resume.request.target, focus: false } : null),
   );
+  const [requestPending, setRequestPending] = useState(
+    () => Boolean(requestFromPath()) || Boolean(resume?.request?.pending),
+  );
+  const [navigationVersion, setNavigationVersion] = useState(0);
+  const [mode, setMode] = useState<'history' | 'new' | 'reading' | 'request'>(() =>
+    requestFromPath() ? 'request' : window.location.pathname === '/new' ? 'new' : 'history',
+  );
+  const shownPath = useRef(window.location.pathname);
+  const resumeTarget = useRef(request?.target ?? null);
+  const replacePath = (path: string) => {
+    shownPath.current = path;
+    window.history.replaceState(null, '', path);
+  };
   const resultHeading = useRef<HTMLHeadingElement>(null);
   const focusResultOnCommit = useRef(false);
   const [history, setHistory] = useState<History>({ items: [], nextCursor: null });
@@ -82,8 +149,23 @@ export function ReadingWorkspace({
   const [draft, setDraft] = useState(''),
     [stance, setStance] = useState<Thought['stance']>('unspecified');
   const [question, setQuestion] = useState(''),
+    [questionSubmitted, setQuestionSubmitted] = useState(false),
     [english, setEnglish] = useState(false),
-    [reversals, setReversals] = useState(false);
+    [reversals, setReversals] = useState(false),
+    [spreadPhoto, setSpreadPhoto] = useState<string | null>(null),
+    [spreadPhotoName, setSpreadPhotoName] = useState<string | null>(null),
+    [preparingPhoto, setPreparingPhoto] = useState(false),
+    spreadInputRef = useRef<HTMLInputElement>(null);
+  const photoSelection = useRef(0),
+    photoPreparing = useRef(false);
+  const clearPhoto = () => {
+    photoSelection.current++;
+    photoPreparing.current = false;
+    setPreparingPhoto(false);
+    setSpreadPhoto(null);
+    setSpreadPhotoName(null);
+    if (spreadInputRef.current) spreadInputRef.current.value = '';
+  };
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState<NoticeMessage | null>(null),
     [conflict, setConflict] = useState(false);
@@ -104,6 +186,31 @@ export function ReadingWorkspace({
     mode !== 'reading' ||
     !dirtyReflection ||
     window.confirm('Discard your unsaved reflection? Choose Cancel to stay and keep editing.');
+  useImperativeHandle(ref, () => ({
+    confirmLeave: () => {
+      if (
+        canLeave() &&
+        (questionSubmitted ||
+          (!question.trim() && !spreadPhoto && !photoPreparing.current) ||
+          window.confirm(
+            question.trim()
+              ? 'Discard your unsaved question? Choose Cancel to stay and keep editing.'
+              : 'Discard your unsaved spread photo? Choose Cancel to stay and keep editing.',
+          ))
+      )
+        return true;
+      // A cancelled browser Back/Forward must also restore history with a hidden question draft.
+      if (window.location.pathname !== shownPath.current)
+        window.history.pushState(null, '', shownPath.current);
+      return false;
+    },
+    getResumeState: () => ({
+      path: shownPath.current,
+      request: request
+        ? { target: resumeTarget.current ?? request.target, pending: requestPending }
+        : null,
+    }),
+  }));
   const clearReading = () => {
     focusResultOnCommit.current = false;
     setRecord(null);
@@ -179,7 +286,7 @@ export function ReadingWorkspace({
     setRecord(session);
     setReading(content);
     setMode('reading');
-    window.history.replaceState(null, '', `/requests/${content.provenance.requestId}`);
+    replacePath(`/requests/${content.provenance.requestId}`);
     focusResultOnCommit.current = focusResult;
     if (keepDraft && (dirtyReflection || conflict || requireReview)) {
       // Keep the draft's base revision until the user explicitly reconciles a newer version.
@@ -231,7 +338,7 @@ export function ReadingWorkspace({
       if (error instanceof ApiFailure && error.status === 410) {
         clearReading();
         setMode('history');
-        window.history.replaceState(null, '', '/account');
+        replacePath('/');
         await loadHistory(current).catch(() => undefined);
       }
       if (error instanceof ApiFailure && error.code === 'CONSENT_REQUIRED')
@@ -251,9 +358,12 @@ export function ReadingWorkspace({
   openRef.current = open;
   historyRef.current = loadHistory;
   navigationRef.current = () => {
+    const path = window.location.pathname;
+    // The parent closes this workspace for the account page; a restored address needs no change.
+    if (path === '/account' || (mode !== 'request' && path === shownPath.current)) return;
     if (!canLeave()) {
       // Parent route state may already reflect Back; restore the reading still being edited.
-      if (reading) window.history.pushState(null, '', `/requests/${reading.provenance.requestId}`);
+      window.history.pushState(null, '', shownPath.current);
       return;
     }
     // Invalidate even an accepted-reading load that has outlived the progress response.
@@ -262,6 +372,7 @@ export function ReadingWorkspace({
     setBusy(false);
     setMessage(null);
     clearReading();
+    shownPath.current = path;
     const restored = requestFromPath();
     const destination = restored
       ? 'request'
@@ -269,11 +380,15 @@ export function ReadingWorkspace({
         ? 'new'
         : 'history';
     setRequest(restored);
+    resumeTarget.current = restored?.target ?? null;
     setRequestPending(Boolean(restored));
     setNavigationVersion((value) => value + 1);
     setMode(destination);
     currentMode.current = destination;
-    if (destination === 'new') intents.current.delete('start');
+    if (destination === 'new') {
+      intents.current.delete('start');
+      setQuestionSubmitted(false);
+    }
     if (destination === 'history') void runRef.current((current) => historyRef.current(current));
   };
   useEffect(() => {
@@ -293,6 +408,7 @@ export function ReadingWorkspace({
     window.addEventListener('popstate', navigation);
     return () => {
       alive.current = false;
+      photoSelection.current++;
       epoch.current++;
       intents.current.clear();
       deletion.current = null;
@@ -300,21 +416,6 @@ export function ReadingWorkspace({
       window.removeEventListener('popstate', navigation);
     };
   }, []);
-  const permission = () =>
-    void run(async (current) => {
-      const view = currentUser.current,
-        allowed = !view.permission.modelAllowed;
-      const payload = { modelAllowed: allowed, policyVersion: 'egress.v1' as const };
-      await api('/permissions/model', apiSchemas.Permission, payload, view.csrfToken, {
-        method: 'PUT',
-        revision: view.permission.revision,
-        key: actionKey('permission', [payload, view.permission.revision]).key,
-      });
-      if (current()) {
-        intents.current.delete('permission');
-        await refreshUser(current);
-      }
-    });
   const save = () => {
     if (record)
       void run(async (current) => {
@@ -442,45 +543,6 @@ export function ReadingWorkspace({
       }
     });
   };
-  const exportRecords = () =>
-    void run(async (current) => {
-      let view = currentUser.current;
-      if (Date.parse(view.recentAuthUntil) <= Date.now()) {
-        await signIn('reauthenticate', view.csrfToken);
-        if (!current()) return;
-        view = await refreshUser(current);
-        if (!current()) return;
-      }
-      const ticket = await api('/exports', apiSchemas.ExportTicket, {}, view.csrfToken, {
-        key: crypto.randomUUID(),
-      });
-      const chunks: Uint8Array<ArrayBuffer>[] = [];
-      let cursor: string | null = null,
-        bytes = 0;
-      do {
-        if (!current()) return;
-        const page: z.infer<typeof apiSchemas.ExportPage> = await api(
-          `/exports/${ticket.id}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''}`,
-          apiSchemas.ExportPage,
-        );
-        if (!current()) return;
-        const chunk = new TextEncoder().encode(`${JSON.stringify(page)}\n`);
-        bytes += chunk.length;
-        if (bytes > 32 * 1024 * 1024)
-          throw new Error(
-            'This export is too large for the local build. No partial file was downloaded.',
-          );
-        chunks.push(chunk);
-        cursor = page.nextCursor;
-      } while (cursor);
-      if (current()) {
-        download('reflection-export.ndjson', chunks, 'application/x-ndjson');
-        setMessage({
-          tone: 'success',
-          text: 'Export downloaded. Keep it somewhere private; deleting records here cannot delete downloaded copies.',
-        });
-      }
-    });
   const remove = () => {
     if (record)
       void run(async (current) => {
@@ -533,7 +595,7 @@ export function ReadingWorkspace({
         }
         clearReading();
         setMode('history');
-        window.history.replaceState(null, '', '/account');
+        replacePath('/');
         deletion.current = null;
         await loadHistory(current);
         if (current())
@@ -545,31 +607,19 @@ export function ReadingWorkspace({
   };
   return (
     <section className="reading-workspace" aria-label="Your readings" aria-busy={busy}>
-      <div className="consent">
-        <Art name="study-return" className="consent-art" />
-        <div className="consent-copy">
-          <h2>AI readings are {user.permission.modelAllowed ? 'on' : 'off'}</h2>
-          <p>{READING_PRODUCT_COPY.aiPermission}</p>
-          <p className="muted">
-            {live === null
-              ? 'Refresh to check the reading service before enabling AI. Your saved readings and reflections remain available.'
-              : live
-                ? 'Your question, drawn cards and selected source meanings are sent to OpenAI to write the reading. Saved readings and reflections are not sent. OpenAI may retain request data according to your project settings.'
-                : READING_PRODUCT_COPY.providerRetention}
-          </p>
-          {!user.permission.modelAllowed && (
-            <p>History, reopening, reflections, export and deletion remain available.</p>
-          )}
-          <button
-            type="button"
-            className="secondary"
-            disabled={busy || (live === null && !user.permission.modelAllowed)}
-            onClick={permission}
-          >
-            {user.permission.modelAllowed ? 'Turn off AI readings' : 'Enable AI readings'}
-          </button>
-        </div>
-      </div>
+      {!user.permission.modelAllowed && (
+        <p className="notice">
+          <Icon name="info" />
+          <span>
+            AI readings are off. Saved readings and reflections remain available. To start a new
+            reading,{' '}
+            <a href="/account" onClick={onAccount}>
+              turn on AI readings in your account
+            </a>
+            .
+          </span>
+        </p>
+      )}
       <nav className="actions" aria-label="Reading actions">
         <button
           type="button"
@@ -581,7 +631,7 @@ export function ReadingWorkspace({
               await loadHistory(current);
               if (current()) {
                 setMode('history');
-                window.history.replaceState(null, '', '/account');
+                replacePath('/');
                 clearReading();
               }
             });
@@ -600,16 +650,14 @@ export function ReadingWorkspace({
             clearReading();
             setMode('new');
             setRequest(null);
-            window.history.replaceState(null, '', '/new');
+            resumeTarget.current = null;
+            setQuestionSubmitted(false);
+            replacePath('/new');
             setMessage(null);
           }}
         >
           <Icon name="add" />
           New reading
-        </button>
-        <button type="button" className="text-button" disabled={busy} onClick={exportRecords}>
-          <Icon name="download" />
-          Export my records
         </button>
       </nav>
       <Notice message={message} />
@@ -669,8 +717,9 @@ export function ReadingWorkspace({
           type="button"
           className="secondary"
           onClick={() => {
-            setRequest({ target: request.target, focus: false });
-            window.history.replaceState(null, '', requestPath(request.target));
+            const target = resumeTarget.current ?? request.target;
+            setRequest({ target, focus: false });
+            replacePath(requestPath(target));
             setMode('request');
           }}
         >
@@ -684,6 +733,10 @@ export function ReadingWorkspace({
           user={user}
           onSession={onSession}
           onExpired={onExpired}
+          onTarget={(target) => {
+            resumeTarget.current = target;
+            replacePath(requestPath(target));
+          }}
           onAllowNew={() => setRequestPending(false)}
           onAccepted={(id, focus) =>
             void run(async (current) => {
@@ -691,6 +744,8 @@ export function ReadingWorkspace({
               if (current()) {
                 intents.current.delete('start');
                 setQuestion('');
+                clearPhoto();
+                setQuestionSubmitted(false);
                 await refreshUser(current);
               }
             })
@@ -702,7 +757,7 @@ export function ReadingWorkspace({
           className="card new-reading"
           onSubmit={(event) => {
             event.preventDefault();
-            if (inFlight.current || requestPending) return;
+            if (inFlight.current || requestPending || photoPreparing.current) return;
             const values = {
               question,
               languageConfirmed: 'en' as const,
@@ -710,16 +765,19 @@ export function ReadingWorkspace({
               permissionRevision: currentUser.current.permission.revision,
               parentEditionId: null,
               selection: [],
+              ...(spreadPhoto ? { spreadPhoto } : {}),
             };
             const intent = actionKey('start', values);
             const target = { kind: 'intent' as const, id: intent.intent };
-            window.history.replaceState(null, '', requestPath(target));
+            resumeTarget.current = target;
+            replacePath(requestPath(target));
             setRequest({
               target,
               start: { input: { ...values, clientIntentId: intent.intent }, key: intent.key },
               focus: true,
             });
             setRequestPending(true);
+            setQuestionSubmitted(true);
             setMode('request');
             setMessage(null);
           }}
@@ -739,9 +797,89 @@ export function ReadingWorkspace({
               maxLength={500}
               required
               value={question}
-              onChange={(event) => setQuestion(event.target.value)}
+              onChange={(event) => {
+                setQuestion(event.target.value);
+                setQuestionSubmitted(false);
+              }}
               disabled={busy}
             />
+            <div className="spread-upload-field">
+              <label htmlFor="reading-spread-photo">Offline spread photo (optional)</label>
+              <p id="reading-spread-photo-help" className="muted">
+                Dealt a 3-card spread yourself? Upload a photo (situation, tension, possibility from
+                left to right) to recognize your cards and orientations instead of drawing new ones.{' '}
+                {live === null
+                  ? 'Refresh to check photo processing before submitting.'
+                  : live
+                    ? SPREAD_PHOTO_COPY.spreadPhotoProcessing
+                    : 'This local simulation does not recognize real cards. Use a synthetic image only.'}
+              </p>
+              <input
+                ref={spreadInputRef}
+                id="reading-spread-photo"
+                aria-describedby="reading-spread-photo-help"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={busy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  const selection = ++photoSelection.current;
+                  photoPreparing.current = true;
+                  setPreparingPhoto(true);
+                  setSpreadPhoto(null);
+                  setSpreadPhotoName(file.name);
+                  setQuestionSubmitted(false);
+                  const current = () => alive.current && photoSelection.current === selection;
+                  void prepareSpreadPhoto(file)
+                    .then((dataUrl) => {
+                      if (!current()) return;
+                      setSpreadPhoto(dataUrl);
+                      setSpreadPhotoName(file.name);
+                      setQuestionSubmitted(false);
+                      setMessage(null);
+                    })
+                    .catch((error) => {
+                      if (!current()) return;
+                      setSpreadPhoto(null);
+                      setSpreadPhotoName(null);
+                      if (spreadInputRef.current) spreadInputRef.current.value = '';
+                      setMessage({
+                        tone: 'error',
+                        text:
+                          error instanceof Error
+                            ? error.message
+                            : 'Could not load the spread photo.',
+                      });
+                    })
+                    .finally(() => {
+                      if (!current()) return;
+                      photoPreparing.current = false;
+                      setPreparingPhoto(false);
+                    });
+                }}
+              />
+              {(spreadPhoto || preparingPhoto) && (
+                <div className="spread-photo-preview" data-testid="spread-photo-preview">
+                  {spreadPhoto && <img src={spreadPhoto} alt="Uploaded tarot spread preview" />}
+                  <div className="spread-photo-meta">
+                    <p>{spreadPhotoName ?? 'Spread photo attached'}</p>
+                    {preparingPhoto && <p role="status">Preparing photo…</p>}
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        clearPhoto();
+                        setQuestionSubmitted(false);
+                      }}
+                    >
+                      Remove photo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <label className="check">
               <input
                 type="checkbox"
@@ -768,7 +906,7 @@ export function ReadingWorkspace({
               {live === null
                 ? 'Refresh to check the reading service before submitting. Your draft stays in memory.'
                 : live
-                  ? 'Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.'
+                  ? `Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.${spreadPhoto || preparingPhoto ? ' Your attached photo is sent to Meta to recognize the cards.' : ''}`
                   : 'Drafts stay in memory until submitted. This build uses a local simulated writer. Use synthetic text only.'}
             </p>
             <div className="new-reading-footer">
@@ -777,6 +915,7 @@ export function ReadingWorkspace({
                 className="large"
                 disabled={
                   busy ||
+                  preparingPhoto ||
                   !english ||
                   !question.trim() ||
                   !user.permission.modelAllowed ||
@@ -810,6 +949,18 @@ export function ReadingWorkspace({
               </div>
               <Art name="study-inquiry" className="question-art" />
             </div>
+            {reading.spreadPhoto && (
+              <figure className="card spread-photo-card" data-testid="spread-photo-card">
+                <img
+                  src={reading.spreadPhoto}
+                  alt="Uploaded tarot spread for this reading"
+                  className="spread-photo-image"
+                />
+                <figcaption className="muted">
+                  Uploaded spread photo · Recognized 3-card spread (situation, tension, possibility)
+                </figcaption>
+              </figure>
+            )}
             {reading.units.map((unit, index) => {
               const card = reading.basis.cards.find((item) => item.position === unit.position);
               const name =

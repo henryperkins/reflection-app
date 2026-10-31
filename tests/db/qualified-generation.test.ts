@@ -75,13 +75,15 @@ test('qualified Start preserves the received candidate and signed source version
   f.config.apiKey = '';
   await f.client.permission(false);
   const stored = await env.DB.prepare('SELECT body_enc FROM reading_editions').first('body_enc');
-  const quota = await env.DB.prepare('SELECT * FROM quota_buckets').all();
+  const quota = await env.DB.prepare('SELECT * FROM quota_buckets ORDER BY owner_id,period').all();
   await f.generation.maintenance();
   expect(await (await f.client.request(`/readings/${reading.editionId}`)).json()).toEqual(reading);
   expect(await env.DB.prepare('SELECT body_enc FROM reading_editions').first('body_enc')).toBe(
     stored,
   );
-  expect(await env.DB.prepare('SELECT * FROM quota_buckets').all()).toEqual(quota);
+  expect(
+    (await env.DB.prepare('SELECT * FROM quota_buckets ORDER BY owner_id,period').all()).results,
+  ).toEqual(quota.results);
   const ticket = apiSchemas.ExportTicket.parse(
     await (await f.client.request('/exports', {})).json(),
   );

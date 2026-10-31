@@ -64,7 +64,7 @@ assert d.execute('select count(*) from reading_editions').fetchone()[0]==0
 checks.append('execution-time expiry rolls back a preceding edition insert')
 d=seed();rejects(d,"insert into content_editions(hash,state,bundle_json,reviewed_hash,reviewer_kind,reviewer_id,rights_status,created_at,approved_at) values(?,'approved','{}',NULL,'human_approved','synthetic','cleared',0,0)",(H2,));checks.append('null reviewed hash rejected')
 d=seed();rejects(d,"insert into basis_snapshots values('bad',?,'session','tarot.v1',1,'cipher',1,0)",(B,));checks.append('cross-owner basis FK rejected')
-d=seed();rejects(d,"insert into generation_requests select 'other',owner_id,session_id,client_intent_id,parent_edition_id,basis_id,operation,payload_hmac,state,revision,run_epoch,lease_token,lease_expires_at,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,context_count,next_event,error_code,fallback_reason,created_at,expires_at,finished_at from generation_requests");checks.append('duplicate intent rejected')
+d=seed();rejects(d,"insert into generation_requests select 'other',owner_id,session_id,client_intent_id,parent_edition_id,basis_id,operation,payload_hmac,state,revision,run_epoch,lease_token,lease_expires_at,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,context_count,next_event,error_code,fallback_reason,created_at,expires_at,finished_at,spread_dispatch_id from generation_requests");checks.append('duplicate intent rejected')
 d=seed();d.execute('begin')
 try:
  d.execute("insert into reading_editions values('edition',?,'session',1,'request','basis',NULL,'accepted','model','cipher',1,?,0,NULL)",(A,H))

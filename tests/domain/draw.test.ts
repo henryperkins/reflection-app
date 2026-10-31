@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { drawTarot, uniformIndex } from '../../src/domain/tarot/draw.ts';
+import { basisFromSpread, drawTarot, uniformIndex } from '../../src/domain/tarot/draw.ts';
+import {
+  DeterministicSpreadRecognizer,
+  META_RESPONSES_URL,
+  META_SPREAD_MODEL,
+  MetaSpreadRecognizer,
+} from '../../src/worker/provider/meta-vision.ts';
 const deck = [
   ...Array.from({ length: 22 }, (_, i) => `major-${String(i).padStart(2, '0')}`),
   ...['wands', 'cups', 'swords', 'pentacles'].flatMap((s) =>
@@ -109,5 +115,70 @@ describe('HMAC-SHA256 Fisher–Yates draw', () => {
     const b = await drawTarot(base);
     expect(a.seed).toHaveLength(43);
     expect(a.seed).not.toBe(b.seed);
+  });
+  it('constructs a valid TarotBasis from an offline spread photo and Meta Models API recognition', async () => {
+    const samplePhoto =
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==';
+    const deckWithNames = deck.map((id) => ({ id, name: `Card ${id}` }));
+    let capturedUrl = '';
+    let capturedAuth = '';
+    let capturedModel = '';
+    const recognizer = new MetaSpreadRecognizer({
+      apiKey: 'meta-test-key',
+      fetch: async (url, init) => {
+        capturedUrl = String(url);
+        capturedAuth = new Headers(init?.headers).get('Authorization') ?? '';
+        const parsedBody = JSON.parse(String(init?.body)) as { model?: string };
+        capturedModel = parsedBody.model ?? '';
+        return Response.json({
+          id: 'resp_meta_123',
+          status: 'completed',
+          model: META_SPREAD_MODEL,
+          output: [
+            {
+              type: 'message',
+              role: 'assistant',
+              content: [
+                {
+                  type: 'output_text',
+                  text: JSON.stringify({
+                    cards: [
+                      { position: 'situation', cardId: 'major-00', orientation: 'upright' },
+                      { position: 'tension', cardId: 'cups-05', orientation: 'reversed' },
+                      { position: 'possibility', cardId: 'wands-10', orientation: 'upright' },
+                    ],
+                  }),
+                },
+              ],
+            },
+          ],
+        });
+      },
+    });
+    const recognized = await recognizer.recognize({
+      spreadPhoto: samplePhoto,
+      deck: deckWithNames,
+    });
+    expect(capturedUrl).toBe(META_RESPONSES_URL);
+    expect(capturedAuth).toBe('Bearer meta-test-key');
+    expect(capturedModel).toBe(META_SPREAD_MODEL);
+    const basis = await basisFromSpread({
+      ...base,
+      reversals: false,
+      spreadPhoto: samplePhoto,
+      recognized,
+    });
+    expect(basis.reversals).toBe(true);
+    expect(basis.cards.map((c) => ({ cardId: c.cardId, orientation: c.orientation }))).toEqual([
+      { cardId: 'major-00', orientation: 'upright' },
+      { cardId: 'cups-05', orientation: 'reversed' },
+      { cardId: 'wands-10', orientation: 'upright' },
+    ]);
+    expect(basis.counts.map((c) => c.count)).toEqual([1, 1, 0, 0]);
+    const deterministic = await new DeterministicSpreadRecognizer().recognize({
+      spreadPhoto: samplePhoto,
+      deck: deckWithNames,
+    });
+    expect(deterministic.cards).toHaveLength(3);
   });
 });

@@ -6640,6 +6640,10 @@ components:
               - end
               - previewHash
             additionalProperties: false
+        spreadPhoto:
+          type: string
+          maxLength: 180000
+          pattern: ^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$
       required:
         - clientIntentId
         - question
@@ -7350,6 +7354,10 @@ components:
                 - counts
                 - drawnAt
               additionalProperties: false
+            spreadPhoto:
+              type: string
+              maxLength: 180000
+              pattern: ^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$
             mode:
               type: string
               enum:
@@ -7819,6 +7827,10 @@ components:
                 - counts
                 - drawnAt
               additionalProperties: false
+            spreadPhoto:
+              type: string
+              maxLength: 180000
+              pattern: ^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$
             mode:
               type: string
               enum:
@@ -9506,6 +9518,10 @@ components:
                               - counts
                               - drawnAt
                             additionalProperties: false
+                          spreadPhoto:
+                            type: string
+                            maxLength: 180000
+                            pattern: ^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$
                           mode:
                             type: string
                             enum:
@@ -9975,6 +9991,10 @@ components:
                               - counts
                               - drawnAt
                             additionalProperties: false
+                          spreadPhoto:
+                            type: string
+                            maxLength: 180000
+                            pattern: ^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$
                           mode:
                             type: string
                             enum:

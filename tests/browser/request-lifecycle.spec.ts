@@ -1,9 +1,16 @@
 import { expect, test, type Page } from '@playwright/test';
 import { apiSchemas, AcceptedReadingV2 } from '../../src/contracts/index.ts';
-import { account, reading, savedSnapshot } from '../fixtures/browser-reading.ts';
+import {
+  account,
+  backToReadings,
+  enableAi,
+  openAccount,
+  reading,
+  savedSnapshot,
+} from '../fixtures/browser-reading.ts';
 
 async function form(page: Page, question = 'Synthetic request interruption') {
-  await page.getByRole('button', { name: 'Enable AI readings', exact: true }).click();
+  await enableAi(page);
   await page.getByRole('button', { name: 'New reading', exact: true }).click();
   await page.getByLabel('Your question').fill(question);
   await page.getByLabel('Use English for this reading').check();
@@ -163,6 +170,7 @@ test('signing in to an owned request URL resumes the unsaved reading with no new
   await reading(page, 'Synthetic sign-in resume');
   const url = page.url();
   const original = await page.getByTestId('accepted-reading').textContent();
+  await openAccount(page);
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.goto(url);
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
@@ -320,6 +328,109 @@ async function pendingFixture(page: Page) {
   };
 }
 
+for (const navigation of ['link', 'Back'] as const) {
+  test(`account navigation retains a pending request in history when returning by ${navigation}`, async ({
+    page,
+  }) => {
+    await account(page, navigation === 'link' ? '198.51.100.205' : '198.51.100.206');
+    await form(page);
+    const fixture = await pendingFixture(page);
+    let starts = 0;
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/requests')
+        starts++;
+    });
+    await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toBeEnabled();
+    const url = page.url();
+    await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+    for (let visit = 0; visit < 2; visit++) {
+      await expect(
+        page.getByRole('button', { name: 'Resume reading request', exact: true }),
+      ).toBeVisible();
+      await expect(page.getByRole('button', { name: 'New reading', exact: true })).toBeDisabled();
+      await openAccount(page);
+      if (navigation === 'link') await backToReadings(page);
+      else await page.goBack();
+      await expect(
+        page.getByRole('heading', { name: 'Saved readings', exact: true }),
+      ).toBeVisible();
+    }
+    await expect(
+      page.getByRole('button', { name: 'Resume reading request', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New reading', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Resume reading request', exact: true }).click();
+    await expect(page).toHaveURL(url);
+    await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toBeEnabled();
+    await page.route('**/api/v1/requests/*/cancel', async (route) => {
+      expect(new URL(route.request().url()).pathname).toBe(
+        `/api/v1/requests/${fixture.get().requestId}/cancel`,
+      );
+      fixture.set({ state: 'cancelled', errorCode: 'CANCELLED', revision: 3, nextSequence: 3 });
+      await route.fulfill({ json: fixture.get() });
+    });
+    await page.getByRole('button', { name: 'Cancel reading', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Reading cancelled' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'New reading', exact: true })).toBeEnabled();
+    expect(starts).toBe(1);
+    await emptyStorage(page);
+  });
+}
+
+test('account navigation by browser Back retains the canonical progress address', async ({
+  page,
+}) => {
+  await account(page, '198.51.100.207');
+  await form(page);
+  await page.getByLabel('Your question', { exact: true }).fill('');
+  await openAccount(page);
+  await backToReadings(page);
+  await page
+    .getByLabel('Your question', { exact: true })
+    .fill('Synthetic progress return destination');
+  await page.getByLabel('Use English for this reading').check();
+  await pendingFixture(page);
+  await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toBeEnabled();
+  const url = page.url();
+  await page.goBack();
+  await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Back to readings', exact: true })).toHaveAttribute(
+    'href',
+    new URL(url).pathname,
+  );
+  await backToReadings(page);
+  await expect(page).toHaveURL(url);
+  await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toBeEnabled();
+});
+
+test('account navigation forgets its retained request after signing out', async ({ page }) => {
+  await account(page, '198.51.100.208');
+  await form(page);
+  await pendingFixture(page);
+  await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Cancel reading', exact: true })).toBeEnabled();
+  await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+  await expect(
+    page.getByRole('button', { name: 'Resume reading request', exact: true }),
+  ).toBeVisible();
+  await openAccount(page);
+  await page.getByRole('button', { name: 'Sign out', exact: true }).click();
+  await page.getByRole('button', { name: 'Sign in with a passkey', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Saved readings', exact: true })).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Resume reading request', exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'New reading', exact: true })).toBeEnabled();
+  await openAccount(page);
+  await expect(page.getByRole('link', { name: 'Back to readings', exact: true })).toHaveAttribute(
+    'href',
+    '/',
+  );
+  await emptyStorage(page);
+});
+
 test('cancel uses the observed revision and lost cancellation responses reconnect safely', async ({
   page,
 }) => {
@@ -350,8 +461,15 @@ test('revoking AI during progress keeps the stopped request and history availabl
   await page.getByRole('button', { name: 'Start reading', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Reading progress' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Cancel reading' })).toBeEnabled();
+  const progress = page.url();
+  await openAccount(page);
   await page.getByRole('button', { name: 'Turn off AI readings' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'AI readings are off', exact: true }),
+  ).toBeVisible();
   fixture.set({ state: 'blocked', errorCode: 'CONSENT_REQUIRED', revision: 3, nextSequence: 3 });
+  await backToReadings(page);
+  await expect(page).toHaveURL(progress);
   await expect(
     page.getByRole('status').filter({ hasText: /AI permission was turned off/ }),
   ).toBeVisible();

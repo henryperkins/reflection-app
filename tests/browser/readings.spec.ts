@@ -12,6 +12,9 @@ import {
   authenticator,
   keepKit,
   account,
+  enableAi,
+  backToReadings,
+  openAccount,
   reading,
   savedSnapshot,
 } from '../fixtures/browser-reading.ts';
@@ -205,6 +208,7 @@ test('save, sign in, recover from the downloaded kit, and manage the same readin
   expect(original.session.reflectionIds).toEqual([]);
   expect(original.me.remainingDay).toBe(2);
   await page.screenshot({ path: '/tmp/reflection-saved-reading-desktop.png', fullPage: true });
+  await openAccount(page);
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
   await page.getByRole('button', { name: question, exact: true }).click();
@@ -254,10 +258,15 @@ test('save, sign in, recover from the downloaded kit, and manage the same readin
   expect(returned.me.remainingDay).toBe(2);
   expect(generationRequests).toHaveLength(1);
 
+  await openAccount(recovered);
   await recovered.getByRole('button', { name: 'Turn off AI readings', exact: true }).click();
   await expect(
     recovered.getByRole('heading', { name: 'AI readings are off', exact: true }),
   ).toBeVisible();
+  await backToReadings(recovered);
+  await expect(recovered.getByTestId('accepted-reading')).toHaveText(acceptedText, {
+    useInnerText: true,
+  });
   await expect(recovered.getByRole('button', { name: 'New reading', exact: true })).toBeDisabled();
   await recovered.getByRole('button', { name: 'Saved readings', exact: true }).click();
   await recovered.getByRole('button', { name: question, exact: true }).click();
@@ -276,6 +285,9 @@ test('save, sign in, recover from the downloaded kit, and manage the same readin
   });
   await recovered.screenshot({ path: '/tmp/reflection-saved-reading-mobile.png', fullPage: true });
   expect(await recovered.locator('body').evaluate((el) => el.scrollWidth <= innerWidth)).toBe(true);
+  await openAccount(recovered);
+  await recovered.screenshot({ path: '/tmp/reflection-account-mobile.png', fullPage: true });
+  expect(await recovered.locator('body').evaluate((el) => el.scrollWidth <= innerWidth)).toBe(true);
   const exported = recovered.waitForEvent('download');
   await recovered.getByRole('button', { name: 'Export my records', exact: true }).click();
   const pages = (await readFile((await (await exported).path())!, 'utf8'))
@@ -288,6 +300,10 @@ test('save, sign in, recover from the downloaded kit, and manage the same readin
     'Synthetic thought added after recovery.',
     'Synthetic reflection edited with AI off.',
   ]);
+  await expect(
+    recovered.getByRole('status').filter({ hasText: 'Export downloaded.' }),
+  ).toBeVisible();
+  await backToReadings(recovered);
   await recovered.getByRole('button', { name: 'Delete reading', exact: true }).click();
   await recovered.getByLabel('Delete this reading and its reflections permanently').check();
   await recovered.getByRole('button', { name: 'Confirm deletion', exact: true }).click();
@@ -656,3 +672,39 @@ for (const mode of ['model', 'template'] as const) {
     ).toHaveCount(0);
   });
 }
+
+test('uploading an offline spread photo recognizes the 3 cards in one step and saves the photo with the reading', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.188');
+  await enableAi(page);
+  await page.getByRole('button', { name: 'New reading', exact: true }).click();
+  await page.getByLabel('Your question').fill('What does my offline dealt spread suggest?');
+  await page.getByLabel('Use English for this reading').check();
+  const pngBytes = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page.getByLabel('Offline spread photo (optional)').setInputFiles({
+    name: 'dealt-spread.png',
+    mimeType: 'image/png',
+    buffer: pngBytes,
+  });
+  await expect(page.getByTestId('spread-photo-preview')).toBeVisible();
+  await expect(page.getByText('dealt-spread.png', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+  const accepted = page.getByTestId('accepted-reading');
+  await expect(accepted).toBeVisible();
+  const photoCard = accepted.getByTestId('spread-photo-card');
+  await expect(photoCard).toBeVisible();
+  await expect(photoCard.locator('img')).toHaveAttribute(
+    'src',
+    /^data:image\/png;base64,iVBORw0KGgo/,
+  );
+  await page.getByRole('button', { name: 'Save reading', exact: true }).click();
+  await expect(page.getByText('Saved until you delete it.', { exact: true })).toBeVisible();
+  const saved = await savedSnapshot(page);
+  if (saved.reading.kind !== 'tarot.accepted.v1' && saved.reading.kind !== 'tarot.accepted.v2')
+    throw new Error('Expected accepted tarot reading');
+  expect(saved.reading.spreadPhoto).toMatch(/^data:image\/png;base64,iVBORw0KGgo/);
+});
