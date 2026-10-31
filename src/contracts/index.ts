@@ -1084,6 +1084,7 @@ export interface SpreadRecognizer {
     spreadPhoto: SpreadPhoto;
     deck: ReadonlyArray<{ id: z.infer<typeof CardId>; name: string }>;
     signal?: AbortSignal;
+    onReceipt?: (receipt: ProviderReceipt) => Promise<void>;
   }): Promise<SpreadRecognition>;
 }
 export interface GenerationService {

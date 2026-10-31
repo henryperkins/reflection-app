@@ -1143,3 +1143,9 @@ CREATE TABLE automated_content_integrity (violations INTEGER NOT NULL CHECK(viol
 INSERT INTO automated_content_integrity SELECT count(*) FROM pragma_foreign_key_check;
 DROP TABLE automated_content_integrity;
 PRAGMA defer_foreign_keys=OFF;
+
+-- Commit before image egress. A missing durable result after this marker is
+-- uncertain and must never authorize another recognition call for this intent.
+ALTER TABLE generation_requests ADD COLUMN spread_dispatch_id TEXT;
+CREATE UNIQUE INDEX generation_spread_dispatch ON generation_requests(spread_dispatch_id)
+  WHERE spread_dispatch_id IS NOT NULL;

@@ -2,14 +2,16 @@ import { z } from 'zod';
 import {
   type CardId,
   Position,
+  ProviderReceipt,
   SpreadPhoto,
   SpreadRecognition,
   type SpreadRecognizer,
 } from '../../contracts/index.ts';
 import { drawTarot } from '../../domain/tarot/draw.ts';
+import { SPREAD_PROVIDER_POLICY } from '../../contracts/spread-policy.ts';
 
 export const META_RESPONSES_URL = 'https://api.meta.ai/v1/responses';
-export const META_SPREAD_MODEL = 'muse-spark-1.3';
+export const META_SPREAD_MODEL = SPREAD_PROVIDER_POLICY.model;
 
 const MetaContentItem = z.object({
   type: z.string(),
@@ -27,7 +29,15 @@ const MetaResponseEnvelope = z.object({
   id: z.string().optional(),
   status: z.string().optional(),
   model: z.string().optional(),
+  service_tier: z.string().optional(),
+  usage: z.unknown().optional(),
   output: z.array(MetaOutputItem).optional(),
+});
+const MetaUsage = z.object({
+  input_tokens: z.number(),
+  input_tokens_details: z.object({ cached_tokens: z.number().optional() }).optional(),
+  output_tokens: z.number(),
+  output_tokens_details: z.object({ reasoning_tokens: z.number().optional() }).optional(),
 });
 
 export function buildSpreadRecognitionPrompt(
@@ -69,7 +79,7 @@ export function buildMetaSpreadRequestBody(input: {
   return {
     model: input.model ?? META_SPREAD_MODEL,
     store: false as const,
-    max_output_tokens: 4096,
+    max_output_tokens: SPREAD_PROVIDER_POLICY.maxOutputTokens,
     reasoning: { effort: 'low' as const },
     input: [
       {
@@ -136,20 +146,23 @@ export class MetaSpreadRecognizer implements SpreadRecognizer {
     this.endpoint = options.endpoint ?? META_RESPONSES_URL;
     this.model = options.model ?? META_SPREAD_MODEL;
     this.fetcher = options.fetch ?? fetch;
-    this.timeoutMs = options.timeoutMs ?? 20_000;
+    this.timeoutMs = options.timeoutMs ?? SPREAD_PROVIDER_POLICY.timeoutMs;
   }
 
   async recognize(input: {
     spreadPhoto: SpreadPhoto;
     deck: ReadonlyArray<{ id: z.infer<typeof CardId>; name: string }>;
     signal?: AbortSignal;
+    onReceipt?: (receipt: ProviderReceipt) => Promise<void>;
   }): Promise<SpreadRecognition> {
     const body = buildMetaSpreadRequestBody({
       spreadPhoto: input.spreadPhoto,
       deck: input.deck,
       model: this.model,
     });
-    const signal = input.signal ?? AbortSignal.timeout(this.timeoutMs);
+    const started = Date.now();
+    const timeout = AbortSignal.timeout(this.timeoutMs);
+    const signal = input.signal ? AbortSignal.any([input.signal, timeout]) : timeout;
     let response: Response;
     try {
       response = await this.fetcher(this.endpoint, {
@@ -175,6 +188,24 @@ export class MetaSpreadRecognizer implements SpreadRecognizer {
       throw new Error('INVALID_CANDIDATE: malformed Meta Model API JSON');
     }
     const envelope = MetaResponseEnvelope.safeParse(raw);
+    const parsedUsage = MetaUsage.safeParse(envelope.success ? envelope.data.usage : undefined);
+    if (envelope.success && parsedUsage.success && input.onReceipt) {
+      const usage = parsedUsage.data;
+      const receipt = ProviderReceipt.safeParse({
+        responseId: envelope.data.id ?? null,
+        returnedModel: envelope.data.model,
+        serviceTier: envelope.data.service_tier ?? 'auto',
+        durationMs: Date.now() - started,
+        usage: {
+          inputTokens: usage.input_tokens,
+          cachedInputTokens: usage.input_tokens_details?.cached_tokens ?? 0,
+          cacheWriteTokens: 0,
+          outputTokens: usage.output_tokens,
+          reasoningTokens: usage.output_tokens_details?.reasoning_tokens ?? 0,
+        },
+      });
+      if (receipt.success) await input.onReceipt(receipt.data);
+    }
     if (!envelope.success || envelope.data.status !== 'completed') {
       throw new Error('PROVIDER_UNAVAILABLE: incomplete Meta Model API response');
     }

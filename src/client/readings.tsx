@@ -6,7 +6,7 @@ import {
   type AnyAcceptedReading,
   type Reflection,
 } from '../contracts/index.ts';
-import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
+import { READING_PRODUCT_COPY, SPREAD_PHOTO_COPY } from '../contracts/product-copy.ts';
 import { api, ApiFailure } from './api.ts';
 import { signIn } from './passkeys.ts';
 import {
@@ -124,7 +124,18 @@ export function ReadingWorkspace({
     [reversals, setReversals] = useState(false),
     [spreadPhoto, setSpreadPhoto] = useState<string | null>(null),
     [spreadPhotoName, setSpreadPhotoName] = useState<string | null>(null),
+    [preparingPhoto, setPreparingPhoto] = useState(false),
     spreadInputRef = useRef<HTMLInputElement>(null);
+  const photoSelection = useRef(0),
+    photoPreparing = useRef(false);
+  const clearPhoto = () => {
+    photoSelection.current++;
+    photoPreparing.current = false;
+    setPreparingPhoto(false);
+    setSpreadPhoto(null);
+    setSpreadPhotoName(null);
+    if (spreadInputRef.current) spreadInputRef.current.value = '';
+  };
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState<NoticeMessage | null>(null),
     [conflict, setConflict] = useState(false);
@@ -334,6 +345,7 @@ export function ReadingWorkspace({
     window.addEventListener('popstate', navigation);
     return () => {
       alive.current = false;
+      photoSelection.current++;
       epoch.current++;
       intents.current.clear();
       deletion.current = null;
@@ -595,7 +607,7 @@ export function ReadingWorkspace({
             {live === null
               ? 'Refresh to check the reading service before enabling AI. Your saved readings and reflections remain available.'
               : live
-                ? 'Your question, drawn cards and selected source meanings are sent to OpenAI to write the reading. Saved readings and reflections are not sent. OpenAI may retain request data according to your project settings.'
+                ? SPREAD_PHOTO_COPY.liveProviderRetention
                 : READING_PRODUCT_COPY.providerRetention}
           </p>
           {!user.permission.modelAllowed && (
@@ -732,8 +744,7 @@ export function ReadingWorkspace({
               if (current()) {
                 intents.current.delete('start');
                 setQuestion('');
-                setSpreadPhoto(null);
-                setSpreadPhotoName(null);
+                clearPhoto();
                 await refreshUser(current);
               }
             })
@@ -745,7 +756,7 @@ export function ReadingWorkspace({
           className="card new-reading"
           onSubmit={(event) => {
             event.preventDefault();
-            if (inFlight.current || requestPending) return;
+            if (inFlight.current || requestPending || photoPreparing.current) return;
             const values = {
               question,
               languageConfirmed: 'en' as const,
@@ -790,7 +801,12 @@ export function ReadingWorkspace({
               <label htmlFor="reading-spread-photo">Offline spread photo (optional)</label>
               <p id="reading-spread-photo-help" className="muted">
                 Dealt a 3-card spread yourself? Upload a photo (situation, tension, possibility from
-                left to right) to recognize your cards and orientations instead of drawing new ones.
+                left to right) to recognize your cards and orientations instead of drawing new ones.{' '}
+                {live === null
+                  ? 'Refresh to check photo processing before submitting.'
+                  : live
+                    ? SPREAD_PHOTO_COPY.spreadPhotoProcessing
+                    : 'This local simulation does not recognize real cards. Use a synthetic image only.'}
               </p>
               <input
                 ref={spreadInputRef}
@@ -802,15 +818,21 @@ export function ReadingWorkspace({
                 onChange={(event) => {
                   const file = event.target.files?.[0];
                   if (!file) return;
+                  const selection = ++photoSelection.current;
+                  photoPreparing.current = true;
+                  setPreparingPhoto(true);
+                  setSpreadPhoto(null);
+                  setSpreadPhotoName(file.name);
+                  const current = () => alive.current && photoSelection.current === selection;
                   void prepareSpreadPhoto(file)
                     .then((dataUrl) => {
-                      if (!alive.current) return;
+                      if (!current()) return;
                       setSpreadPhoto(dataUrl);
                       setSpreadPhotoName(file.name);
                       setMessage(null);
                     })
                     .catch((error) => {
-                      if (!alive.current) return;
+                      if (!current()) return;
                       setSpreadPhoto(null);
                       setSpreadPhotoName(null);
                       if (spreadInputRef.current) spreadInputRef.current.value = '';
@@ -821,22 +843,26 @@ export function ReadingWorkspace({
                             ? error.message
                             : 'Could not load the spread photo.',
                       });
+                    })
+                    .finally(() => {
+                      if (!current()) return;
+                      photoPreparing.current = false;
+                      setPreparingPhoto(false);
                     });
                 }}
               />
-              {spreadPhoto && (
+              {(spreadPhoto || preparingPhoto) && (
                 <div className="spread-photo-preview" data-testid="spread-photo-preview">
-                  <img src={spreadPhoto} alt="Uploaded tarot spread preview" />
+                  {spreadPhoto && <img src={spreadPhoto} alt="Uploaded tarot spread preview" />}
                   <div className="spread-photo-meta">
                     <p>{spreadPhotoName ?? 'Spread photo attached'}</p>
+                    {preparingPhoto && <p role="status">Preparing photo…</p>}
                     <button
                       type="button"
                       className="secondary"
                       disabled={busy}
                       onClick={() => {
-                        setSpreadPhoto(null);
-                        setSpreadPhotoName(null);
-                        if (spreadInputRef.current) spreadInputRef.current.value = '';
+                        clearPhoto();
                       }}
                     >
                       Remove photo
@@ -871,7 +897,7 @@ export function ReadingWorkspace({
               {live === null
                 ? 'Refresh to check the reading service before submitting. Your draft stays in memory.'
                 : live
-                  ? 'Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.'
+                  ? `Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.${spreadPhoto || preparingPhoto ? ' Your attached photo is sent to Meta to recognize the cards.' : ''}`
                   : 'Drafts stay in memory until submitted. This build uses a local simulated writer. Use synthetic text only.'}
             </p>
             <div className="new-reading-footer">
@@ -880,6 +906,7 @@ export function ReadingWorkspace({
                 className="large"
                 disabled={
                   busy ||
+                  preparingPhoto ||
                   !english ||
                   !question.trim() ||
                   !user.permission.modelAllowed ||
