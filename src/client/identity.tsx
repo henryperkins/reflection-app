@@ -41,12 +41,15 @@ function plainClick(event: MouseEvent) {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 function environmentNotice(mode: string | null, live: boolean | null) {
-  if (live === null)
-    return 'Reading service status is unavailable. Saved readings remain available.';
+  const unavailable = 'Reading service status is unavailable. Saved readings remain available.';
+  if (mode === 'hosted-synthetic') {
+    const notice =
+      'This hosted preview simulates readings and does not contact an AI provider. Use test accounts and synthetic text only.';
+    return live === null ? `${notice} ${unavailable}` : notice;
+  }
+  if (live === null) return unavailable;
   if (!live)
-    return mode === 'hosted-synthetic'
-      ? 'This hosted preview simulates readings and does not contact an AI provider. Use test accounts only.'
-      : 'This local simulation does not contact an AI provider. Use test accounts and synthetic text only.';
+    return 'This local simulation does not contact an AI provider. Use test accounts and synthetic text only.';
   if (mode === 'live-preview')
     return 'This hosted preview sends new readings to a live AI provider.';
   if (mode === 'production') return 'New readings can be sent to a live AI provider.';

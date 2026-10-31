@@ -93,7 +93,10 @@ for (const lost of [false, true])
     ).toBeVisible();
     await expect(page.getByTestId('accepted-reading')).toHaveCount(0);
     await page.getByRole('button', { name: 'Check deletion status', exact: true }).click();
-    await expect(page.getByText(/Deletion is complete/)).toBeVisible();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Deletion is complete for active storage.' }),
+    ).toBeVisible();
+    await expect(page.getByText(/Backups are kept until/)).toBeVisible();
     await expect(page.getByText(/Downloaded copies are unchanged/)).toBeVisible();
     await expect(page.getByText('Active-store')).toHaveCount(0);
     const pending = page.waitForEvent('download');

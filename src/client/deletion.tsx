@@ -89,8 +89,8 @@ export function DeletionReceiptPanel({
           <span>
             {status?.state === 'complete'
               ? status.backupExpiresBy
-                ? 'Deletion is complete.'
-                : 'Deletion is complete. Downloaded copies are unchanged.'
+                ? 'Deletion is complete for active storage.'
+                : 'Deletion is complete for active storage. Downloaded copies are unchanged.'
               : status
                 ? 'Deletion is pending. Access is blocked while it completes.'
                 : 'Deletion has not been confirmed. Check the receipt status.'}
