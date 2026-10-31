@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, Id } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
-import { Art } from './art.tsx';
 import { Icon } from './icon.tsx';
 
 type Status = z.infer<typeof apiSchemas.RequestStatus>;
@@ -277,7 +276,6 @@ export function RequestProgress(props: {
           : null;
   return (
     <section className="card request-progress" aria-label="Reading request">
-      <Art name="progress-strip" className="progress-art" />
       <div className="progress-content">
         <h2 className="title-section">Reading progress</h2>
         <p

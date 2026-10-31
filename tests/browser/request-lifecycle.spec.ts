@@ -46,6 +46,7 @@ test('lost Start acknowledgement then reload reopens the same request without an
   );
   await page.getByRole('button', { name: 'Start reading', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Reading progress' })).toBeVisible();
+  await expect(page.locator('.request-progress img')).toHaveCount(0);
   await expect(page).toHaveURL(/\/request-intents\/[0-9a-f-]+$/);
   await expect(page.getByRole('status').filter({ hasText: /Connection lost/ })).toBeVisible();
   reconnect = true;

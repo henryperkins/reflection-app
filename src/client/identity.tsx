@@ -20,7 +20,7 @@ function kitText(kit: Kit) {
     {
       format: 'reflection-recovery-kit.v1',
       origin: window.location.origin,
-      instructions: `Visit ${window.location.origin}/recover. Enter the recovery handle and one unused code, then create a replacement passkey. Keep this complete kit somewhere private. It contains no server encryption keys.`,
+      instructions: `Visit ${window.location.origin}/recover. Enter the recovery handle and one unused code, then create a replacement passkey. Keep this complete kit somewhere private.`,
       recoveryHandle: kit.recoveryHandle,
       codes: kit.codes,
     },
@@ -569,11 +569,11 @@ export function IdentityApp() {
                       })
                     }
                   >
-                    Continue to account
+                    Continue
                   </button>
                   <p className="muted">
-                    The kit stays in memory here until you leave. Downloading or copying it is your
-                    choice; it is never saved automatically in this browser.
+                    The kit stays in memory here until you leave and is never saved automatically in
+                    this browser.
                   </p>
                 </section>
               ) : grant ? (

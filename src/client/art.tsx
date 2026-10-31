@@ -4,7 +4,6 @@ import art2 from './design/art/study-perspective.jpg';
 import art3 from './design/art/study-stillness.jpg';
 import art4 from './design/art/study-possibility.jpg';
 import art5 from './design/art/study-tension.jpg';
-import art10 from './design/art/progress-strip.png';
 import art11 from './design/art/leaves.png';
 import manifest from './design/art/optimized/manifest.json';
 
@@ -34,7 +33,6 @@ const art = {
   'study-stillness': plate(art3, 488, 450),
   'study-possibility': plate(art4, 488, 434),
   'study-tension': plate(art5, 487, 434),
-  'progress-strip': plate(art10, 1009, 52),
   leaves: plate(art11, 374, 188),
   'spread-ribbon': responsive('spread-ribbon', '(max-width: 1080px) 44vw, 480px'),
   'account-sprig': responsive('account-sprig', '(max-width: 760px) 72px, 280px'),
@@ -90,18 +88,4 @@ export function Art({
   ) : (
     img
   );
-}
-
-const studies = [
-  'study-return',
-  'study-inquiry',
-  'study-perspective',
-  'study-stillness',
-  'study-possibility',
-  'study-tension',
-] as const;
-export function historyArt(id: string): ArtName {
-  let hash = 0;
-  for (const character of id) hash = (Math.imul(hash, 31) + character.charCodeAt(0)) >>> 0;
-  return studies[hash % studies.length]!;
 }

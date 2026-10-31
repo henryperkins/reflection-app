@@ -23,7 +23,7 @@ export async function keepKit(page: Page) {
   await page.getByRole('button', { name: 'Download recovery kit' }).click();
   const kit = JSON.parse(await readFile((await (await pending).path())!, 'utf8'));
   await page.getByLabel('I have saved the complete kit with the handle and codes.').check();
-  await page.getByRole('button', { name: 'Continue to account' }).click();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Your readings' })).toBeVisible();
   return kit;
 }

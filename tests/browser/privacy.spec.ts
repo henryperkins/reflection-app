@@ -88,6 +88,7 @@ for (const lost of [false, true])
     await expect(
       page.getByRole('heading', { name: 'Deletion receipt', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('.receipt-card img')).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: 'Sign in with a passkey', exact: true }),
     ).toBeVisible();

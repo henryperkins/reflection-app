@@ -26,7 +26,7 @@ import { deletionIntent, DeletionReceiptPanel, type DeletionProof } from './dele
 import { date } from './date.ts';
 import { Notice, type NoticeMessage } from './notice.tsx';
 import { cardName } from './card-names.ts';
-import { Art, historyArt } from './art.tsx';
+import { Art } from './art.tsx';
 import { Icon } from './icon.tsx';
 import { CardFace, CardThumbnail } from './card-face.tsx';
 
@@ -724,10 +724,7 @@ export function ReadingWorkspace({
           <h2 ref={historyHeading} tabIndex={-1} className="title-section">
             Saved readings
           </h2>
-          <p className="muted">
-            Return to the original reading, cards and sources. Opening one does not start a new
-            reading.
-          </p>
+          <p className="muted">Opening one does not start a new reading.</p>
           {history.items.length === 0 ? (
             <div className="empty-history">
               <Art name="study-possibility" className="empty-history-art" />
@@ -737,7 +734,6 @@ export function ReadingWorkspace({
             <ol className="reading-history">
               {history.items.map((item) => (
                 <li key={item.id}>
-                  <Art name={historyArt(item.id)} className="history-art" loading="lazy" />
                   <div className="history-copy">
                     <time dateTime={item.createdAt}>{date(item.createdAt)}</time>
                     <button
@@ -1056,7 +1052,7 @@ export function ReadingWorkspace({
                   className="spread-photo-image"
                 />
                 <figcaption id="reading-spread-caption" className="muted">
-                  Uploaded spread photo · Recognized 3-card spread (situation, tension, possibility)
+                  Uploaded spread photo · Recognized 3-card spread
                 </figcaption>
               </figure>
             )}
