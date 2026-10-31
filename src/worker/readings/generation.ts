@@ -23,12 +23,14 @@ import {
   AnyPreparedPlan,
   TarotBasis,
   ProviderReceipt,
+  type SpreadRecognizer,
   type WriterOutcome,
   type WritingProvider,
   type ErrorCode,
 } from '../../contracts/index.ts';
 import { inputAdmission, boundedCandidateJson } from '../../domain/tarot/safety.ts';
-import { drawTarot } from '../../domain/tarot/draw.ts';
+import { basisFromSpread, drawTarot } from '../../domain/tarot/draw.ts';
+import { DeterministicSpreadRecognizer } from '../provider/meta-vision.ts';
 import { currentGuard } from '../db/statements.ts';
 import { renderFacts } from '../../domain/tarot/facts.ts';
 import { assertion, onlineGuard } from '../identity/checkpoint.ts';
@@ -45,7 +47,11 @@ import {
 } from './writer-versions.ts';
 import { RequestState, requestEvent } from './request-state.ts';
 
-type DependencyBase = { content: ContentRepository; ensureReady: () => Promise<void> };
+type DependencyBase = {
+  content: ContentRepository;
+  ensureReady: () => Promise<void>;
+  spreadRecognizer?: SpreadRecognizer;
+};
 /** Trusted runtime dependencies, never request fields. No implicit writer or content bootstrap. */
 export type GenerationDependencies = DependencyBase &
   (
@@ -208,13 +214,45 @@ export class ReadingGeneration extends RequestState {
     const requestId = crypto.randomUUID(),
       sessionId = crypto.randomUUID(),
       basisId = crypto.randomUUID();
-    const basis = await drawTarot({
-      deck: content.deck.map((c) => c.id),
-      deckEdition: content.deckEdition,
-      basisId,
-      drawnAt: iso(Date.now()),
-      reversals: input.reversals,
-    });
+    let basis: TarotBasis;
+    if (input.spreadPhoto) {
+      const recognizer =
+        this.dependencies.spreadRecognizer ??
+        (this.synthetic || this.development ? new DeterministicSpreadRecognizer() : null);
+      if (!recognizer) throw new RecordError(503, 'PROVIDER_UNAVAILABLE');
+      try {
+        const recognized = await recognizer.recognize({
+          spreadPhoto: input.spreadPhoto,
+          deck: content.deck.map((c) => ({ id: c.id, name: c.name })),
+        });
+        basis = await basisFromSpread({
+          deck: content.deck.map((c) => c.id),
+          deckEdition: content.deckEdition,
+          basisId,
+          drawnAt: iso(Date.now()),
+          reversals: input.reversals,
+          spreadPhoto: input.spreadPhoto,
+          recognized,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith('PROVIDER_REFUSAL'))
+          throw new RecordError(422, 'PROVIDER_REFUSAL');
+        if (
+          error instanceof Error &&
+          (error.message.startsWith('INVALID_CANDIDATE') || error.message.startsWith('BAD_INPUT'))
+        )
+          throw new RecordError(422, 'BAD_INPUT');
+        throw new RecordError(503, 'PROVIDER_UNAVAILABLE');
+      }
+    } else {
+      basis = await drawTarot({
+        deck: content.deck.map((c) => c.id),
+        deckEdition: content.deckEdition,
+        basisId,
+        drawnAt: iso(Date.now()),
+        reversals: input.reversals,
+      });
+    }
     const plan = await buildWriterPlan(
       {
         requestId,
@@ -230,6 +268,7 @@ export class ReadingGeneration extends RequestState {
         promptHash: policyHash,
         validatorHash: policyHash,
         generationPolicyHash: policyHash,
+        ...(input.spreadPhoto ? { spreadPhoto: input.spreadPhoto } : {}),
       },
       this.dependencies.policy,
       this.synthetic || this.development,
@@ -648,6 +687,7 @@ export class ReadingGeneration extends RequestState {
             promptHash: h.policy_hash,
             validatorHash: h.policy_hash,
             generationPolicyHash: h.policy_hash,
+            ...(input.spreadPhoto ? { spreadPhoto: input.spreadPhoto } : {}),
           },
           this.dependencies.policy,
           this.synthetic || this.development,
@@ -999,6 +1039,7 @@ export class ReadingGeneration extends RequestState {
       parentEditionId: null,
       question: plan.question,
       basis: plan.basis,
+      ...(plan.spreadPhoto ? { spreadPhoto: plan.spreadPhoto } : {}),
       mode: template ? 'template' : 'model',
       contentHash: plan.contentHash,
       planHash: h.plan_hmac,

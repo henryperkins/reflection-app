@@ -656,3 +656,39 @@ for (const mode of ['model', 'template'] as const) {
     ).toHaveCount(0);
   });
 }
+
+test('uploading an offline spread photo recognizes the 3 cards in one step and saves the photo with the reading', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.188');
+  await page.getByRole('button', { name: 'Enable AI readings', exact: true }).click();
+  await page.getByRole('button', { name: 'New reading', exact: true }).click();
+  await page.getByLabel('Your question').fill('What does my offline dealt spread suggest?');
+  await page.getByLabel('Use English for this reading').check();
+  const pngBytes = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGP4z8DwHwAFAAH/iZk9HQAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page.getByLabel('Offline spread photo (optional)').setInputFiles({
+    name: 'dealt-spread.png',
+    mimeType: 'image/png',
+    buffer: pngBytes,
+  });
+  await expect(page.getByTestId('spread-photo-preview')).toBeVisible();
+  await expect(page.getByText('dealt-spread.png', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+  const accepted = page.getByTestId('accepted-reading');
+  await expect(accepted).toBeVisible();
+  const photoCard = accepted.getByTestId('spread-photo-card');
+  await expect(photoCard).toBeVisible();
+  await expect(photoCard.locator('img')).toHaveAttribute(
+    'src',
+    /^data:image\/png;base64,iVBORw0KGgo/,
+  );
+  await page.getByRole('button', { name: 'Save reading', exact: true }).click();
+  await expect(page.getByText('Saved until you delete it.', { exact: true })).toBeVisible();
+  const saved = await savedSnapshot(page);
+  if (saved.reading.kind !== 'tarot.accepted.v1' && saved.reading.kind !== 'tarot.accepted.v2')
+    throw new Error('Expected accepted tarot reading');
+  expect(saved.reading.spreadPhoto).toMatch(/^data:image\/png;base64,iVBORw0KGgo/);
+});

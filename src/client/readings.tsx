@@ -1,6 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
-import { apiSchemas, type AnyAcceptedReading, type Reflection } from '../contracts/index.ts';
+import {
+  apiSchemas,
+  SpreadPhoto,
+  type AnyAcceptedReading,
+  type Reflection,
+} from '../contracts/index.ts';
 import { READING_PRODUCT_COPY } from '../contracts/product-copy.ts';
 import { api, ApiFailure } from './api.ts';
 import { signIn } from './passkeys.ts';
@@ -36,6 +41,39 @@ function download(name: string, chunks: BlobPart[], type: string) {
   anchor.download = name;
   anchor.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+async function prepareSpreadPhoto(file: File): Promise<string> {
+  if (file.size > 10 * 1024 * 1024)
+    throw new Error('Spread photo is too large. Choose an image under 10 MB.');
+  const raw = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('Could not read the selected image.'));
+    reader.onerror = () => reject(new Error('Could not read the selected image.'));
+    reader.readAsDataURL(file);
+  });
+  if (raw.length <= 150_000 && SpreadPhoto.safeParse(raw).success) return raw;
+  const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+    const element = new Image();
+    element.onload = () => resolve(element);
+    element.onerror = () => reject(new Error('Could not decode the selected image.'));
+    element.src = raw;
+  });
+  const maxDimension = 960;
+  const scale = Math.min(1, maxDimension / Math.max(img.width || 1, img.height || 1));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round((img.width || 1) * scale));
+  canvas.height = Math.max(1, Math.round((img.height || 1) * scale));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error('Could not prepare the selected image.');
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+  for (const quality of [0.8, 0.65, 0.5]) {
+    const compressed = canvas.toDataURL('image/jpeg', quality);
+    if (SpreadPhoto.safeParse(compressed).success) return compressed;
+  }
+  throw new Error('Spread photo is too large after compression. Try a smaller image.');
 }
 /** Mounted only for a verified account. All private state and unfinished actions die on unmount. */
 export function ReadingWorkspace({
@@ -83,7 +121,10 @@ export function ReadingWorkspace({
     [stance, setStance] = useState<Thought['stance']>('unspecified');
   const [question, setQuestion] = useState(''),
     [english, setEnglish] = useState(false),
-    [reversals, setReversals] = useState(false);
+    [reversals, setReversals] = useState(false),
+    [spreadPhoto, setSpreadPhoto] = useState<string | null>(null),
+    [spreadPhotoName, setSpreadPhotoName] = useState<string | null>(null),
+    spreadInputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false),
     [message, setMessage] = useState<NoticeMessage | null>(null),
     [conflict, setConflict] = useState(false);
@@ -691,6 +732,8 @@ export function ReadingWorkspace({
               if (current()) {
                 intents.current.delete('start');
                 setQuestion('');
+                setSpreadPhoto(null);
+                setSpreadPhotoName(null);
                 await refreshUser(current);
               }
             })
@@ -710,6 +753,7 @@ export function ReadingWorkspace({
               permissionRevision: currentUser.current.permission.revision,
               parentEditionId: null,
               selection: [],
+              ...(spreadPhoto ? { spreadPhoto } : {}),
             };
             const intent = actionKey('start', values);
             const target = { kind: 'intent' as const, id: intent.intent };
@@ -742,6 +786,65 @@ export function ReadingWorkspace({
               onChange={(event) => setQuestion(event.target.value)}
               disabled={busy}
             />
+            <div className="spread-upload-field">
+              <label htmlFor="reading-spread-photo">Offline spread photo (optional)</label>
+              <p id="reading-spread-photo-help" className="muted">
+                Dealt a 3-card spread yourself? Upload a photo (situation, tension, possibility from
+                left to right) to recognize your cards and orientations instead of drawing new ones.
+              </p>
+              <input
+                ref={spreadInputRef}
+                id="reading-spread-photo"
+                aria-describedby="reading-spread-photo-help"
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                disabled={busy}
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  void prepareSpreadPhoto(file)
+                    .then((dataUrl) => {
+                      if (!alive.current) return;
+                      setSpreadPhoto(dataUrl);
+                      setSpreadPhotoName(file.name);
+                      setMessage(null);
+                    })
+                    .catch((error) => {
+                      if (!alive.current) return;
+                      setSpreadPhoto(null);
+                      setSpreadPhotoName(null);
+                      if (spreadInputRef.current) spreadInputRef.current.value = '';
+                      setMessage({
+                        tone: 'error',
+                        text:
+                          error instanceof Error
+                            ? error.message
+                            : 'Could not load the spread photo.',
+                      });
+                    });
+                }}
+              />
+              {spreadPhoto && (
+                <div className="spread-photo-preview" data-testid="spread-photo-preview">
+                  <img src={spreadPhoto} alt="Uploaded tarot spread preview" />
+                  <div className="spread-photo-meta">
+                    <p>{spreadPhotoName ?? 'Spread photo attached'}</p>
+                    <button
+                      type="button"
+                      className="secondary"
+                      disabled={busy}
+                      onClick={() => {
+                        setSpreadPhoto(null);
+                        setSpreadPhotoName(null);
+                        if (spreadInputRef.current) spreadInputRef.current.value = '';
+                      }}
+                    >
+                      Remove photo
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
             <label className="check">
               <input
                 type="checkbox"
@@ -810,6 +913,18 @@ export function ReadingWorkspace({
               </div>
               <Art name="study-inquiry" className="question-art" />
             </div>
+            {reading.spreadPhoto && (
+              <figure className="card spread-photo-card" data-testid="spread-photo-card">
+                <img
+                  src={reading.spreadPhoto}
+                  alt="Uploaded tarot spread for this reading"
+                  className="spread-photo-image"
+                />
+                <figcaption className="muted">
+                  Uploaded spread photo · Recognized 3-card spread (situation, tension, possibility)
+                </figcaption>
+              </figure>
+            )}
             {reading.units.map((unit, index) => {
               const card = reading.basis.cards.find((item) => item.position === unit.position);
               const name =

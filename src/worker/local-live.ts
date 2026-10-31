@@ -8,6 +8,7 @@ import {
 import { providerPolicyHash } from '../domain/provider-policy.ts';
 import { canonicalJson } from '../domain/json.ts';
 import { OpenAIResponsesTransport } from './provider/transport.ts';
+import { MetaSpreadRecognizer } from './provider/meta-vision.ts';
 import { onlineGuard } from './identity/checkpoint.ts';
 import { DB_NOW } from './db/core.ts';
 import type { RecordBase } from './readings/base.ts';
@@ -16,6 +17,7 @@ import type { GenerationDependencies } from './readings/generation.ts';
 export interface LocalLiveEnv extends Env {
   OPENAI_API_KEY?: string;
   OPENAI_PROJECT_ID?: string;
+  MODEL_API_KEY?: string;
 }
 
 type DevelopmentMode = 'live-local' | 'live-preview';
@@ -107,6 +109,14 @@ function dependencies(
     content: new DevelopmentContent(base.db),
     authorization: { kind: mode },
     ensureReady,
+    ...(env.MODEL_API_KEY?.trim()
+      ? {
+          spreadRecognizer: new MetaSpreadRecognizer({
+            apiKey: env.MODEL_API_KEY,
+            fetch: fetcher,
+          }),
+        }
+      : {}),
     writer: {
       async write(input) {
         await ensureReady();
