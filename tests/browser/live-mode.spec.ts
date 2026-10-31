@@ -38,9 +38,12 @@ for (const mode of ['live-local', 'live-preview', 'production'] as const) {
     );
     await authenticator(page);
     await page.goto('/');
-    await expect(
-      page.getByText('Live AI readings are enabled for this development app.'),
-    ).toBeVisible();
+    const environment = {
+      'live-local': 'This development app sends new readings to a live AI provider.',
+      'live-preview': 'This hosted preview sends new readings to a live AI provider.',
+      production: 'New readings can be sent to a live AI provider.',
+    }[mode];
+    await expect(page.getByText(environment, { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Create an account', exact: true }).click();
     await keepKit(page);
     await openAccount(page);
@@ -69,7 +72,7 @@ for (const mode of ['live-local', 'live-preview', 'production'] as const) {
     ).toHaveAccessibleDescription(
       /sends your attached photo to Meta.*zero retention is not guaranteed/,
     );
-    await page.getByLabel('Offline spread photo (optional)').setInputFiles({
+    await page.getByLabel('Photo of your spread (optional)').setInputFiles({
       name: 'spread.png',
       mimeType: 'image/png',
       buffer: Buffer.from(
@@ -79,7 +82,8 @@ for (const mode of ['live-local', 'live-preview', 'production'] as const) {
     });
     await expect(
       page.getByText(/Your attached photo is sent to Meta to recognize the cards/),
-    ).toBeVisible();
+    ).toHaveCount(0);
+    await expect(preflight.getByText(/sends your attached photo to Meta/)).toHaveCount(1);
   });
 }
 
@@ -89,8 +93,12 @@ test('explicit hosted synthetic readiness retains simulation disclosure', async 
   );
   await page.goto('/');
   await expect(
-    page.getByText(/This local build simulates readings and never contacts an AI provider/),
+    page.getByText(
+      'This hosted preview simulates readings and does not contact an AI provider. Use test accounts only.',
+      { exact: true },
+    ),
   ).toBeVisible();
+  await expect(page.getByText(/local build|local simulation/)).toHaveCount(0);
   await expect(
     page.getByRole('button', { name: 'Create a test account', exact: true }),
   ).toBeVisible();

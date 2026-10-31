@@ -36,11 +36,27 @@ type History = z.infer<typeof apiSchemas.HistoryPage>;
 type Thought = z.infer<typeof Reflection>;
 type Current = () => boolean;
 const stanceLabels: Record<Thought['stance'], string> = {
-  unspecified: 'No stance selected',
+  unspecified: 'Not selected',
   resonates: 'Resonates',
   unsure: 'Unsure',
   disagree: 'Disagree',
 };
+function photoProcessingNotice(live: boolean | null, mode: string | null) {
+  if (live === null)
+    return 'Refresh to check the reading service and photo processing before submitting. Your draft stays in memory.';
+  if (live) return SPREAD_PHOTO_COPY.spreadPhotoProcessing;
+  return mode === 'hosted-synthetic'
+    ? 'This preview does not recognize real cards. Use a synthetic image only.'
+    : 'This simulation does not recognize real cards. Use a synthetic image only.';
+}
+function submissionNotice(live: boolean | null, mode: string | null) {
+  if (live === null) return null;
+  if (live)
+    return 'Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.';
+  return mode === 'hosted-synthetic'
+    ? 'Drafts stay in memory until submitted. This preview simulates the reading and does not contact an AI provider.'
+    : 'Drafts stay in memory until submitted. This simulation does not contact an AI provider. Use synthetic text only.';
+}
 async function prepareSpreadPhoto(file: File): Promise<string> {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
     throw new Error('Choose a JPEG, PNG, or WebP photo of your spread.');
@@ -92,6 +108,7 @@ export function ReadingWorkspace({
   resume,
   user,
   live = false,
+  runtimeMode = null,
   onSession,
   onExpired,
   onAccount,
@@ -100,6 +117,7 @@ export function ReadingWorkspace({
   resume: WorkspaceResume | null;
   user: View;
   live?: boolean | null;
+  runtimeMode?: string | null;
   onSession: (value: View) => void;
   onExpired: () => void;
   onAccount: (event: MouseEvent<HTMLAnchorElement>) => void;
@@ -303,7 +321,7 @@ export function ReadingWorkspace({
     ]);
     if (!current()) return;
     if (content.kind !== 'tarot.accepted.v1' && content.kind !== 'tarot.accepted.v2')
-      throw new Error('This reading format is not available in the local build.');
+      throw new Error('This reading format cannot be opened here.');
     setRecord(session);
     setReading(content);
     setMode('reading');
@@ -628,8 +646,16 @@ export function ReadingWorkspace({
           });
       });
   };
+  const photoNotice = photoProcessingNotice(live, runtimeMode);
+  const submitNotice = submissionNotice(live, runtimeMode);
   return (
     <section className="reading-workspace" aria-label="Your readings" aria-busy={busy}>
+      {live === null && mode !== 'new' && (
+        <p className="notice">
+          <Icon name="info" />
+          <span>Reading service status is unavailable. Saved readings remain available.</span>
+        </p>
+      )}
       {!user.permission.modelAllowed && (
         <p className="notice">
           <Icon name="info" />
@@ -696,8 +722,8 @@ export function ReadingWorkspace({
             Saved readings
           </h2>
           <p className="muted">
-            Return to the original reading, cards and sources. Reopening uses no new generation or
-            allowance.
+            Return to the original reading, cards and sources. Opening one does not start a new
+            reading.
           </p>
           {history.items.length === 0 ? (
             <div className="empty-history">
@@ -834,7 +860,7 @@ export function ReadingWorkspace({
                 disabled={busy}
               />
               <div className="spread-upload-field">
-                <label htmlFor="reading-spread-photo">Offline spread photo (optional)</label>
+                <label htmlFor="reading-spread-photo">Photo of your spread (optional)</label>
                 <p id="reading-spread-photo-help" className="muted">
                   Situation, tension, possibility — from left to right. Use a photo of three cards
                   you have already drawn to recognize your cards and orientations instead of drawing
@@ -905,7 +931,7 @@ export function ReadingWorkspace({
                   ) : (
                     <div className="spread-photo-empty">
                       <Art name="three-card-spread" className="spread-intro-art" />
-                      <p>Bring your own spread</p>
+                      <p>Illustration only</p>
                     </div>
                   )}
                   <div className="spread-photo-meta">
@@ -965,20 +991,8 @@ export function ReadingWorkspace({
             </div>
             <aside className="reading-preflight" aria-labelledby="reading-preflight-title">
               <h3 id="reading-preflight-title">Before you start</h3>
-              <p id="reading-photo-processing">
-                {live === null
-                  ? 'Refresh to check photo processing before submitting.'
-                  : live
-                    ? SPREAD_PHOTO_COPY.spreadPhotoProcessing
-                    : 'This local simulation does not recognize real cards. Use a synthetic image only.'}
-              </p>
-              <p>
-                {live === null
-                  ? 'Refresh to check the reading service before submitting. Your draft stays in memory.'
-                  : live
-                    ? `Drafts stay in memory until submitted. Starting a reading sends this question to OpenAI.${spreadPhoto || preparingPhoto ? ' Your attached photo is sent to Meta to recognize the cards.' : ''}`
-                    : 'Drafts stay in memory until submitted. This build uses a local simulated writer. Use synthetic text only.'}
-              </p>
+              <p id="reading-photo-processing">{photoNotice}</p>
+              {submitNotice && <p>{submitNotice}</p>}
               <p>{READING_PRODUCT_COPY.startProcessing}</p>
               <div className="new-reading-footer">
                 <button
@@ -997,7 +1011,7 @@ export function ReadingWorkspace({
                   <Icon name="chevron" />
                 </button>
                 <p className="muted">
-                  Local allowance: {user.remainingDay} today · {user.remainingMonth} this month.
+                  Readings left: {user.remainingDay} today · {user.remainingMonth} this month.
                 </p>
               </div>
             </aside>
@@ -1015,7 +1029,9 @@ export function ReadingWorkspace({
                 <p className="test-notice">
                   {reading.provenance.provider === 'openai'
                     ? 'AI reading'
-                    : 'Local simulated reading'}
+                    : runtimeMode === 'hosted-synthetic'
+                      ? 'Simulated reading'
+                      : 'Local simulated reading'}
                   {reading.mode === 'template' ? ' · Prepared reflection template' : ''}
                 </p>
                 <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
@@ -1106,8 +1122,8 @@ export function ReadingWorkspace({
               <summary>Cards and sources</summary>
               <h3>Traditional source material</h3>
               <p className="muted">
-                These source snapshots are separate from the generated interpretation and your own
-                reflection. This local build uses unapproved development source material.
+                These sources are saved with the reading. They are separate from the interpretation
+                and your own reflection. These meanings are unapproved development material.
               </p>
               {reading.basis.cards.map((card, index) => {
                 const name =
@@ -1159,8 +1175,10 @@ export function ReadingWorkspace({
                   ? 'Prepared reflection template.'
                   : reading.provenance.provider === 'openai'
                     ? 'Generated by OpenAI.'
-                    : 'Generated by the local simulation.'}{' '}
-                Original accepted text and source snapshot are preserved.
+                    : runtimeMode === 'hosted-synthetic'
+                      ? 'Generated by the hosted simulation.'
+                      : 'Generated by the local simulation.'}{' '}
+                This saved text is not rewritten when you return.
               </p>
             </details>
           </article>
@@ -1209,7 +1227,7 @@ export function ReadingWorkspace({
                   {latestReflection ? ` (revision ${latestReflection.revision})` : ''}:
                 </p>
                 <blockquote>{latestReflection?.text ?? 'No saved reflection.'}</blockquote>
-                <p>Saved stance: {stanceLabels[latestReflection?.stance ?? 'unspecified']}</p>
+                <p>Saved response: {stanceLabels[latestReflection?.stance ?? 'unspecified']}</p>
                 <div className="actions">
                   <button
                     type="button"
@@ -1371,7 +1389,7 @@ export function ReadingWorkspace({
               <div className="notice delete-confirmation">
                 <p>
                   This deletes the reading and its reflections. Downloaded files cannot be removed.
-                  Retained backups follow the separate erasure window.
+                  Backups are deleted on their own schedule.
                 </p>
                 <label className="check">
                   <input

@@ -81,9 +81,7 @@ export function createWorker(factory?: GenerationFactory, runtime?: ApplicationR
     await next();
   });
   app.all('/api/*', (c) => c.json({ error: 'Private application routes are not enabled.' }, 503));
-  app.get('*', (c) =>
-    c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.text('Reflection local foundation'),
-  );
+  app.get('*', (c) => (c.env.ASSETS ? c.env.ASSETS.fetch(c.req.raw) : c.text('Reflection')));
 
   return {
     fetch: app.fetch,

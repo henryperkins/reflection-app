@@ -14,9 +14,7 @@ test('keyboard photo attachment and removal announce their outcomes without subm
   await enableAi(page);
   await page.getByRole('button', { name: 'New reading', exact: true }).click();
   const choose = page.getByRole('button', { name: 'Choose photo', exact: true });
-  await expect(choose).toHaveAccessibleDescription(
-    /local simulation does not recognize real cards/,
-  );
+  await expect(choose).toHaveAccessibleDescription(/does not recognize real cards/);
   let starts = 0;
   page.on('request', (request) => {
     if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/v1/requests')

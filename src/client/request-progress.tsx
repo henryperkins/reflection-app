@@ -36,9 +36,9 @@ function description(status: Status | null) {
     return 'AI permission was turned off. This request stopped; your saved readings remain available.';
   if (status.errorCode === 'PROVIDER_REFUSAL') return READING_PRODUCT_COPY.providerRefusal;
   if (status.errorCode === 'PROVIDER_UNCERTAIN')
-    return 'The writer did not confirm a result. This can happen after a timeout or lost connection. This request will not be sent again automatically.';
+    return 'The reading service did not confirm a result. This can happen after a timeout or lost connection. This request will not be sent again automatically.';
   if (status.errorCode === 'PROVIDER_UNAVAILABLE')
-    return 'The writer is unavailable. No reading was created and no reading allowance was used.';
+    return 'The reading service is unavailable. No reading was created and no reading allowance was used.';
   if (status.state === 'failed' || status.state === 'blocked')
     return 'This request could not produce a reading. Your saved readings remain available.';
   if (status.state === 'dispatching') return 'Writing your reading…';
@@ -301,7 +301,7 @@ export function RequestProgress(props: {
           )}
           {canRetry && (
             <button type="button" onClick={() => actions.current.retry()}>
-              Retry the same Start
+              Retry this request
             </button>
           )}
           {notice && (

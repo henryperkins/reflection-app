@@ -40,21 +40,35 @@ function downloadFile(name: string, chunks: BlobPart[], type: string) {
 function plainClick(event: MouseEvent) {
   return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
+function environmentNotice(mode: string | null, live: boolean | null) {
+  if (live === null)
+    return 'Reading service status is unavailable. Saved readings remain available.';
+  if (!live)
+    return mode === 'hosted-synthetic'
+      ? 'This hosted preview simulates readings and does not contact an AI provider. Use test accounts only.'
+      : 'This local simulation does not contact an AI provider. Use test accounts and synthetic text only.';
+  if (mode === 'live-preview')
+    return 'This hosted preview sends new readings to a live AI provider.';
+  if (mode === 'production') return 'New readings can be sent to a live AI provider.';
+  return 'This development app sends new readings to a live AI provider.';
+}
 export function IdentityApp() {
   const [live, setLive] = useState<boolean | null>(null);
+  const [runtimeMode, setRuntimeMode] = useState<string | null>(null);
   useEffect(() => {
     void fetch('/health', { cache: 'no-store' })
       .then((response) => response.json())
       .then((runtime) => {
         if (typeof runtime === 'object' && runtime !== null && 'mode' in runtime) {
+          const mode = String(runtime.mode);
           const ready = 'generationReady' in runtime && runtime.generationReady === true;
-          if (runtime.mode === 'live-local' || runtime.mode === 'live-preview') setLive(true);
-          if (runtime.mode === 'synthetic-only') setLive(false);
-          if (ready && ['synthetic-local', 'hosted-synthetic'].includes(String(runtime.mode)))
-            setLive(false);
+          setRuntimeMode(mode);
+          if (mode === 'live-local' || mode === 'live-preview') setLive(true);
+          if (mode === 'synthetic-only') setLive(false);
+          if (ready && ['synthetic-local', 'hosted-synthetic'].includes(mode)) setLive(false);
           if (
             ready &&
-            runtime.mode === 'production' &&
+            mode === 'production' &&
             'provider' in runtime &&
             runtime.provider === 'openai'
           )
@@ -364,7 +378,7 @@ export function IdentityApp() {
           bytes += chunk.length;
           if (bytes > 32 * 1024 * 1024)
             throw new Error(
-              'This export is too large for the local build. No partial file was downloaded.',
+              'This export is too large to download here. No partial file was downloaded.',
             );
           chunks.push(chunk);
           cursor = page.nextCursor;
@@ -404,9 +418,8 @@ export function IdentityApp() {
             </span>
             Reflection
           </a>
-          <div className="header-tools">
-            <span className="test-label">Development build</span>
-            {session && !kit && !grant && (
+          {session && !kit && !grant && (
+            <div className="header-tools">
               <a
                 className="header-link"
                 href="/account"
@@ -415,8 +428,8 @@ export function IdentityApp() {
               >
                 Account
               </a>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </header>
       <main
@@ -448,26 +461,16 @@ export function IdentityApp() {
             )}
             <div className="page-title">
               <div className="title-copy">
-                <p className="eyebrow">A private space for reflection</p>
                 <h1 ref={heading} tabIndex={-1}>
                   {title}
                 </h1>
-                <p className="test-notice">
-                  {live === null
-                    ? 'Reading service status is unavailable. Saved readings remain available.'
-                    : live
-                      ? 'Live AI readings are enabled for this development app.'
-                      : 'Use synthetic text and test accounts only. This local build simulates readings and never contacts an AI provider.'}
-                </p>
+                {(!session || kit || grant) && (
+                  <p className="test-notice">{environmentNotice(runtimeMode, live)}</p>
+                )}
                 {kit && (
                   <p className="lead">
                     Your kit contains a recovery handle and ten one-time codes. You need the handle
                     and one unused code if your passkeys are unavailable.
-                  </p>
-                )}
-                {accountPage && (
-                  <p className="lead">
-                    You’re signed in. Your passkey and recovery kit protect access to this account.
                   </p>
                 )}
               </div>
@@ -603,11 +606,11 @@ export function IdentityApp() {
                       setGrant(null);
                       setMessage({
                         tone: 'notice',
-                        text: 'Recovery enrollment cancelled. That code has been used; use a remaining code or an existing passkey.',
+                        text: 'Recovery cancelled. That code has been used; use a remaining code or an existing passkey.',
                       });
                     }}
                   >
-                    Cancel enrollment
+                    Cancel recovery
                   </button>
                 </section>
               ) : session && accountPage ? (
@@ -903,6 +906,7 @@ export function IdentityApp() {
                     ref={workspace}
                     resume={readingResume}
                     live={live}
+                    runtimeMode={runtimeMode}
                     key={session.subjectId}
                     user={session}
                     onSession={setSession}
@@ -1021,11 +1025,6 @@ export function IdentityApp() {
           )}
         </div>
       </main>
-      <footer className="site-footer">
-        <p className="shell-width">
-          No email or password is collected. Keep recovery files off shared devices.
-        </p>
-      </footer>
     </div>
   );
 }

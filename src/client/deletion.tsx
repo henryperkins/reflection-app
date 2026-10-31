@@ -88,7 +88,9 @@ export function DeletionReceiptPanel({
           <Icon name={status?.state === 'complete' ? 'check' : status ? 'clock' : 'info'} />
           <span>
             {status?.state === 'complete'
-              ? 'Active-store deletion complete.'
+              ? status.backupExpiresBy
+                ? 'Deletion is complete.'
+                : 'Deletion is complete. Downloaded copies are unchanged.'
               : status
                 ? 'Deletion is pending. Access is blocked while it completes.'
                 : 'Deletion has not been confirmed. Check the receipt status.'}
@@ -96,8 +98,7 @@ export function DeletionReceiptPanel({
         </p>
         {status?.backupExpiresBy && (
           <p>
-            Backup retention deadline: {date(status.backupExpiresBy)}. Downloaded copies are
-            unchanged.
+            Backups are kept until {date(status.backupExpiresBy)}. Downloaded copies are unchanged.
           </p>
         )}
         <p className="muted">
