@@ -2,10 +2,10 @@
   "version": 1,
   "status": "passed",
   "scope": "synthetic-local-only",
-  "sourceDigest": "b1b99ca8d9a26c5b44d7c6495eaf6ddf69b2efe83f71ad557170439484624e83",
-  "verifiedSourceTree": "653711f62c1c99f9e62e0b9b6001608f13e36747",
-  "sourceParentCommit": "117db897b1fb00d029e6dacacde24c21389aad04",
-  "publication": "The verified tree precedes the two digest-excluded artifact JSON files. The final commit contains the identical hashed source plus those files. Git commit/tree changes do not alter the source digest.",
+  "sourceDigest": "8ba1087481bce4fc35a1a7c2aec3eab077ca66d9b1ced20656c7a77c297c6ad1",
+  "verifiedSourceTree": "03f375200db224c4bc682e7cf1765b76d9e715a2",
+  "sourceParentCommit": "f260b1c589232f31fc23e743fb178913f5290f47",
+  "publication": "The verified tree retains the previous proof JSONs. The final commit replaces only those two digest-excluded artifact JSONs after verification; hashed source is identical. Git commit/tree changes do not alter the source digest.",
   "environment": {
     "node": "v26.12.1",
     "availableCpuSet": "0-7",
@@ -18,8 +18,8 @@
     "command": "taskset -c 0-3 env -u NO_COLOR npm run verify",
     "exitCode": 0,
     "receipt": "artifacts/dated-revisit-notes/verify.json",
-    "receiptSha256": "39948e70990499fa3b026f57a814871ceed8b5e4b5306087fb109f46f1e5ea43",
-    "durationMs": 502745,
+    "receiptSha256": "62b24aadf58db7eda5bc674d32eb5253ea62053bf6c2c77ec693963d5ef7b594",
+    "durationMs": 524494,
     "stageCount": 14,
     "domain": {
       "passed": 403,
@@ -38,9 +38,9 @@
       "success": true
     },
     "browser": {
-      "startTime": "2026-11-01T06:19:47.539Z",
-      "duration": 409583.524,
-      "expected": 115,
+      "startTime": "2026-11-01T06:52:18.844Z",
+      "duration": 429189.55299999996,
+      "expected": 121,
       "skipped": 0,
       "unexpected": 0,
       "flaky": 0
@@ -50,8 +50,8 @@
     "command": "taskset -c 0-3 env -u NO_COLOR npm run test:journey",
     "exitCode": 0,
     "stats": {
-      "startTime": "2026-11-01T06:26:44.009Z",
-      "duration": 407531.148,
+      "startTime": "2026-11-01T06:59:33.455Z",
+      "duration": 404686.312,
       "expected": 36,
       "skipped": 0,
       "unexpected": 0,
@@ -77,10 +77,10 @@
         "flaky": 0
       }
     },
-    "reportSha256": "bde0cb24a8b171ccdfc2445bf10e9bfd7773df794969558c41066f154f3d7ad3",
+    "reportSha256": "dd34eb76c885d04c36b03e45cbed62467eef0e9b5134bd06879c3d4cd0f56f60",
     "captureCount": 802,
     "captureManifest": "artifacts/dated-revisit-notes/capture-manifest.json",
-    "captureManifestSha256": "d274769159e5eb4b358ca4f8ab7a8a81cb586484d5a87533592aad20f2156fa1",
+    "captureManifestSha256": "0d5f077bbb9f27f4cc6af8c6d8944df54e39a5f6e1767ea1934eb511942fe63f",
     "visualInspection": "Sampled representative final mobile/desktop, light/dark and forced-color/native-zoom captures against the Return, with time reference; automated reflow/focus coverage spans the full matrix."
   },
   "releaseCheck": {
@@ -101,8 +101,32 @@
       "operational monitoring and runbooks",
       "owner decisions"
     ],
-    "applicationDigest": "ad361eeccb1dc48fb3921b380b0fb24bd4bbfb51ca466ccf0646a2f1907f07d9"
+    "applicationDigest": "632bfb46aec7132afe383e6e48a83c33eb4a1342d74b6f32c70735a5ba878590"
   },
+  "previousQualification": {
+    "commit": "f260b1c589232f31fc23e743fb178913f5290f47",
+    "sourceDigest": "b1b99ca8d9a26c5b44d7c6495eaf6ddf69b2efe83f71ad557170439484624e83",
+    "localArchive": "artifacts/dated-revisit-notes/f260b1c-proof",
+    "note": "Prior proof/logs/reports/capture manifest and screenshots are preserved locally; the immutable commit retains its published JSONs."
+  },
+  "finalReviewFix": {
+    "finding": "FR-1",
+    "change": "Only typed CONFLICT enters save/deletion revision reconciliation; other typed errors retain guidance, draft or confirmation and unchanged intent.",
+    "red": {
+      "failed": 6,
+      "log": "artifacts/dated-revisit-notes/fr1-red.log"
+    },
+    "green": {
+      "startTime": "2026-11-01T06:48:21.053Z",
+      "duration": 119762.46800000001,
+      "expected": 30,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "fixtureScope": "Validated HTTP error/page fixtures test client classification; same-intent retries after simulated remediation reach the real synthetic service. Existing D1 tests establish server limits and atomic rollback."
+  },
+  "priorGateAttemptsScope": "Previous f260 qualification; retained as disclosed environment history, not new failures in this final-fix run.",
   "priorGateAttempts": [
     {
       "stage": "format and lint",

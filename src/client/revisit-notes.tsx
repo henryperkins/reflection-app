@@ -288,7 +288,7 @@ export function RevisitNotes({
         if (!current()) return;
         if (error instanceof ApiFailure && error.status === 401) throw error;
         if (base && acceptedDeletions.current.has(base.id)) return;
-        if (error instanceof ApiFailure && error.status === 409) {
+        if (error instanceof ApiFailure && error.status === 409 && error.code === 'CONFLICT') {
           setConflict(true);
           setLatest(null);
           setMessage({
@@ -441,7 +441,7 @@ export function RevisitNotes({
         });
       } catch (error) {
         if (!current()) return;
-        if (error instanceof ApiFailure && error.status === 409) {
+        if (error instanceof ApiFailure && error.status === 409 && error.code === 'CONFLICT') {
           erase.current = null;
           setDeleting(null);
           setChecked(false);

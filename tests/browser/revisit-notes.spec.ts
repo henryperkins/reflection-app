@@ -1059,3 +1059,157 @@ test('review round2: accepted deletion suppresses a delayed saved-note refresh f
   ).toBeVisible();
   await page.unrouteAll({ behavior: 'wait' });
 });
+
+// Valid HTTP error/page fixtures qualify client classification only. Real D1 limit
+// admission/rollback is covered separately by revisit-records.test.ts.
+const admissionMessages = {
+  STORAGE_LIMIT_EXCEEDED:
+    'Your account storage is full. Export your records or delete notes or readings to free space. Reading and deletion remain available.',
+  NOTE_LIMIT_EXCEEDED:
+    'This reading has 100 active notes. Delete a note and all its saved versions before adding another.',
+  REVISION_LIMIT_EXCEEDED:
+    'This note has 100 saved versions. Keep it and add a new note, or delete the whole note and its saved versions.',
+  IDEMPOTENCY_MISMATCH: 'This action identifier was already used for different content.',
+};
+function admissionError(code: keyof typeof admissionMessages) {
+  return apiSchemas.ErrorEnvelope.parse({
+    error: {
+      code,
+      message: admissionMessages[code],
+      correlationId: crypto.randomUUID(),
+      retry: code === 'IDEMPOTENCY_MISMATCH' ? 'refresh_then_retry' : 'never',
+      retryAfterSeconds: null,
+      currentRevision: null,
+    },
+  });
+}
+for (const [index, [mode, code, retryAfterRemediation]] of (
+  [
+    ['new', 'STORAGE_LIMIT_EXCEEDED', true],
+    ['initial-page', 'NOTE_LIMIT_EXCEEDED', true],
+    ['edit', 'STORAGE_LIMIT_EXCEEDED', true],
+    ['edit', 'REVISION_LIMIT_EXCEEDED', false],
+    ['new', 'IDEMPOTENCY_MISMATCH', false],
+  ] as const
+).entries()) {
+  test(`FR-1: ${mode} ${code} keeps actionable guidance and the unchanged draft intent`, async ({
+    page,
+  }) => {
+    const { original } = await savedReading(page, `192.0.2.${211 + index}`);
+    if (mode === 'edit') await add(page, 'Synthetic saved note before admission rejection');
+    let blocked = true;
+    const writes: Array<{ key: string; body: string; revision: string | undefined }> = [];
+    const method = mode === 'edit' ? 'PUT' : 'POST';
+    const at = new Date().toISOString();
+    const initialPage = apiSchemas.RevisitPage.parse({
+      items: Array.from({ length: 20 }, (_, i) => ({
+        kind: 'revisit.v2',
+        id: crypto.randomUUID(),
+        sessionId: original.reading.sessionId,
+        editionId: original.reading.editionId,
+        revision: 1,
+        note: `Synthetic first-page note ${i}`,
+        stance: 'unspecified',
+        createdAt: at,
+        updatedAt: at,
+      })),
+      nextCursor: 'synthetic-next-page',
+    });
+    await page.route('**/api/v1/revisits**', async (route) => {
+      const request = route.request();
+      if (request.method() === 'GET' && mode === 'initial-page' && blocked)
+        return route.fulfill({ json: initialPage });
+      if (request.method() !== method) return route.continue();
+      writes.push({
+        key: request.headers()['idempotency-key']!,
+        body: request.postData()!,
+        revision: request.headers()['if-match'],
+      });
+      if (blocked) return route.fulfill({ status: 409, json: admissionError(code) });
+      return route.continue();
+    });
+    const notes = page.getByRole('region', { name: 'Revisit notes', exact: true });
+    if (mode === 'initial-page') {
+      await page.reload();
+      await expect(notes.getByRole('article')).toHaveCount(20);
+      await expect(
+        notes.getByRole('button', { name: 'Load more notes', exact: true }),
+      ).toBeVisible();
+    }
+    await notes
+      .getByRole('button', {
+        name: mode === 'edit' ? 'Edit note' : 'Add revisit note',
+        exact: true,
+      })
+      .click();
+    const draft = ` Synthetic retained ${mode} ${code} draft 😀\n`;
+    await page.getByLabel('Your revisit note', { exact: true }).fill(draft);
+    await page.getByRole('button', { name: 'Save note', exact: true }).click();
+    await expect(notes.getByRole('alert')).toHaveText(
+      `${admissionMessages[code]} Your draft is still here.`,
+    );
+    await expect(page.getByLabel('Your revisit note', { exact: true })).toHaveValue(draft);
+    await expect(
+      notes.getByRole('button', { name: 'Refresh saved note', exact: true }),
+    ).toHaveCount(0);
+    await expect(notes.getByText(/The saved note changed/)).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Save note', exact: true })).toBeEnabled();
+    expect(writes).toHaveLength(1);
+    if (retryAfterRemediation) {
+      // Simulate capacity/slot remediation at the HTTP boundary, then allow the
+      // deliberate same-intent retry through to the real synthetic service.
+      blocked = false;
+      await page.getByRole('button', { name: 'Save note', exact: true }).click();
+      await expect(notes.getByRole('status').filter({ hasText: 'Note saved.' })).toBeVisible();
+      expect(writes).toHaveLength(2);
+      expect(writes[1]).toEqual(writes[0]);
+      const result = apiSchemas.RevisitPage.parse(
+        await page.request
+          .get(`/api/v1/revisits?editionId=${original.reading.editionId}`)
+          .then((r) => r.json()),
+      );
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0]).toMatchObject({ note: draft, revision: mode === 'edit' ? 2 : 1 });
+    } else {
+      await expect(notes.getByRole('button', { name: 'Cancel', exact: true })).toBeEnabled();
+      await expect(
+        notes.getByRole('button', { name: 'Add revisit note', exact: true }),
+      ).toBeEnabled();
+    }
+  });
+}
+
+test('FR-1: a typed deletion idempotency rejection does not invent a changed note or discard confirmation', async ({
+  page,
+}) => {
+  await savedReading(page, '192.0.2.216');
+  await add(page, 'Synthetic retained note for typed deletion rejection');
+  const keys: string[] = [];
+  let listReads = 0;
+  await page.route('**/api/v1/revisits**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'GET') listReads++;
+    if (request.method() !== 'DELETE') return route.continue();
+    keys.push(request.headers()['idempotency-key']!);
+    return route.fulfill({ status: 409, json: admissionError('IDEMPOTENCY_MISMATCH') });
+  });
+  const notes = page.getByRole('region', { name: 'Revisit notes', exact: true });
+  await notes.getByRole('button', { name: 'Delete note', exact: true }).click();
+  const confirmation = page.getByLabel('Delete this note and all saved versions permanently');
+  await confirmation.check();
+  const before = listReads;
+  await notes.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+  await expect(
+    notes.getByRole('alert').filter({ hasText: admissionMessages.IDEMPOTENCY_MISMATCH }),
+  ).toBeVisible();
+  await expect(confirmation).toBeChecked();
+  await expect(notes.getByText(/The note changed/)).toHaveCount(0);
+  expect(listReads).toBe(before);
+  expect(keys).toHaveLength(1);
+  await notes.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+  await expect.poll(() => keys.length).toBe(2);
+  expect(keys[1]).toBe(keys[0]);
+  await expect(notes.getByRole('article')).toContainText(
+    'Synthetic retained note for typed deletion rejection',
+  );
+});

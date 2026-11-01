@@ -1,35 +1,35 @@
 {
   "version": 1,
   "status": "passed",
-  "sourceDigest": "b1b99ca8d9a26c5b44d7c6495eaf6ddf69b2efe83f71ad557170439484624e83",
+  "sourceDigest": "8ba1087481bce4fc35a1a7c2aec3eab077ca66d9b1ced20656c7a77c297c6ad1",
   "node": "v26.12.1",
-  "finishedAt": "2026-11-01T06:26:37.201Z",
-  "durationMs": 502745,
+  "finishedAt": "2026-11-01T06:59:28.112Z",
+  "durationMs": 524494,
   "deadlineMs": 540000,
   "stages": [
     {
       "name": "format and lint",
-      "durationMs": 411,
+      "durationMs": 419,
       "status": "passed"
     },
     {
       "name": "strict TypeScript",
-      "durationMs": 6089,
+      "durationMs": 6097,
       "status": "passed"
     },
     {
       "name": "generated schema drift",
-      "durationMs": 282,
+      "durationMs": 287,
       "status": "passed"
     },
     {
       "name": "publication guard drift",
-      "durationMs": 70,
+      "durationMs": 63,
       "status": "passed"
     },
     {
       "name": "contract and reference checks",
-      "durationMs": 210,
+      "durationMs": 205,
       "status": "passed"
     },
     {
@@ -39,37 +39,37 @@
     },
     {
       "name": "SQLite constraints",
-      "durationMs": 1188,
+      "durationMs": 1183,
       "status": "passed"
     },
     {
       "name": "OpenAPI",
-      "durationMs": 460,
+      "durationMs": 445,
       "status": "passed"
     },
     {
       "name": "domain and verification behavior",
-      "durationMs": 18568,
+      "durationMs": 18630,
       "status": "passed"
     },
     {
       "name": "workerd D1 batches",
-      "durationMs": 63930,
+      "durationMs": 66013,
       "status": "passed"
     },
     {
       "name": "client production build",
-      "durationMs": 299,
+      "durationMs": 301,
       "status": "passed"
     },
     {
       "name": "Worker dry-run build",
-      "durationMs": 1028,
+      "durationMs": 1035,
       "status": "passed"
     },
     {
       "name": "identity and saved-reading browser journeys",
-      "durationMs": 410014,
+      "durationMs": 429621,
       "status": "passed"
     },
     {
