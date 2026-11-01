@@ -1,6 +1,6 @@
-# Dated revisit notes: proposed implementation contract
+# Dated revisit notes: approved implementation contract
 
-Status: draft for review. No endpoints, tables or screens in this document have been implemented. The user authorized preparing the next increment; the proposed defaults below are engineering recommendations, not previously approved policy. This contract develops the existing [dated revisit notes design](../../design/dated-revisit-notes.md) against application commit `a60a5ec55e2855fffebd0341224c32b7a42d7ba0`.
+Status: approved for implementation on 2026-11-01. The user explicitly instructed: “Approve these defaults and implement”. This approves the separate revisit resource, 2,000-character note limit, optional stance, 100 active notes per edition, 100 revisions per note, retained edit history, saved-parent/unsave behavior, bounded seven-day deduplication, existing 20 MiB storage ceiling and associated privacy disclosure below. Implementation remains to be completed and verified; this approval does not claim the endpoints, tables or screens already exist. This contract develops the existing [dated revisit notes design](../../design/dated-revisit-notes.md) against application commit `a60a5ec55e2855fffebd0341224c32b7a42d7ba0`.
 
 ## Intent and scope
 
@@ -14,7 +14,7 @@ The first increment includes a chronological note list, add/edit/delete controls
 2. **Recommended: enable a separate revisit resource with revision-safe editing.** Build on the dormant `revisits` family, its exact edition linkage and existing encryption/accounting coverage. Add the missing routes, history, erasure and export support together.
 3. Ship append-only notes initially. This reduces edit/history work but omits the explicitly requested edit and conflict states and encourages duplicate notes to correct mistakes.
 
-The recommendation is recorded for review; it is not described as a user-selected architecture. Database/index details and component boundaries may be refined during implementation without changing the behavior and privacy contract below.
+The user approved the recommended separate-resource approach with the defaults in this document. Database/index details and component boundaries may be refined during implementation without changing the behavior and privacy contract below.
 
 ## Existing constraints that affect the work
 
@@ -25,11 +25,11 @@ The recommendation is recorded for review; it is not described as a user-selecte
 - Standalone note erasure is absent. `ErasureTarget` and `deletion_jobs.scope` currently support account/session/reflection revision/context-copy scopes; session erasure already deletes its revisit rows. New note deletion needs a durable ledger target, fencing and restore replay, not a bare SQL delete.
 - Retained-key inventory, rekey, restore and the fixed private-field registry cover the current revisit ciphertext. Any new encrypted revision storage must participate in all of them.
 
-## Proposed product defaults
+## Approved product defaults
 
-These are the concrete choices to review before implementation:
+The user's implementation approval covers these concrete choices:
 
-| Choice | Proposed default | Reason |
+| Choice | Approved default | Reason |
 | --- | --- | --- |
 | Text | 1–2,000 Unicode code points, with at least one non-whitespace character | Keeps the existing note-size intent and rejects empty saves; server and client use the same counting rule. Preserve the authored text without silently trimming or normalizing it. |
 | Stance | Optional; reuse `resonates`, `unsure`, `disagree`, `unspecified` | Matches existing reflection vocabulary; omission becomes `unspecified`. |
@@ -100,7 +100,7 @@ Add/edit state order is text, optional stance, **Save note**, **Cancel**. Disabl
 
 Use existing navigation/Back/reload/expiry protections. Cancel returns focus to the initiating control; deleting a note places focus on the adjacent note heading or Add revisit note. Announce saving, save failure/conflict and deletion outcomes without unnecessarily reading other private notes. Delete confirmation names the note date and that all saved versions are included. Never hide or truncate a deletion receipt.
 
-Proposed disclosure: “This note is saved with this reading until you delete the note, reading or account. Editing keeps earlier saved versions, which are included in your export. Notes are encrypted at rest and can be read by this service when needed to show or manage them. Saving a note does not send it to an AI provider.” Deletion copy uses the existing active-storage versus backup-removal explanation and actual receipt deadline. Review this wording alongside the product defaults above.
+Approved disclosure: “This note is saved with this reading until you delete the note, reading or account. Editing keeps earlier saved versions, which are included in your export. Notes are encrypted at rest and can be read by this service when needed to show or manage them. Saving a note does not send it to an AI provider.” Deletion copy uses the existing active-storage versus backup-removal explanation and actual receipt deadline.
 
 ## Required verification and completion boundary
 
@@ -111,4 +111,4 @@ Proposed disclosure: “This note is saved with this reading until you delete th
 - Browser: two dated notes and unchanged original reading/reflection; edit/cancel/conflict/offline/expired-session drafts; AI-off add/edit/export/delete; return/sign-in/recovery; correct dates and focus; 320/390/768/1280 px, both themes, enlarged text and existing cross-browser journeys.
 - Run `npm run verify`, the cross-browser journey suite and updated comparison screenshots after implementation. Record actual environment and gaps; this increment does not itself qualify physical authenticators, screen readers or production hosting.
 
-The review decision is the proposed note/revision limits, retention of old edited text, saved-parent requirement/unsave behavior, and associated disclosure. After those defaults and the separate-resource approach are approved, write the implementation plan and implement the entire storage/export/erasure slice before exposing create in the client. Production domain/budget/validator decisions remain separate; this draft does not introduce new production or human-review gates.
+The note/revision limits, retention of old edited text, saved-parent requirement/unsave behavior, disclosure and separate-resource approach are approved. Follow the [implementation plan](../plans/2026-11-01-dated-revisit-notes.md) and implement the entire storage/export/erasure slice before exposing create in the client. Production domain/budget/validator decisions remain separate; this feature does not introduce new production or human-review gates.
