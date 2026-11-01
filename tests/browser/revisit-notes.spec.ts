@@ -14,7 +14,25 @@ import { datedNotesFixture } from '../fixtures/browser-journey.ts';
 
 async function savedReading(page: Page, ip: string) {
   const credentials = await account(page, ip);
-  await reading(page, 'Synthetic dated return');
+  const started = page.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().endsWith('/requests'),
+  );
+  // Finish real fixture generation through the existing reconnect status check instead
+  // of spending the polling backoff in every note test. Lifecycle tests keep auto-polling.
+  await Promise.all([
+    reading(page, 'Synthetic dated return'),
+    (async () => {
+      const start = apiSchemas.StartResponse.parse(await (await started).json());
+      await expect
+        .poll(async () => {
+          const response = await page.request.get(`/api/v1/requests/${start.requestId}`);
+          expect(response.ok()).toBe(true);
+          return apiSchemas.RequestStatus.parse(await response.json()).state;
+        })
+        .toBe('published');
+      await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    })(),
+  ]);
   await page.getByLabel('Your reflection', { exact: true }).fill('Original synthetic reflection.');
   await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
   await expect(page.getByText('Reflection saved.', { exact: true })).toBeVisible();
@@ -432,6 +450,9 @@ test('note drafts participate in Account, navigation, Back and reload guards; wi
     .getByLabel('Your revisit note', { exact: true })
     .fill('Synthetic edited after withdrawal');
   await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(
+    page.getByRole('region', { name: 'Revisit notes', exact: true }).getByRole('article'),
+  ).toContainText('Synthetic edited after withdrawal');
   await expect(page.getByText('Synthetic edited after withdrawal', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Delete note', exact: true }).click();
   await page.getByLabel('Delete this note and all saved versions permanently').check();
