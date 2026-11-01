@@ -62,7 +62,14 @@ export function RevisitNotes({
 }) {
   const [page, setPage] = useState<Page>({ items: [], nextCursor: null });
   const [loaded, setLoaded] = useState(false);
-  const [editor, setEditor] = useState<{ base: RevisitNote | null } | null>(null);
+  const [editor, setEditorState] = useState<{ base: RevisitNote | null } | null>(null);
+  const currentEditor = useRef<typeof editor>(editor);
+  const setEditor = (next: typeof editor) => {
+    // Outcomes need current ownership even between an editor action and its React commit.
+    currentEditor.current = next;
+    setEditorState(next);
+  };
+  const acceptedDeletions = useRef(new Set<string>());
   const [text, setText] = useState('');
   const [stance, setStance] = useState<RevisitNote['stance']>('unspecified');
   const [conflict, setConflict] = useState(false);
@@ -197,6 +204,7 @@ export function RevisitNotes({
       listVersion.current++;
       running.current = false;
       deletionRunning.current = false;
+      acceptedDeletions.current.clear();
       intent.current = null;
       erase.current = null;
     };
@@ -277,7 +285,10 @@ export function RevisitNotes({
           },
         );
       } catch (error) {
-        if (current() && error instanceof ApiFailure && error.status === 409) {
+        if (!current()) return;
+        if (error instanceof ApiFailure && error.status === 401) throw error;
+        if (base && acceptedDeletions.current.has(base.id)) return;
+        if (error instanceof ApiFailure && error.status === 409) {
           setConflict(true);
           setLatest(null);
           setMessage({
@@ -288,7 +299,7 @@ export function RevisitNotes({
         }
         throw error;
       }
-      if (!current()) return;
+      if (!current() || acceptedDeletions.current.has(result.id)) return;
       // Acknowledgement owns identity/revision even if a later read fails offline.
       intent.current = null;
       listVersion.current++;
@@ -315,6 +326,7 @@ export function RevisitNotes({
       } catch (error) {
         if (!current()) return;
         if (error instanceof ApiFailure && error.status === 401) throw error;
+        if (acceptedDeletions.current.has(result.id)) return;
         setMessage({
           tone: 'error',
           text: 'Note saved, but the note list could not be refreshed. Your draft is still here. Use Refresh notes to retry the read.',
@@ -395,6 +407,19 @@ export function RevisitNotes({
           { method: 'DELETE', key: attempt.value.key, revision: attempt.revision },
         );
         if (!current()) return;
+        acceptedDeletions.current.add(attempt.id);
+        if (currentEditor.current?.base?.id === attempt.id) {
+          setEditor(null);
+          setText('');
+          setStance('unspecified');
+          setConflict(false);
+          setLatest(null);
+          intent.current = null;
+          setExpired(false);
+          setReconciled(false);
+          running.current = false;
+          setBusy(null);
+        }
         setReceipt({
           proof,
           initial: { state: result.state, backupExpiresBy: result.backupExpiresBy },
