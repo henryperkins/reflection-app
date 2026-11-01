@@ -1,11 +1,10 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page, type Request } from '@playwright/test';
 import { apiSchemas } from '../../src/contracts/index.ts';
 import {
   account,
   authenticator,
   backToReadings,
-  enableAi,
   keepKit,
   openAccount,
   reading,
@@ -486,117 +485,109 @@ test('chronological pagination keeps the active editor and authored whitespace i
 
 // These fixtures supply multiple editions at the HTTP boundary; selected-edition
 // reflection writes and readback still use the real synthetic local service.
-for (const destination of ['older request', 'latest history'] as const) {
-  test(`${destination} selects its first owned edition reflection and creates one when none matches`, async ({
-    page,
-  }) => {
-    await account(page, destination === 'older request' ? '192.0.2.180' : '192.0.2.182');
-    await enableAi(page);
-    const scenarios = [];
-    // Independent real readings keep either scenario's writes out of the other's preconditions.
+test('older request and latest history keep owned edition reflections across matching and new saves', async ({
+  page,
+}) => {
+  const { original } = await savedReading(page, '192.0.2.180');
+  const originalUrl = page.url();
+  const originalId = original.session.reflectionIds[0]!;
+  const readReflection = async (id: string) =>
+    apiSchemas.Reflection.parse(
+      await page.request.get(`/api/v1/reflections/${id}`).then((response) => response.json()),
+    );
+  const secondResponse = await page.request.post(
+    `/api/v1/sessions/${original.session.id}/reflections`,
+    {
+      headers: {
+        Origin: 'http://localhost:8787',
+        'X-CSRF-Token': original.me.csrfToken,
+        'Idempotency-Key': crypto.randomUUID(),
+      },
+      data: {
+        editionId: original.reading.editionId,
+        text: 'Synthetic second reflection stays unchanged.',
+        stance: 'disagree',
+      },
+    },
+  );
+  expect(secondResponse.ok()).toBe(true);
+  const second = apiSchemas.Reflection.parse(await secondResponse.json());
+  const sessionRoute = `**/api/v1/sessions/${original.session.id}`;
+  for (const destination of ['older request', 'latest history'] as const) {
     for (const matching of [true, false]) {
-      const question = `Synthetic dated return ${matching ? 'existing' : 'new'}`;
-      await page.getByRole('button', { name: 'New reading', exact: true }).click();
-      await page.getByLabel('Your question', { exact: true }).fill(question);
-      await page.getByLabel('Use English for this reading').check();
-      await page.getByRole('button', { name: 'Start reading', exact: true }).click();
-      await expect(page.getByTestId('accepted-reading')).toBeVisible();
-      await page
-        .getByLabel('Your reflection', { exact: true })
-        .fill('Original synthetic reflection.');
-      await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
-      await expect(page.getByText('Reflection saved.', { exact: true })).toBeVisible();
-      scenarios.push({
-        matching,
-        question,
-        original: await savedSnapshot(page),
-        originalUrl: page.url(),
-      });
-    }
-    await openAccount(page);
-    await page.getByRole('button', { name: 'Turn off AI readings', exact: true }).click();
-    await backToReadings(page);
-    for (const { matching, question, original, originalUrl } of scenarios) {
-      await test.step(
-        matching ? 'edit the first exact match' : 'create without an exact match',
-        async () => {
-          // Catch selection by list position, edition alone, or the last matching reflection.
-          const originalId = original.session.reflectionIds[0]!;
-          const readReflection = async (id: string) =>
-            apiSchemas.Reflection.parse(
-              await page.request
-                .get(`/api/v1/reflections/${id}`)
-                .then((response) => response.json()),
-            );
-          const originalReflection = await readReflection(originalId);
-          const secondResponse = await page.request.post(
-            `/api/v1/sessions/${original.session.id}/reflections`,
-            {
-              headers: {
-                Origin: 'http://localhost:8787',
-                'X-CSRF-Token': original.me.csrfToken,
-                'Idempotency-Key': crypto.randomUUID(),
-              },
-              data: {
-                editionId: original.reading.editionId,
-                text: 'Synthetic second reflection stays unchanged.',
-                stance: 'disagree',
-              },
-            },
-          );
-          expect(secondResponse.ok()).toBe(true);
-          const second = apiSchemas.Reflection.parse(await secondResponse.json());
-          const otherEdition = '00000000-0000-4000-8000-000000000181';
-          const other = apiSchemas.Reflection.parse({
-            ...originalReflection,
-            id: '00000000-0000-4000-8000-000000000182',
-            editionId: otherEdition,
-            text: 'Synthetic other edition reflection must not appear.',
-          });
-          // Separate defensive boundary: even a returned reflection for this edition
-          // cannot be selected if its session identity is wrong.
-          const foreign = apiSchemas.Reflection.parse({
-            ...originalReflection,
-            id: '00000000-0000-4000-8000-000000000183',
-            sessionId: '00000000-0000-4000-8000-000000000184',
-            text: 'Synthetic other session reflection must not appear.',
-          });
+      await test.step(`${destination}: ${matching ? 'edit the first exact match' : 'create without an exact match'}`, async () => {
+        // Fresh persisted snapshots prevent a prior scenario's writes from supplying expectations.
+        const before = apiSchemas.SessionRecord.parse(
+          await page.request
+            .get(`/api/v1/sessions/${original.session.id}`)
+            .then((response) => response.json()),
+        );
+        const beforeRecords = await Promise.all(before.reflectionIds.map(readReflection));
+        const originalReflection = beforeRecords.find((value) => value.id === originalId)!;
+        const secondBefore = beforeRecords.find((value) => value.id === second.id)!;
+        expect(originalReflection).toBeDefined();
+        expect(secondBefore).toBeDefined();
+        const otherEdition = '00000000-0000-4000-8000-000000000181';
+        const other = apiSchemas.Reflection.parse({
+          ...originalReflection,
+          id: '00000000-0000-4000-8000-000000000182',
+          editionId: otherEdition,
+          text: 'Synthetic other edition reflection must not appear.',
+        });
+        // Defensive boundary: matching edition identity alone cannot select another session.
+        const foreign = apiSchemas.Reflection.parse({
+          ...originalReflection,
+          id: '00000000-0000-4000-8000-000000000183',
+          sessionId: '00000000-0000-4000-8000-000000000184',
+          text: 'Synthetic other session reflection must not appear.',
+        });
+        // The complete candidate list is explicit; persisted writes cannot add a later match.
+        const reflectionIds = matching
+          ? [other.id, foreign.id, originalId, second.id]
+          : [other.id, foreign.id];
+        const fixture = apiSchemas.SessionRecord.parse({
+          ...before,
+          editionIds:
+            destination === 'older request'
+              ? [original.reading.editionId, otherEdition]
+              : [otherEdition, original.reading.editionId],
+          reflectionIds,
+        });
+        const reflectionReads: string[] = [];
+        const collectReads = (request: Request) => {
+          if (request.method() === 'GET') reflectionReads.push(new URL(request.url()).pathname);
+        };
+        const reflectionRoutes = [foreign, other].map(
+          (value) => `**/api/v1/reflections/${value.id}`,
+        );
+        try {
           for (const value of [foreign, other]) {
             await page.route(`**/api/v1/reflections/${value.id}`, (route) =>
               route.fulfill({ json: value }),
             );
           }
-          await page.route(`**/api/v1/sessions/${original.session.id}`, async (route) => {
-            const response = await route.fetch();
-            const session = apiSchemas.SessionRecord.parse(await response.json());
-            await route.fulfill({
-              response,
-              json: apiSchemas.SessionRecord.parse({
-                ...session,
-                editionIds:
-                  destination === 'older request'
-                    ? [original.reading.editionId, otherEdition]
-                    : [otherEdition, original.reading.editionId],
-                reflectionIds: [other.id, foreign.id, ...(matching ? [originalId, second.id] : [])],
-              }),
-            });
-          });
-          const reflectionReads: string[] = [];
-          page.on('request', (request) => {
-            if (request.method() === 'GET') reflectionReads.push(new URL(request.url()).pathname);
-          });
+          await page.route(sessionRoute, (route) => route.fulfill({ json: fixture }));
+          page.on('request', collectReads);
+          const openedSession = page.waitForResponse((response) =>
+            response.url().endsWith(`/api/v1/sessions/${original.session.id}`),
+          );
           if (destination === 'older request') await page.goto(originalUrl);
           else {
             await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
             await page
               .getByRole('region', { name: 'Saved reading history', exact: true })
-              .getByRole('button', { name: question, exact: true })
+              .getByRole('button', { name: 'Synthetic dated return', exact: true })
               .click();
           }
+          expect(
+            apiSchemas.SessionRecord.parse(await (await openedSession).json()).reflectionIds,
+          ).toEqual(
+            matching ? [other.id, foreign.id, originalId, second.id] : [other.id, foreign.id],
+          );
           const editor = page.getByLabel('Your reflection', { exact: true });
-          await expect(editor).toHaveValue(matching ? 'Original synthetic reflection.' : '');
+          await expect(editor).toHaveValue(matching ? originalReflection.text : '');
           await expect(page).toHaveURL(originalUrl);
-          const draft = 'Synthetic edition-specific draft.';
+          const draft = `Synthetic ${destination} ${matching ? 'matching' : 'new'} edition-specific draft.`;
           await editor.fill(draft);
           const refreshed = page.waitForResponse((response) =>
             response.url().endsWith(`/api/v1/reflections/${other.id}`),
@@ -632,17 +623,23 @@ for (const destination of ['older request', 'latest history'] as const) {
             editionId: original.reading.editionId,
             text: draft,
           });
-          expect(await readReflection(second.id)).toEqual(second);
+          expect(await readReflection(second.id)).toEqual(secondBefore);
           if (matching) expect(reflectionReads).not.toContain(`/api/v1/reflections/${second.id}`);
           if (!matching) {
             expect(result.id).not.toBe(originalId);
             expect(await readReflection(originalId)).toEqual(originalReflection);
           }
-        },
-      );
+          for (const value of beforeRecords) {
+            if (value.id !== result.id) expect(await readReflection(value.id)).toEqual(value);
+          }
+        } finally {
+          page.off('request', collectReads);
+          for (const route of [sessionRoute, ...reflectionRoutes]) await page.unroute(route);
+        }
+      });
     }
-  });
-}
+  }
+});
 
 test('an older unavailable request keeps its exact edition, notes and URL through focus refresh and note edits', async ({
   page,
