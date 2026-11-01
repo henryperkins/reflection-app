@@ -205,6 +205,7 @@ export async function displayJourney(page: Page, capture: (state: string) => Pro
   await page.keyboard.press('Enter');
   await expect(accepted).toHaveText(original!);
   await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Saved readings', exact: true })).toBeVisible();
   await capture('saved-populated');
   await page.getByRole('button', { name: longQuestion, exact: true }).focus();
   await page.keyboard.press('Enter');

@@ -1,10 +1,10 @@
 # Journey milestones
 
-The current implementation batch is **existing-frontend steps 1–3 only**: functional/accessibility corrections, mobile hierarchy and reading composition, and essential illustration delivery. It does not add data models, routes, permissions or generation behavior.
+The current implementation batch extends the existing frontend to **landing and saved-reading visual refinement** using the owner's November 1 concept boards. It does not add data models, routes, permissions or generation behavior. The earlier functional/accessibility corrections, mobile hierarchy, reading composition and illustration delivery remain the baseline.
 
-## Next visual increment: supporting screens
+## Current visual increment: entry and return
 
-Start with landing and saved readings, then recovery/replacement/recovery-kit and progress/outcome states. Use the placement inventory in [`src/client/design/art/README.md`](../../src/client/design/art/README.md). Keep Newsreader/Figtree/Outfit, Fluent icons and the Solstice light/dark tokens. Do not replace the current palette just to sample compressed concepts.
+The [November 1 concept direction](concept-direction.md) links the three refined boards and distinguishes existing screens from proposals. Apply the artwork scale hierarchy to landing and saved readings; preserve PR #7's date/question history rows and status-first outcome screens. Recovery/replacement/recovery-kit remain a later styling increment. Use the placement inventory in [`src/client/design/art/README.md`](../../src/client/design/art/README.md). Keep Newsreader/Figtree/Outfit, Fluent icons and the Solstice light/dark tokens. Do not replace the current palette just to sample compressed concepts.
 
 Acceptance: the same 320/390/768/1280 px, two-theme matrix; empty/populated history and long questions; all recovery warnings/codes and progress outcomes; no decorative art mistaken for a user photograph, recognized card or security status. Extend the existing evidence harness and update `design-qa.md`, then run `npm run verify`. No illustration-only change closes the physical-device or assistive-technology gaps.
 

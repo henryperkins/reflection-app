@@ -178,6 +178,9 @@ for (const width of [320, 390, 768, 1280]) {
       ).toBeVisible();
       await capture('reflection');
       await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+      await expect(
+        page.getByRole('heading', { name: 'Saved readings', exact: true }),
+      ).toBeVisible();
       await capture('saved-populated');
       await page.getByRole('button', { name: longQuestion, exact: true }).click();
       await expect(accepted).toHaveText(original!);

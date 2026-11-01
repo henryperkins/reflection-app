@@ -438,11 +438,17 @@ export function IdentityApp() {
       <main
         className={
           authPage
-            ? 'auth-layout'
+            ? `auth-layout${landing ? ' landing-layout' : ''}`
             : `page-column ${kit ? 'kit-page' : accountPage ? 'account-page account-settings' : 'account-page readings-page'}`
         }
       >
-        {authPage && <Art name={landing ? 'study-return' : 'study-inquiry'} className="auth-art" />}
+        {authPage && (
+          <Art
+            name={landing ? 'study-return' : 'study-inquiry'}
+            className="auth-art"
+            fetchPriority={landing ? 'high' : 'auto'}
+          />
+        )}
         <div className={authPage ? 'auth-column' : 'page-stack'}>
           <div
             className={
@@ -482,7 +488,7 @@ export function IdentityApp() {
                 <Art
                   name={accountPage ? 'account-sprig' : 'study-stillness'}
                   {...(accountPage ? { mobileName: 'mobile-corner' as const } : {})}
-                  className="title-art account-title-art"
+                  className={`title-art ${accountPage ? 'account-title-art' : 'readings-title-art'}`}
                   loading={accountPage ? 'eager' : 'lazy'}
                 />
               )}
@@ -1017,7 +1023,9 @@ export function IdentityApp() {
                 </p>
               )}
             </div>
-            {landing && <Art name="leaves" className="landing-leaves" />}
+            {landing && (
+              <Art name="account-sprig" className="landing-sprig" sizes="280px" loading="lazy" />
+            )}
           </div>
           {deletionReceipt && (
             <DeletionReceiptPanel

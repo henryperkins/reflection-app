@@ -544,9 +544,6 @@ main {
 .auth-card > .identity-content {
   padding: 20px 28px 28px;
 }
-.landing-card > .identity-content {
-  padding-bottom: 8px;
-}
 .landing-content .actions {
   flex-direction: column;
   align-items: stretch;
@@ -567,9 +564,110 @@ main {
   padding: 10px 8px;
   text-align: center;
 }
-.landing-leaves {
+/* Entry artwork and account actions share one editorial composition. */
+.landing-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0;
+  flex: 0 0 auto;
+  width: calc(100% - 40px);
+  max-width: 1080px;
+  margin: 32px auto 48px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+.landing-layout > .auth-art {
   width: 100%;
-  aspect-ratio: 1536 / 773;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+  border-radius: 0;
+}
+.landing-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1 0 auto;
+  min-height: 620px;
+  max-width: none;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+.landing-card > .page-title {
+  padding: 40px 40px 0;
+}
+.landing-card h1 {
+  font-size: clamp(2.75rem, 4.5vw, 4rem);
+}
+.landing-card > .identity-content {
+  padding: 24px 40px 12px;
+}
+.landing-card > .notice {
+  margin-inline: 40px;
+}
+.landing-content .lead {
+  max-width: 36ch;
+}
+.landing-content .actions {
+  margin-bottom: 8px;
+}
+.landing-sprig {
+  align-self: flex-end;
+  width: min(100%, 280px);
+  height: 116px;
+  margin-top: auto;
+  object-fit: contain;
+  object-position: right bottom;
+  pointer-events: none;
+}
+@media (max-width: 900px) {
+  .landing-layout {
+    display: flex;
+    flex-direction: column;
+    width: calc(100% - 32px);
+    max-width: 560px;
+    margin-block: 20px 32px;
+  }
+  .landing-layout > .auth-art {
+    order: 1;
+    flex: none;
+    height: clamp(120px, 36vw, 180px);
+    object-position: 50% 45%;
+  }
+  .landing-layout > .auth-column {
+    flex: none;
+    width: 100%;
+  }
+  .landing-card {
+    min-height: 0;
+  }
+  .landing-card > .page-title {
+    padding: 28px 24px 0;
+  }
+  .landing-card h1 {
+    font-size: clamp(2.25rem, 9vw, 3.25rem);
+  }
+  .landing-card > .identity-content {
+    padding: 20px 24px 24px;
+  }
+  .landing-card > .notice {
+    margin-inline: 24px;
+  }
+  .landing-content .lead {
+    font-size: 16px;
+    line-height: 24px;
+  }
+  .landing-content button {
+    padding-inline: 16px;
+  }
+  .landing-sprig {
+    display: none;
+  }
 }
 .recovery-form > .lead {
   margin-bottom: 20px;
@@ -712,6 +810,61 @@ main {
 .account-page .page-title {
   margin-bottom: 32px;
 }
+.readings-page .page-title {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 112px;
+  gap: 20px;
+  align-items: center;
+  margin-bottom: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+.readings-page .readings-title-art {
+  order: 0;
+  width: 112px;
+  height: 88px;
+  border-radius: var(--radius-lg);
+  object-position: 50% 45%;
+}
+.reading-navigation {
+  display: flex;
+  width: 100%;
+  max-width: 440px;
+  gap: 4px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid var(--input);
+  border-radius: var(--radius-full);
+}
+.reading-navigation button {
+  flex: 1;
+  min-width: 0;
+  padding-inline: 12px;
+  color: var(--foreground);
+  background: transparent;
+  border-color: transparent;
+}
+.reading-navigation button:hover:enabled {
+  background: var(--muted);
+}
+.reading-navigation button[aria-current="page"] {
+  color: var(--primary-foreground);
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.reading-navigation button[aria-current="page"]:hover:enabled {
+  background: color-mix(in oklch, var(--primary) 90%, var(--foreground));
+}
+@media (forced-colors: active) {
+  .reading-navigation button[aria-current="page"],
+  .reading-navigation button[aria-current="page"]:hover:enabled {
+    color: HighlightText;
+    background: Highlight;
+    border-color: Highlight;
+    /* Keep the system palette without a Canvas backplate obscuring the label. */
+    forced-color-adjust: none;
+  }
+}
 .account-title-art {
   height: 180px;
   object-position: 58% 50%;
@@ -792,7 +945,6 @@ main {
   gap: 24px;
   margin: 0;
 }
-.reading-workspace > .actions,
 .reading-workspace > .notice,
 .reading-workspace > .busy-line {
   margin: 0;
@@ -910,7 +1062,9 @@ main {
   justify-content: space-between;
   gap: 16px;
   padding-block: 10px;
-  font-size: 16px;
+  font-family: var(--font-serif);
+  font-size: 22px;
+  font-weight: 500;
   line-height: 24px;
   border-radius: 0;
 }
@@ -1047,7 +1201,10 @@ button.history-link:hover:enabled {
   max-width: 1080px;
 }
 .readings-page:has(.new-reading, .reading-detail) .page-title {
+  display: block;
   margin-bottom: 16px;
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 .readings-page:has(.new-reading, .reading-detail) .page-title .title-art {
   display: none;
@@ -1849,6 +2006,19 @@ div.reading-closing {
   }
   .account-title-art {
     object-position: 50% 62%;
+  }
+  .readings-page .page-title {
+    grid-template-columns: minmax(0, 1fr) 72px;
+    gap: 12px;
+    padding-bottom: 20px;
+    margin-bottom: 20px;
+  }
+  .readings-page .title-copy h1 {
+    font-size: clamp(2rem, 8vw, 2.5rem);
+  }
+  .readings-page .readings-title-art {
+    width: 72px;
+    height: 72px;
   }
   .account-settings .title-copy {
     padding-right: 0;

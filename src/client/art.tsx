@@ -4,7 +4,6 @@ import art2 from './design/art/study-perspective.jpg';
 import art3 from './design/art/study-stillness.jpg';
 import art4 from './design/art/study-possibility.jpg';
 import art5 from './design/art/study-tension.jpg';
-import art11 from './design/art/leaves.png';
 import manifest from './design/art/optimized/manifest.json';
 
 type ImageSpec = { src: string; width: number; height: number; srcSet?: string; sizes?: string };
@@ -33,7 +32,6 @@ const art = {
   'study-stillness': plate(art3, 488, 450),
   'study-possibility': plate(art4, 488, 434),
   'study-tension': plate(art5, 487, 434),
-  leaves: plate(art11, 374, 188),
   'spread-ribbon': responsive('spread-ribbon', '(max-width: 1080px) 44vw, 480px'),
   'account-sprig': responsive('account-sprig', '(max-width: 760px) 72px, 280px'),
   'three-card-spread': responsive('three-card-spread', '(max-width: 760px) 220px, 320px'),
@@ -47,6 +45,7 @@ export function Art({
   mobileAt = 760,
   sizes,
   loading = 'eager',
+  fetchPriority = 'auto',
 }: {
   name: ArtName;
   className?: string;
@@ -54,6 +53,7 @@ export function Art({
   mobileAt?: number;
   sizes?: string;
   loading?: 'eager' | 'lazy';
+  fetchPriority?: 'high' | 'low' | 'auto';
 }) {
   const image = art[name];
   const mobile = mobileName ? art[mobileName] : null;
@@ -72,6 +72,7 @@ export function Art({
       aria-hidden="true"
       decoding="async"
       loading={loading}
+      fetchPriority={fetchPriority}
     />
   );
   return mobile ? (

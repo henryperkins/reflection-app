@@ -1,4 +1,41 @@
-# Core journey visual and accessibility pass
+# Reflection design QA
+
+## November 1 — Entry and return
+
+The owner confirmed this scope: apply the concept boards' visual direction to existing screens and document the proposed flows. PR [#7](https://github.com/henryperkins/reflection-app/pull/7) was merged first as `08e227753f6942d71a5b7dfe717c6d39d6e693df`; this refinement starts from that merged baseline. **Automated verification passed; manual device/assistive-technology acceptance remains open.**
+
+### Delivered surfaces and boundaries
+
+- Landing now shares one paper composition between the large orbit artwork and account controls. The botanical footer reuses an existing optimized transparent sprig. At ≤900 px the controls precede a short orbit crop, keeping create/sign-in/recovery above the artwork.
+- Saved readings has a reserved compact title motif, serif questions, fine list rules and navigation that marks the actual current destination. PR #7's date/question rows without arbitrary per-record thumbnails, status-first outcome cards and reduced copy remain intact.
+- Solstice light/dark tokens, locally hosted Newsreader/Figtree/Outfit, Fluent icons and all factual disclosures remain authoritative. Native browser surfaces declare both color schemes. Only the landing focal image receives high fetch priority; the unused `leaves.png` is no longer imported.
+- The [concept direction](docs/design/concept-direction.md) stores the three refined boards unchanged. Dated revisit notes and selected context remain **specification only**. Their documents record the simple header, original-reflection-first chronology, complete excerpts/dates/revisions, quiet × Remove selection and the boundary at Continue to permission review. Permission copy and submission rules remain open.
+
+### Review findings addressed
+
+- A fixed 100% landing-card height could clip the existing post-deletion receipt. The final layout keeps a flexible column and natural card height. The original layout probe reproduced the clipping; the correction contained the receipt at 320/390/768/1280 px. Existing privacy tests now check full receipt containment on desktop and phone, including a lost deletion response.
+- The new selected navigation cue disappeared under forced colors. A real Chromium assertion reproduced the failure. Current and current-hover states now use system Highlight/HighlightText. Rendered review caught a Chromium Canvas backplate obscuring the selected label despite passing computed-color assertions, so only that selected button opts out of automatic adjustment; its colors still come entirely from the user's system palette. The existing forced-colors journeys assert those platform colors for both destinations at rest and on hover; screenshot review checks the label itself.
+- History screenshot capture could measure the previous reading before asynchronous navigation completed, producing a new history with an obsolete full-page height. The existing normal/native/forced-color harness now waits for the Saved readings heading before capturing. This is an evidence synchronization correction.
+- The independent read-only code/requirements review found the forced-colors issue above and no other Critical, Important or Minor findings. Its excluded device/provider areas remain limitations below; automated outcomes are recorded separately.
+
+### Implementation captures
+
+These are unedited Chromium captures at DPR 1 and a 1000 px viewport height, using a real synthetic local account and three saved test readings. Questions are illustrative; displayed dates are actual server creation times, not the boards' October examples. The capture made exactly three Start requests, recorded no page JavaScript errors and found no horizontal overflow.
+
+| Surface | Phone, light | Phone, evening | Desktop, light | Desktop, evening |
+| --- | --- | --- | --- | --- |
+| Landing | [390 px](docs/design/screens/2026-11-01/390-light-landing.png) | [390 px](docs/design/screens/2026-11-01/390-dark-landing.png) | [1280 px](docs/design/screens/2026-11-01/1280-light-landing.png) | [1280 px](docs/design/screens/2026-11-01/1280-dark-landing.png) |
+| Saved readings | [390 px](docs/design/screens/2026-11-01/390-light-history.png) | [390 px](docs/design/screens/2026-11-01/390-dark-history.png) | [1280 px](docs/design/screens/2026-11-01/1280-light-history.png) | [1280 px](docs/design/screens/2026-11-01/1280-dark-history.png) |
+
+The final verification receipts/logs and capture manifest are retained under `artifacts/supporting-screen-concepts/`. The source and browser harness are copied to a clean local worktree for the synthetic gates, omitting the checkout's dotenv/dev-vars files. No environment file is read or moved, no hosted service is deployed, and no live provider is contacted. The ordinary matrix checks 320/390/768/1280 px in both themes, empty/populated history, long questions/filenames, complete readings/sources, reflection, Account and exact AI-off return; native Chromium 200% zoom and supported forced-colors journeys remain included.
+
+**Final `npm run verify`: passed in 290.65 seconds** — 397 domain/tooling tests, 465 workerd/database tests and 91 Chromium browser tests, with zero skipped/flaky. Formatting/lint, strict TypeScript, schema/publication-guard/contract/registry/SQL/OpenAPI checks, client/Worker builds and package-link checks passed. Both the sign-out and lost-response receipt cases passed with the new containment assertions.
+
+**36/36 cross-browser journeys passed in 252.29 seconds**, followed by **4/4 targeted Chromium/Firefox forced-colors journeys in 30.8 seconds** after the selected-state and rendered-label corrections. Both runs had zero skipped, unexpected or flaky tests. The latter conditionally changes forced colors only; the reviewed normal-theme captures remain applicable. Final source auditing confirms all 145 application files, 128 test files, 35 scripts and five configuration files match the verified snapshot byte-for-byte, with no loopback-port substitutions. Only this QA result and the plan's completion checkboxes were recorded after the gate.
+
+Physical devices, real/synchronized passkeys, screen readers, actual Safari, hosted-origin/RP qualification and live-provider acceptance remain open. This visual scope does not mark those earlier manual gaps passed or approve either proposed product increment.
+
+## October 31 — Historical core journey visual and accessibility pass
 
 Updated 2026-10-31. **Accessibility follow-through: both full gates passed. Manual device/assistive-technology acceptance: blocked (no devices available).** The first frontend batch remains complete. This increment extends acceptance for read → save → reflect → return before supporting-screen styling. Actual Safari/devices/screen-reader acceptance remains outstanding.
 

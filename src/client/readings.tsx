@@ -672,10 +672,11 @@ export function ReadingWorkspace({
           </span>
         </p>
       )}
-      <nav className="actions" aria-label="Reading actions">
+      <nav className="reading-navigation" aria-label="Reading actions">
         <button
           type="button"
           className="secondary"
+          aria-current={mode === 'history' ? 'page' : undefined}
           disabled={busy}
           onClick={() => {
             if (!canLeave()) return;
@@ -689,11 +690,11 @@ export function ReadingWorkspace({
             });
           }}
         >
-          <Icon name="bookmark" />
           Saved readings
         </button>
         <button
           type="button"
+          aria-current={mode === 'new' ? 'page' : undefined}
           disabled={busy || !user.permission.modelAllowed || requestPending || live === null}
           onClick={() => {
             if (!canLeave()) return;
@@ -708,7 +709,6 @@ export function ReadingWorkspace({
             setMessage(null);
           }}
         >
-          <Icon name="add" />
           New reading
         </button>
       </nav>
