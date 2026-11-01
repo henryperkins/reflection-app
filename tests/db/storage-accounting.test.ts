@@ -161,3 +161,54 @@ test('metadata capacity blocks new content but preserves export, consent revocat
   ).toBe(202);
   expect(await bytes(kit.subjectId)).toBeNull();
 });
+
+test('current and archived revisit bodies charge UTF-8 bytes and one KiB per retained row', async () => {
+  const { client, kit } = await readingAccount();
+  const { reading } = await client.create();
+  const id = crypto.randomUUID(),
+    before = (await bytes(kit.subjectId))!;
+  await env.DB.prepare(
+    'INSERT INTO revisits(id,owner_id,edition_id,session_id,note_enc,key_version,created_at,updated_at) VALUES(?,?,?,?,?,1,1,1)',
+  )
+    .bind(id, kit.subjectId, reading.editionId, reading.sessionId, 'é😀')
+    .run();
+  expect(await bytes(kit.subjectId)).toBe(before + 1030);
+  await env.DB.batch([
+    env.DB.prepare(
+      'INSERT INTO revisit_revisions(revisit_id,owner_id,revision,body_enc,key_version,created_at) VALUES(?,?,1,?,1,1)',
+    ).bind(id, kit.subjectId, 'é😀'),
+    env.DB.prepare(
+      'UPDATE revisits SET note_enc=?,current_revision=2,updated_at=2 WHERE id=?',
+    ).bind('界界界', id),
+  ]);
+  expect(await bytes(kit.subjectId)).toBe(before + 2063);
+  await env.DB.batch([
+    env.DB.prepare('UPDATE revisits SET note_enc=NULL,deleted_at=3 WHERE id=?').bind(id),
+    env.DB.prepare(
+      'UPDATE revisit_revisions SET body_enc=NULL,erased_at=3 WHERE revisit_id=?',
+    ).bind(id),
+  ]);
+  expect(await bytes(kit.subjectId)).toBe(before + 2048);
+  await env.DB.prepare('DELETE FROM revisits WHERE id=?').bind(id).run();
+  expect(await bytes(kit.subjectId)).toBe(before);
+});
+
+test('current session endpoint returns the actual retention expiry and null for saved parents', async () => {
+  const { client } = await readingAccount();
+  const { started } = await client.create();
+  const expiry = Date.now() + 1234567;
+  await env.DB.prepare('UPDATE reading_sessions SET retention_expires_at=? WHERE id=?')
+    .bind(expiry, started.sessionId)
+    .run();
+  const session = apiSchemas.SessionRecord.parse(
+    await (await client.request('/sessions/' + started.sessionId)).json(),
+  );
+  expect(session.retentionExpiresAt).toBe(new Date(expiry).toISOString());
+  const response = await client.request(
+    '/sessions/' + started.sessionId + '/save',
+    { saved: true },
+    { method: 'PUT', revision: session.revision },
+  );
+  expect(response.status).toBe(200);
+  expect(apiSchemas.SessionRecord.parse(await response.json()).retentionExpiresAt).toBeNull();
+});

@@ -2186,3 +2186,51 @@ div.reading-closing {
   background: var(--background);
   line-height: 1.5;
 }
+
+/* Authored dated notes remain part of the reading's single-column return journey. */
+.revisit-notes {
+  margin-block: 2.5rem;
+  min-width: 0;
+}
+.revisit-list {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+.revisit-note,
+.revisit-editor {
+  padding: clamp(1rem, 3vw, 1.75rem);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.revisit-note h3 {
+  font-size: 1.1rem;
+}
+.authored-note,
+.revisit-conflict blockquote {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.revisit-editor {
+  margin-block: 1rem;
+}
+.revisit-editor textarea {
+  width: 100%;
+  min-height: 10rem;
+  resize: vertical;
+}
+.revisit-conflict {
+  margin-block-start: 1rem;
+}
+.revisit-notes .receipt-card {
+  overflow: visible;
+  max-height: none;
+}
+@media (forced-colors: active) {
+  .revisit-note,
+  .revisit-editor,
+  .revisit-conflict {
+    border: 1px solid CanvasText;
+  }
+}

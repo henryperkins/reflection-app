@@ -35,6 +35,10 @@ export function DeletionReceiptPanel({
       alive.current = false;
     };
   }, []);
+  useEffect(() => {
+    // A retry can confirm an already displayed proof without replacing its panel.
+    if (initial) setStatus((prior) => (prior?.state === 'complete' ? prior : initial));
+  }, [initial]);
   const check = async () => {
     if (inFlight.current) return;
     inFlight.current = true;

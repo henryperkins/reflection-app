@@ -1,5 +1,6 @@
 import type { Env } from '../index.ts';
 import type { Checkpoint, IdentitySecrets } from '../identity/crypto.ts';
+import { erasedRevisitEligible } from '../maintenance/retention.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import { statement as q, DB_NOW } from '../db/core.ts';
 import { sha256Json } from '../../domain/json.ts';
@@ -105,6 +106,48 @@ export class OfflineCleanup {
           currentEpoch,
         ),
       ];
+      // Remove bounded, proven empty note shells before retiring their exact job evidence.
+      // Include them in the undo image so a failed backup/CAS restores both together.
+      for (const id of new Set(jobs)) {
+        const notes = await q(
+          this.env.DB,
+          `SELECT * FROM revisits WHERE deletion_job_id=? AND ${erasedRevisitEligible}`,
+          id,
+        ).all<Record<string, string | number | null>>();
+        for (const note of notes.results) {
+          const columns = Object.keys(note);
+          undo.push(
+            q(
+              this.env.DB,
+              `INSERT INTO revisits (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})`,
+              ...columns.map((c) => note[c]!),
+            ),
+          );
+          const revisions = await q(
+            this.env.DB,
+            'SELECT * FROM revisit_revisions WHERE owner_id=? AND revisit_id=?',
+            note.owner_id!,
+            note.id!,
+          ).all<Record<string, string | number | null>>();
+          for (const revision of revisions.results) {
+            const fields = Object.keys(revision);
+            undo.push(
+              q(
+                this.env.DB,
+                `INSERT INTO revisit_revisions (${fields.join(',')}) VALUES (${fields.map(() => '?').join(',')})`,
+                ...fields.map((c) => revision[c]!),
+              ),
+            );
+          }
+        }
+        remove.push(
+          q(
+            this.env.DB,
+            `DELETE FROM revisits WHERE deletion_job_id=? AND ${erasedRevisitEligible}`,
+            id,
+          ),
+        );
+      }
       for (const [table, ids] of [
         ['deletion_jobs', jobs],
         ['security_operations', operations],
@@ -270,6 +313,14 @@ export class OfflineCleanup {
           job.ledger_key !== `erasures/v1/${chain.intent.jobId}/intent.json`)
       )
         throw new Error('Erasure projection mismatch');
+      if (
+        await q(
+          db,
+          `SELECT 1 FROM revisits WHERE deletion_job_id=? AND NOT (${erasedRevisitEligible}) LIMIT 1`,
+          chain.intent.jobId,
+        ).first()
+      )
+        continue;
       eligible.add(chain.intent.jobId);
     }
     const groupFor = (subset: Chain[]): Group => ({
@@ -336,6 +387,43 @@ export class OfflineCleanup {
     if (target.scope === 'account') {
       if (await q(db, 'SELECT 1 FROM accounts WHERE id=?', owner).first())
         throw new Error('Account is not erased');
+      for (const table of [
+        'account_keys',
+        'auth_challenges',
+        'auth_sessions',
+        'basis_snapshots',
+        'context_grants',
+        'cost_reservations',
+        'credentials',
+        'deletion_jobs',
+        'export_tickets',
+        'generation_attempts',
+        'generation_context',
+        'generation_requests',
+        'idempotency_keys',
+        'import_batches',
+        'import_identities',
+        'import_items',
+        'permission_revisions',
+        'provider_dispatches',
+        'quota_buckets',
+        'quota_events',
+        'quota_reservations',
+        'reading_editions',
+        'reading_sessions',
+        'recovery_codes',
+        'reflection_revisions',
+        'reflections',
+        'request_events',
+        'revisits',
+        'security_operations',
+        'account_rekey_jobs',
+        'account_rekey_entries',
+        'key_retirement_operations',
+        'revisit_revisions',
+      ])
+        if (await q(db, `SELECT 1 FROM ${table} WHERE owner_id=? LIMIT 1`, owner).first())
+          throw new Error('Account family is not erased');
       return;
     }
     // Milestone 3 copies are not supported by this local cleanup. Absence of the source is
@@ -346,10 +434,27 @@ export class OfflineCleanup {
       'import_identities',
       'generation_context',
       'context_grants',
-      'revisits',
     ])
       if (await q(db, `SELECT 1 FROM ${table} WHERE owner_id=? LIMIT 1`, owner).first())
         throw new Error('Unsupported erasure copy family');
+    if (target.scope === 'revisit') {
+      if (
+        (await q(
+          db,
+          'SELECT 1 FROM revisits WHERE owner_id=? AND id=? AND (note_enc IS NOT NULL OR deleted_at IS NULL)',
+          owner,
+          target.revisitId,
+        ).first()) ||
+        (await q(
+          db,
+          'SELECT 1 FROM revisit_revisions WHERE owner_id=? AND revisit_id=? AND (body_enc IS NOT NULL OR erased_at IS NULL)',
+          owner,
+          target.revisitId,
+        ).first())
+      )
+        throw new Error('Revisit is not erased');
+      return;
+    }
     if (target.scope === 'reflection_revision') {
       if (
         await q(
@@ -366,6 +471,14 @@ export class OfflineCleanup {
     if (target.scope !== 'session') throw new Error('Unsupported erasure target');
     const id = target.sessionId;
     const checks: Array<[string, (string | number)[]]> = [
+      [
+        'SELECT 1 FROM revisits WHERE owner_id=? AND session_id=? AND (note_enc IS NOT NULL OR deleted_at IS NULL)',
+        [owner, id],
+      ],
+      [
+        'SELECT 1 FROM revisit_revisions r JOIN revisits n ON n.owner_id=r.owner_id AND n.id=r.revisit_id WHERE n.owner_id=? AND n.session_id=? AND (r.body_enc IS NOT NULL OR r.erased_at IS NULL)',
+        [owner, id],
+      ],
       [
         "SELECT 1 FROM reading_sessions WHERE owner_id=? AND id=? AND (status!='deleted' OR question_enc IS NOT NULL)",
         [owner, id],

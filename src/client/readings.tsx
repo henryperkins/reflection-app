@@ -29,6 +29,7 @@ import { cardName } from './card-names.ts';
 import { Art } from './art.tsx';
 import { Icon } from './icon.tsx';
 import { CardFace, CardThumbnail } from './card-face.tsx';
+import { RevisitNotes, type RevisitNotesHandle } from './revisit-notes.tsx';
 
 type View = z.infer<typeof apiSchemas.SessionView>;
 type RecordView = z.infer<typeof apiSchemas.SessionRecord>;
@@ -152,13 +153,20 @@ export function ReadingWorkspace({
     }
   }, [mode]);
   const [record, setRecord] = useState<RecordView | null>(null);
+  const [selectedEditionId, setSelectedEditionId] = useState<string | null>(null);
+  const revisitNotes = useRef<RevisitNotesHandle>(null);
+  const selectedTarget = useRef<{
+    sessionId: string;
+    editionId: string;
+    requestId?: string;
+  } | null>(null);
   const [reading, setReading] = useState<z.infer<typeof AnyAcceptedReading> | null>(null);
   useLayoutEffect(() => {
-    if (mode === 'reading' && reading && focusResultOnCommit.current) {
+    if (mode === 'reading' && selectedEditionId && focusResultOnCommit.current) {
       focusResultOnCommit.current = false;
       if (!document.hidden) resultHeading.current?.focus();
     }
-  }, [mode, reading]);
+  }, [mode, selectedEditionId]);
   const [reflection, setReflection] = useState<Thought | null>(null);
   const [latestReflection, setLatestReflection] = useState<Thought | null>(null);
   const [revisionChoice, setRevisionChoice] = useState(1),
@@ -221,10 +229,32 @@ export function ReadingWorkspace({
   currentMode.current = mode;
   const dirtyReflection =
     draft !== (reflection?.text ?? '') || stance !== (reflection?.stance ?? 'unspecified');
-  const canLeave = () =>
-    mode !== 'reading' ||
-    !dirtyReflection ||
-    window.confirm('Discard your unsaved reflection? Choose Cancel to stay and keep editing.');
+  const canLeave = () => {
+    if (mode !== 'reading') return true;
+    if (
+      dirtyReflection &&
+      !window.confirm('Discard your unsaved reflection? Choose Cancel to stay and keep editing.')
+    )
+      return false;
+    return (
+      !revisitNotes.current?.hasUnsavedChanges() ||
+      window.confirm('Discard your unsaved revisit note? Choose Cancel to stay and keep editing.')
+    );
+  };
+  const hasUnsavedWriting = useRef<() => boolean>(() => false);
+  hasUnsavedWriting.current = () =>
+    (mode === 'reading' &&
+      (dirtyReflection || Boolean(revisitNotes.current?.hasUnsavedChanges()))) ||
+    (!questionSubmitted && Boolean(question.trim() || spreadPhoto || photoPreparing.current));
+  useEffect(() => {
+    const beforeUnload = (event: BeforeUnloadEvent) => {
+      if (!hasUnsavedWriting.current()) return;
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', beforeUnload);
+    return () => window.removeEventListener('beforeunload', beforeUnload);
+  }, []);
   useImperativeHandle(ref, () => ({
     confirmLeave: () => {
       if (
@@ -253,6 +283,8 @@ export function ReadingWorkspace({
   const clearReading = () => {
     focusResultOnCommit.current = false;
     setRecord(null);
+    setSelectedEditionId(null);
+    selectedTarget.current = null;
     setReading(null);
     setReflection(null);
     setLatestReflection(null);
@@ -308,24 +340,80 @@ export function ReadingWorkspace({
     keepDraft = false,
     requireReview = false,
     focusResult = false,
+    target?: { editionId: string; requestId: string } | 'latest',
   ) => {
     const session = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
     if (!current()) return;
-    const editionId = session.editionIds.at(-1);
+    const chosen =
+      target === 'latest'
+        ? null
+        : (target ?? (selectedTarget.current?.sessionId === id ? selectedTarget.current : null));
+    const editionId = chosen?.editionId ?? session.editionIds.at(-1);
+    if (editionId && !session.editionIds.includes(editionId))
+      throw new Error('This reading edition does not belong to the saved session.');
     if (!editionId) throw new Error('No accepted reading is available yet.');
+    const loadReflection = async () => {
+      for (const reflectionId of session.reflectionIds) {
+        if (!current()) return null;
+        const note = await api(`/reflections/${reflectionId}`, apiSchemas.Reflection).catch(
+          async (error: unknown) => {
+            if (
+              !(error instanceof ApiFailure) ||
+              error.status !== 410 ||
+              error.code !== 'CONTENT_UNAVAILABLE'
+            )
+              throw error;
+            if (!current()) return null;
+            // A reflection's 410 can also mean its parent expired or was deleted.
+            // Skip only a confirmed deleted candidate from the stale session snapshot.
+            const latest = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
+            if (!current()) return null;
+            if (
+              latest.id !== id ||
+              !latest.editionIds.includes(editionId) ||
+              latest.reflectionIds.includes(reflectionId)
+            )
+              throw error;
+            return null;
+          },
+        );
+        if (note?.sessionId === id && note.editionId === editionId) return note;
+      }
+      return null;
+    };
     const [content, note] = await Promise.all([
-      api(`/readings/${editionId}`, apiSchemas.Reading),
-      session.reflectionIds[0]
-        ? api(`/reflections/${session.reflectionIds[0]}`, apiSchemas.Reflection)
-        : Promise.resolve(null),
+      api(`/readings/${editionId}`, apiSchemas.Reading).catch(async (error: unknown) => {
+        if (
+          error instanceof ApiFailure &&
+          error.status === 410 &&
+          error.code === 'CONTENT_UNAVAILABLE'
+        ) {
+          if (!current()) return null;
+          // Distinguish withdrawn content from a parent deleted after the first snapshot.
+          const latest = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
+          if (!current()) return null;
+          if (latest.id !== id || !latest.editionIds.includes(editionId)) throw error;
+          return null;
+        }
+        throw error;
+      }),
+      loadReflection(),
     ]);
     if (!current()) return;
-    if (content.kind !== 'tarot.accepted.v1' && content.kind !== 'tarot.accepted.v2')
+    if (content && (content.sessionId !== id || content.editionId !== editionId))
+      throw new Error('The reading response did not match this edition.');
+    const accepted = content?.kind === 'tarot.accepted.v1' || content?.kind === 'tarot.accepted.v2';
+    if (content && !accepted && content.kind !== 'reading.unavailable.v1')
       throw new Error('This reading format cannot be opened here.');
     setRecord(session);
-    setReading(content);
+    setSelectedEditionId(editionId);
+    setReading(accepted ? content : null);
     setMode('reading');
-    replacePath(`/requests/${content.provenance.requestId}`);
+    // Session requests are capped and do not identify their edition. Only use a
+    // request already associated with this selection or its accepted content.
+    const requestId = chosen?.requestId ?? (accepted ? content.provenance.requestId : undefined);
+    selectedTarget.current = { sessionId: id, editionId, ...(requestId ? { requestId } : {}) };
+    if (requestId) replacePath(`/requests/${requestId}`);
     focusResultOnCommit.current = focusResult;
     if (keepDraft && (dirtyReflection || conflict || requireReview)) {
       // Keep the draft's base revision until the user explicitly reconciles a newer version.
@@ -741,7 +829,7 @@ export function ReadingWorkspace({
                       className="history-link"
                       disabled={busy}
                       onClick={() =>
-                        void run((current) => open(item.id, current, false, false, true))
+                        void run((current) => open(item.id, current, false, false, true, 'latest'))
                       }
                     >
                       <span>{item.questionPreview ?? 'Saved reading'}</span>
@@ -790,9 +878,9 @@ export function ReadingWorkspace({
             replacePath(requestPath(target));
           }}
           onAllowNew={() => setRequestPending(false)}
-          onAccepted={(id, focus) =>
+          onAccepted={(id, focus, target) =>
             void run(async (current) => {
-              await open(id, current, false, false, focus);
+              await open(id, current, false, false, focus, target);
               if (current()) {
                 intents.current.delete('start');
                 setQuestion('');
@@ -1017,172 +1105,182 @@ export function ReadingWorkspace({
           </div>
         </form>
       )}
-      {mode === 'reading' && record && reading && (
+      {mode === 'reading' && record && selectedEditionId && (
         <section className="reading-detail" aria-label="Reading detail">
-          <article
-            data-testid="accepted-reading"
-            className={`accepted-reading${reading.spreadPhoto ? ' has-spread-photo' : ''}`}
-          >
-            <div className="reading-header">
-              <div className="reading-title">
-                <p className="test-notice">
-                  {reading.provenance.provider === 'openai'
-                    ? 'AI reading'
-                    : localRuntime
-                      ? 'Local simulated reading'
-                      : 'Simulated reading'}
-                  {reading.mode === 'template' ? ' · Prepared reflection template' : ''}
-                </p>
-                <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
-                <h2 ref={resultHeading} tabIndex={-1}>
-                  {reading.question}
-                </h2>
+          {reading ? (
+            <article
+              data-testid="accepted-reading"
+              className={`accepted-reading${reading.spreadPhoto ? ' has-spread-photo' : ''}`}
+            >
+              <div className="reading-header">
+                <div className="reading-title">
+                  <p className="test-notice">
+                    {reading.provenance.provider === 'openai'
+                      ? 'AI reading'
+                      : localRuntime
+                        ? 'Local simulated reading'
+                        : 'Simulated reading'}
+                    {reading.mode === 'template' ? ' · Prepared reflection template' : ''}
+                  </p>
+                  <time dateTime={record.createdAt}>{date(record.createdAt)}</time>
+                  <h2 ref={resultHeading} tabIndex={-1}>
+                    {reading.question}
+                  </h2>
+                </div>
+                {!reading.spreadPhoto && <Art name="study-inquiry" className="question-art" />}
               </div>
-              {!reading.spreadPhoto && <Art name="study-inquiry" className="question-art" />}
-            </div>
-            {reading.spreadPhoto && (
-              <figure
-                className="card spread-photo-card"
-                data-testid="spread-photo-card"
-                aria-labelledby="reading-spread-caption"
-              >
-                <img
-                  src={reading.spreadPhoto}
-                  alt="Uploaded tarot spread for this reading"
-                  className="spread-photo-image"
-                />
-                <figcaption id="reading-spread-caption" className="muted">
-                  Uploaded spread photo · Recognized 3-card spread
-                </figcaption>
-              </figure>
-            )}
-            {reading.units.map((unit, index) => {
-              const card = reading.basis.cards.find((item) => item.position === unit.position);
-              const name =
-                reading.kind === 'tarot.accepted.v2'
-                  ? reading.draw.find((item) => item.position === unit.position)?.name
-                  : card && cardName(reading.basis.deckEdition, card.cardId);
-              return (
-                <section key={unit.position} className="card position-card">
-                  <div className="position-title">
-                    <span className="position-number" aria-hidden="true">
-                      {index + 1}
-                    </span>
-                    <h3>{unit.position}</h3>
-                  </div>
-                  <div className="position-body">
-                    {card && !reading.spreadPhoto && (
-                      <CardFace cardId={card.cardId} orientation={card.orientation} name={name} />
-                    )}
-                    <div className="position-copy">
-                      <div>
-                        <h4>
-                          {reading.spreadPhoto ? 'Recognized card' : 'Drawn card'}
-                          {name ? `: ${name}` : ''}
-                        </h4>
-                        <p className="basis-text">{unit.basisText}</p>
-                      </div>
-                      <div>
-                        <h4>Interpretation</h4>
-                        <p>{unit.interpretation}</p>
-                      </div>
-                      {'reflectionQuestion' in unit && (
-                        <div className="reflection-prompt">
-                          <h4>Reflection prompt</h4>
-                          <p>{unit.reflectionQuestion}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </section>
-              );
-            })}
-            {reading.kind === 'tarot.accepted.v2' ? (
-              <div className="card reading-closing">
-                <section>
-                  <h3>Putting it together</h3>
-                  <p>{reading.synthesis.text}</p>
-                </section>
-                <section>
-                  <h3>An optional next step</h3>
-                  <p>{reading.action.text}</p>
-                </section>
-                {reading.reflectionQuestion && (
-                  <section className="reflection-prompt">
-                    <h3>A question to consider</h3>
-                    <p>{reading.reflectionQuestion.text}</p>
-                  </section>
-                )}
-              </div>
-            ) : (
-              <p className="reading-closing">{reading.closing}</p>
-            )}
-            <details className="reading-sources">
-              <summary>Cards and sources</summary>
-              <h3>Traditional source material</h3>
-              <p className="muted">
-                These sources are saved with the reading. They are separate from the interpretation
-                and your own reflection. These meanings are unapproved development material.
-              </p>
-              {reading.basis.cards.map((card, index) => {
+              {reading.spreadPhoto && (
+                <figure
+                  className="card spread-photo-card"
+                  data-testid="spread-photo-card"
+                  aria-labelledby="reading-spread-caption"
+                >
+                  <img
+                    src={reading.spreadPhoto}
+                    alt="Uploaded tarot spread for this reading"
+                    className="spread-photo-image"
+                  />
+                  <figcaption id="reading-spread-caption" className="muted">
+                    Uploaded spread photo · Recognized 3-card spread
+                  </figcaption>
+                </figure>
+              )}
+              {reading.units.map((unit, index) => {
+                const card = reading.basis.cards.find((item) => item.position === unit.position);
                 const name =
                   reading.kind === 'tarot.accepted.v2'
-                    ? reading.draw[index]!.name
-                    : cardName(reading.basis.deckEdition, card.cardId);
-                const position = card.position[0]!.toUpperCase() + card.position.slice(1);
+                    ? reading.draw.find((item) => item.position === unit.position)?.name
+                    : card && cardName(reading.basis.deckEdition, card.cardId);
                 return (
-                  <div key={card.id} className="source">
-                    <CardThumbnail cardId={card.cardId} orientation={card.orientation} />
-                    <div className="source-copy">
-                      <h3>
-                        {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
-                        {card.orientation}
-                      </h3>
-                      {reading.kind === 'tarot.accepted.v2' ? (
-                        <>
-                          <p>{reading.sources[index]!.meaning.core}</p>
-                          <ul>
-                            {reading.sources[index]!.meaning.distinctions.map((text) => (
-                              <li key={text}>{text}</li>
-                            ))}
-                          </ul>
-                          <p>{reading.sources[index]!.meaning.positive}</p>
-                          <p>{reading.sources[index]!.meaning.limits.join(' ')}</p>
-                          {reading.sources[index]!.meaning.imagery && (
-                            <p>
-                              {reading.sources[index]!.meaning.imagery!.text} —{' '}
-                              {reading.sources[index]!.meaning.imagery!.reference}
-                            </p>
-                          )}
-                        </>
-                      ) : (
-                        <p>{reading.sources[index]!.text}</p>
-                      )}
-                      <p className="source-attribution">
-                        {reading.sources[index]!.rights.attribution}
-                      </p>
-                      <p className="muted source-id">
-                        Source {reading.sources[index]!.id} · version{' '}
-                        {reading.sources[index]!.version}
-                      </p>
+                  <section key={unit.position} className="card position-card">
+                    <div className="position-title">
+                      <span className="position-number" aria-hidden="true">
+                        {index + 1}
+                      </span>
+                      <h3>{unit.position}</h3>
                     </div>
-                  </div>
+                    <div className="position-body">
+                      {card && !reading.spreadPhoto && (
+                        <CardFace cardId={card.cardId} orientation={card.orientation} name={name} />
+                      )}
+                      <div className="position-copy">
+                        <div>
+                          <h4>
+                            {reading.spreadPhoto ? 'Recognized card' : 'Drawn card'}
+                            {name ? `: ${name}` : ''}
+                          </h4>
+                          <p className="basis-text">{unit.basisText}</p>
+                        </div>
+                        <div>
+                          <h4>Interpretation</h4>
+                          <p>{unit.interpretation}</p>
+                        </div>
+                        {'reflectionQuestion' in unit && (
+                          <div className="reflection-prompt">
+                            <h4>Reflection prompt</h4>
+                            <p>{unit.reflectionQuestion}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </section>
                 );
               })}
-              <p className="muted">
-                {reading.mode === 'template'
-                  ? 'Prepared reflection template.'
-                  : reading.provenance.provider === 'openai'
-                    ? 'Generated by OpenAI.'
-                    : runtimeMode === 'hosted-synthetic'
-                      ? 'Generated by the hosted simulation.'
-                      : localRuntime
-                        ? 'Generated by the local simulation.'
-                        : 'Generated by a simulation.'}{' '}
-                This saved text is not rewritten when you return.
-              </p>
-            </details>
-          </article>
+              {reading.kind === 'tarot.accepted.v2' ? (
+                <div className="card reading-closing">
+                  <section>
+                    <h3>Putting it together</h3>
+                    <p>{reading.synthesis.text}</p>
+                  </section>
+                  <section>
+                    <h3>An optional next step</h3>
+                    <p>{reading.action.text}</p>
+                  </section>
+                  {reading.reflectionQuestion && (
+                    <section className="reflection-prompt">
+                      <h3>A question to consider</h3>
+                      <p>{reading.reflectionQuestion.text}</p>
+                    </section>
+                  )}
+                </div>
+              ) : (
+                <p className="reading-closing">{reading.closing}</p>
+              )}
+              <details className="reading-sources">
+                <summary>Cards and sources</summary>
+                <h3>Traditional source material</h3>
+                <p className="muted">
+                  These sources are saved with the reading. They are separate from the
+                  interpretation and your own reflection. These meanings are unapproved development
+                  material.
+                </p>
+                {reading.basis.cards.map((card, index) => {
+                  const name =
+                    reading.kind === 'tarot.accepted.v2'
+                      ? reading.draw[index]!.name
+                      : cardName(reading.basis.deckEdition, card.cardId);
+                  const position = card.position[0]!.toUpperCase() + card.position.slice(1);
+                  return (
+                    <div key={card.id} className="source">
+                      <CardThumbnail cardId={card.cardId} orientation={card.orientation} />
+                      <div className="source-copy">
+                        <h3>
+                          {position}: {name ? `${name} (${card.cardId})` : card.cardId} ·{' '}
+                          {card.orientation}
+                        </h3>
+                        {reading.kind === 'tarot.accepted.v2' ? (
+                          <>
+                            <p>{reading.sources[index]!.meaning.core}</p>
+                            <ul>
+                              {reading.sources[index]!.meaning.distinctions.map((text) => (
+                                <li key={text}>{text}</li>
+                              ))}
+                            </ul>
+                            <p>{reading.sources[index]!.meaning.positive}</p>
+                            <p>{reading.sources[index]!.meaning.limits.join(' ')}</p>
+                            {reading.sources[index]!.meaning.imagery && (
+                              <p>
+                                {reading.sources[index]!.meaning.imagery!.text} —{' '}
+                                {reading.sources[index]!.meaning.imagery!.reference}
+                              </p>
+                            )}
+                          </>
+                        ) : (
+                          <p>{reading.sources[index]!.text}</p>
+                        )}
+                        <p className="source-attribution">
+                          {reading.sources[index]!.rights.attribution}
+                        </p>
+                        <p className="muted source-id">
+                          Source {reading.sources[index]!.id} · version{' '}
+                          {reading.sources[index]!.version}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+                <p className="muted">
+                  {reading.mode === 'template'
+                    ? 'Prepared reflection template.'
+                    : reading.provenance.provider === 'openai'
+                      ? 'Generated by OpenAI.'
+                      : runtimeMode === 'hosted-synthetic'
+                        ? 'Generated by the hosted simulation.'
+                        : localRuntime
+                          ? 'Generated by the local simulation.'
+                          : 'Generated by a simulation.'}{' '}
+                  This saved text is not rewritten when you return.
+                </p>
+              </details>
+            </article>
+          ) : (
+            <div className="card">
+              <h2 ref={resultHeading} tabIndex={-1}>
+                Saved reading
+              </h2>
+              <p>This reading is unavailable. Your saved notes remain available.</p>
+            </div>
+          )}
           <div className={`save-reading ${record.status === 'saved' ? 'is-saved' : ''}`}>
             {record.status === 'saved' ? (
               <p className="saved-label">
@@ -1212,7 +1310,7 @@ export function ReadingWorkspace({
             <p>
               This is your own writing. It does not change the reading or request AI generation.
             </p>
-            {reading.spreadPhoto && (
+            {reading?.spreadPhoto && (
               <figure className="reflection-spread-reference">
                 <img
                   src={reading.spreadPhoto}
@@ -1299,11 +1397,28 @@ export function ReadingWorkspace({
             <button
               type="button"
               onClick={saveReflection}
-              disabled={busy || conflict || !draft.trim()}
+              disabled={busy || conflict || !reading || !draft.trim()}
             >
               Save reflection
             </button>
           </section>
+          <RevisitNotes
+            key={`${user.subjectId}:${record.id}:${selectedEditionId}`}
+            ref={revisitNotes}
+            sessionId={record.id}
+            editionId={selectedEditionId}
+            saved={record.status === 'saved'}
+            parentExpiresAt={record.retentionExpiresAt ?? null}
+            csrfToken={user.csrfToken}
+            onExpired={onExpired}
+            onChanged={() => {
+              const id = record.id;
+              void run(async (current) => {
+                const fresh = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
+                if (current() && selected.current?.id === id) setRecord(fresh);
+              });
+            }}
+          />
           {reflection && (
             <details className="deletion-actions reflection-revisions">
               <summary>Reflection revisions</summary>

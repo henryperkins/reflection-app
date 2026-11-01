@@ -1,0 +1,279 @@
+{
+  "version": 1,
+  "status": "passed",
+  "scope": "synthetic-local-only",
+  "sourceDigest": "badf76d1ff3a383caaebe5f4fb97a070efb43cd89540d27c29eada366fa7cec0",
+  "verifiedSourceTree": "53cdb714c4a5bb85a17d156a60ae46142932465b",
+  "sourceParentCommit": "616c6eeb821b15b078c63ef8f89d06d0d3b255b1",
+  "publication": "The verified tree retains the previous proof JSONs. The final commit replaces only those two digest-excluded artifact JSONs after verification; hashed source is identical. Git commit/tree changes do not alter the source digest.",
+  "environment": {
+    "node": "v26.12.1",
+    "availableCpuSet": "0-7",
+    "effectiveCpuSet": "0-3",
+    "affinity": "taskset -c 0-3",
+    "dotenvCredentials": false,
+    "liveProviders": false
+  },
+  "verification": {
+    "command": "taskset -c 0-3 env -u NO_COLOR npm run verify",
+    "exitCode": 0,
+    "receipt": "artifacts/dated-revisit-notes/verify.json",
+    "receiptSha256": "a6b401358823434fccd436046694078142396a562fc5306543e60e683125c863",
+    "durationMs": 534692,
+    "stageCount": 14,
+    "domain": {
+      "passed": 403,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "success": true,
+      "files": 50
+    },
+    "database": {
+      "passed": 525,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "success": true,
+      "files": 46
+    },
+    "browser": {
+      "startTime": "2026-11-01T08:43:39.997Z",
+      "duration": 439904.497,
+      "expected": 123,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "journey": {
+    "command": "taskset -c 0-3 env -u NO_COLOR npm run test:journey",
+    "exitCode": 0,
+    "stats": {
+      "startTime": "2026-11-01T08:51:18.363Z",
+      "duration": 404438.296,
+      "expected": 36,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "projects": {
+      "chromium": {
+        "expected": 14,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      },
+      "firefox": {
+        "expected": 12,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      },
+      "webkit": {
+        "expected": 10,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      }
+    },
+    "reportSha256": "1fef3c25b67d50c093e774b4a6194e1a93f61c4d234ae40e16ae372e592969e0",
+    "captureCount": 802,
+    "captureManifest": "artifacts/dated-revisit-notes/capture-manifest.json",
+    "captureManifestSha256": "e01c815a9ed9279cb6a25c44493e36d8095281f9f2ed9bc5e2cc017bd4188b45",
+    "visualInspection": "Five representative fresh captures were visually sampled: Chromium 320px light populated notes, 1280px dark editor, 390px dark deletion receipt; Firefox 768px forced-dark editor; Chromium 768px native-200%-zoom light editor. The sampled layouts show wrapped long text, contained controls and visible editor/receipt actions without visible clipping or overlap. Automated reflow/focus assertions cover the full matrix. This is not an individual visual review of every capture.",
+    "report": "artifacts/dated-revisit-notes/browser-matrix.json",
+    "inventoryFileCount": 838
+  },
+  "releaseCheck": {
+    "localVerification": "passed",
+    "deploymentAllowed": false,
+    "milestone2Complete": false,
+    "outstanding": [
+      "hosted identity and automated recovery",
+      "production key rotation and retained-key receipts",
+      "verified launch content and attribution",
+      "provider qualification and billing reconciliation",
+      "hosted release isolation and failing-test proof",
+      "hosted D1 concurrency and scheduled recovery",
+      "hosted erasure/security restore and independent backups",
+      "automated browser and accessibility acceptance",
+      "operational monitoring and runbooks",
+      "owner decisions"
+    ],
+    "applicationDigest": "1fde06fa2cc87a4aff039bacf1c2a61d86c4decea694d38338eff439850a03bb",
+    "command": "taskset -c 0-3 env -u NO_COLOR npm run release -- --check",
+    "exitCode": 0
+  },
+  "previousQualification": {
+    "commit": "616c6eeb821b15b078c63ef8f89d06d0d3b255b1",
+    "sourceDigest": "ba27e97e708500743693f6ba9c8114143b943392d2110fcde40c60e155bf8739",
+    "localArchive": "artifacts/dated-revisit-notes/616c6ee-proof",
+    "note": "Previous published proof, reports, logs and final captures are preserved, alongside earlier b093/f260 archives and immutable Git commits."
+  },
+  "priorGateAttemptsScope": "Historical f260 qualification attempts are retained as environment history, distinct from the current follow-up.",
+  "priorGateAttempts": [
+    {
+      "stage": "format and lint",
+      "durationMs": 356,
+      "result": "failed",
+      "reason": "Three note CSS selector lists required Biome line wrapping; fixed without semantic change."
+    },
+    {
+      "stage": "domain and verification behavior",
+      "durationMs": 25129,
+      "result": "failed",
+      "passedTests": 402,
+      "failedTests": 1,
+      "reason": "Existing synthetic provider-evaluation dry-run test exceeded unchanged 10000ms timeout under eight-CPU default concurrency."
+    },
+    {
+      "stage": "domain and verification behavior",
+      "durationMs": 24711,
+      "result": "failed",
+      "passedTests": 402,
+      "failedTests": 1,
+      "reason": "Same timeout reproduced; isolated test passed in 3.97s. Whole domain suite passed 403/403 in 18.37s under four-CPU affinity before final verification."
+    }
+  ],
+  "diagnostics": "Final verification retains baseline negative-coordinator diagnostics, 125 informational Biome recommendations and one optional-chain warning. Earlier default-concurrency timeout history remains disclosed. No assertions, existing test cases, timeouts or verification deadline were weakened.",
+  "limitations": [
+    "Feature and migration 0017 are undeployed; existing preview main0c72114 predates dated notes.",
+    "Quiesce writers and deploy matching migration/runtime. Historical ordinary writers have no automatic mixed-version fence; do not resume or roll back old binaries after new-schema records exist.",
+    "Synthetic hosted fixtures are not an actual hosted restore drill. Production release gates remain pending.",
+    "Physical/synchronized authenticators, screen readers, actual Safari, real devices and hosted-origin/RP acceptance remain open.",
+    "Native zoom is Chromium-only; forced-colors mechanism coverage is Chromium/Firefox. Distinct-date/legacy/two-edition presentation fixtures are separate from real synthetic local persistence flows."
+  ],
+  "evidencePrivacy": "Only sanitized source identities, aggregate counts, timings, scope, limitations and artifact references are published. Raw reports, screenshots, receipt credentials, kit contents and private records remain ignored.",
+  "previousFinalReviewFix": {
+    "finding": "FR-1",
+    "change": "Only typed CONFLICT enters save/deletion revision reconciliation; other typed errors retain guidance, draft or confirmation and unchanged intent.",
+    "red": {
+      "failed": 6,
+      "log": "artifacts/dated-revisit-notes/fr1-red.log"
+    },
+    "green": {
+      "startTime": "2026-11-01T06:48:21.053Z",
+      "duration": 119762.46800000001,
+      "expected": 30,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "fixtureScope": "Validated HTTP error/page fixtures test client classification; same-intent retries after simulated remediation reach the real synthetic service. Existing D1 tests establish server limits and atomic rollback.",
+    "scope": "Earlier b093 fix and its original RED/GREEN evidence; the current full verification includes these cases."
+  },
+  "verifiedSourceCommit": "244c871d0d3688805f7e7a221d8913cd4d23f31b",
+  "previousPostPublicationFixes": {
+    "changes": [
+      "Preserve notes on the exact owned edition when its reading fetch returns HTTP 410 / CONTENT_UNAVAILABLE; preserve successful unavailable representations and other error propagation.",
+      "Retain every undismissed in-memory deletion proof across subsequent successes, failures and same-proof retries, with independent download/dismissal and updated confirmed status.",
+      "Generate the missing revisit-policy.ts dependency beside the byte-identical architecture contract mirror.",
+      "Limit restore claims to the actual whole-note bookmark matrix, session edited-snapshot restores and live account cascade coverage."
+    ],
+    "focusedGreen": {
+      "command": "taskset -c 0-3 env -u NO_COLOR npx playwright test tests/browser/revisit-notes.spec.ts",
+      "exitCode": 0,
+      "stats": {
+        "startTime": "2026-11-01T07:20:57.137Z",
+        "duration": 125949.55,
+        "expected": 31,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      }
+    },
+    "withdrawalRed": {
+      "stats": {
+        "startTime": "2026-11-01T07:20:11.252Z",
+        "duration": 25246.437,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 2,
+        "flaky": 0
+      },
+      "scope": "Two schema-valid HTTP-boundary cases failed against the original b093 reading handler before restoring the fix. Earlier incomplete-envelope failures are excluded as reproduction evidence."
+    },
+    "receiptRed": "The initial receipt-replacement regression failed with one retained proof instead of two; the expanded integrated local-service case passes and covers three distinct proofs, lost acknowledgements, pre-service failures, retries, independent dismissal and downloads.",
+    "mirrorValidation": "Direct-import missing-module failure reproduced; generator, direct import, generated drift and exact byte comparison passed after adding the policy mirror.",
+    "expiryFindingDisposition": "No backend change: the admission-failure handler calls ownedSession, which rechecks retention-aware availability and throws typed 410 before revision mapping.",
+    "fixtureScope": "Schema-validated HTTP withdrawal fixtures exercise the client boundary; D1 tests establish actual service behavior. Receipt retention exercises the real synthetic local service with selected network failures.",
+    "scope": "Earlier 616c6ee follow-up and original RED/GREEN evidence; current full verification retains these regression cases."
+  },
+  "editionReflectionFix": {
+    "sourceCommit": "244c871d0d3688805f7e7a221d8913cd4d23f31b",
+    "finding": "PRRT_kwDOVYjQGc6yYeHY: select the reflection for the exact opened session and edition.",
+    "change": "Scan existing reflection IDs in order, check current ownership before each read, stop at the first exact session/edition match, and use the existing empty/new-reflection behavior when none matches. Encountered API errors still propagate; later candidates after a match are not fetched.",
+    "validRed": {
+      "stats": {
+        "startTime": "2026-11-01T08:24:58.005Z",
+        "duration": 42650.586,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 4,
+        "flaky": 0
+      },
+      "scope": "Four scenarios failed against the unchanged 616c6ee handler with a same-session/different-edition reflection first. Earlier foreign-session-first exploratory results are retained separately and are not the authoritative reproduction."
+    },
+    "affectedGreenBeforeTestConsolidation": {
+      "stats": {
+        "startTime": "2026-11-01T08:25:50.664Z",
+        "duration": 186611.54799999998,
+        "expected": 49,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "scope": "Complete affected readings and revisit-note suite on final production code, before new regression cases were consolidated."
+    },
+    "coverage": [
+      "First exact matching reflection rather than first listed; preserve list order among multiple exact matches.",
+      "No exact match shows an empty editor and creates a new reflection without updating another edition.",
+      "Exact URL, focus-refresh draft retention, write endpoint/payload and real local readback.",
+      "No fetch of later candidates after an exact match; malformed foreign-session response is separate defensive boundary coverage."
+    ],
+    "fixtureScope": "Extra edition membership and nonmatching reflection responses are schema-validated HTTP boundary fixtures. Reflection POST/PUT and readback use real synthetic local persistence. No-match fixtures omit existing matching IDs at the boundary; this does not claim a fully persisted multi-edition backend scenario.",
+    "lookupLimit": "Lookup remains linear in preceding candidates, or all candidates when no match exists; existing shared read-rate limits remain in force. No speculative endpoint/schema/selector was added.",
+    "productionFixCommit": "89255cc321ba48d278be8acc94647ec2fa338758",
+    "priorConsolidatedRegressionGreen": {
+      "stats": {
+        "startTime": "2026-11-01T08:29:04.327Z",
+        "duration": 20810.728000000003,
+        "expected": 2,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "scope": "Two journeys retained all four scenarios but still added 13.013 seconds; full verification on 89255cc subsequently exhausted its unchanged deadline. Preserved as historical refinement evidence.",
+      "summedNewTestDurationMs": 13013
+    },
+    "finalRegressionGreen": {
+      "stats": {
+        "startTime": "2026-11-01T08:41:24.709Z",
+        "duration": 12662.434,
+        "expected": 1,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "scope": "One journey retains four named scenario steps: older request and latest history, each with matching and no-match behavior. It reuses one real account/reading with explicit candidate-list preconditions, fresh per-scenario persisted snapshots, and route/listener cleanup. All original assertions remain; production and existing tests are unchanged.",
+      "summedNewTestDurationMs": 4763
+    },
+    "setupRefinement": "After a preserved 540000ms full-gate timeout on 89255cc, test-only commit 244c871 removed repeated setup. Measured new-test duration fell from 13.013s to 4.763s; no assertions, timeouts, worker configuration or global deadline were weakened."
+  },
+  "currentGateAttempts": [
+    {
+      "sourceCommit": "89255cc321ba48d278be8acc94647ec2fa338758",
+      "sourceDigest": "8450ee64e03adb40429098d9d92c15dad3b3a30820ec9fd98eeb74446cb6599d",
+      "command": "taskset -c 0-3 env -u NO_COLOR npm run verify",
+      "exitCode": 1,
+      "durationMs": 540095,
+      "deadlineMs": 540000,
+      "reason": "Unchanged global verification deadline expired during the browser stage after 120 completed passing cases; remaining cases and final package stage did not complete. No assertion failure appeared in completed cases.",
+      "completedStages": 12,
+      "domainPassed": 403,
+      "databasePassed": 525,
+      "archive": "artifacts/dated-revisit-notes/edition-reflection-verify-timeout-1"
+    }
+  ]
+}

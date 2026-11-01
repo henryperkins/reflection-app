@@ -360,3 +360,59 @@ test('restore processes every ledger page and exhausts uncertain spend rather th
   for (const object of await objects(env.RECOVERY, 'erasures/'))
     expect(object.key).not.toContain(kit.subjectId);
 });
+
+test('session erasure replay removes current and historical notes on two stale restores', async () => {
+  const { client } = await readingAccount(),
+    { reading, started } = await client.create();
+  expect(
+    (
+      await client.request(
+        `/sessions/${started.sessionId}/save`,
+        { saved: true },
+        { method: 'PUT', revision: 1 },
+      )
+    ).status,
+  ).toBe(200);
+  const note = apiSchemas.Revisit.parse(
+    await (
+      await client.request('/revisits', { editionId: reading.editionId, note: 'Before edit' })
+    ).json(),
+  );
+  expect(
+    (
+      await client.request(
+        `/revisits/${note.id}`,
+        { note: 'After edit' },
+        { method: 'PUT', revision: 1 },
+      )
+    ).status,
+  ).toBe(200);
+  const saved = await snapshot(env.DB),
+    receipt = proof();
+  expect(
+    (
+      await client.request(`/sessions/${started.sessionId}`, receipt, {
+        method: 'DELETE',
+        revision: 2,
+      })
+    ).status,
+  ).toBe(202);
+  const initial = (await ledger().load(receipt.receiptId)).completion!;
+  for (let i = 0; i < 2; i++) {
+    const runner = new OfflineRestore(offline());
+    await runner.prepare();
+    await restoreSnapshot(env.DB, saved);
+    await runner.replay();
+    expect(
+      await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(note.id).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare('SELECT revisit_id FROM revisit_revisions WHERE revisit_id=?')
+        .bind(note.id)
+        .first(),
+    ).toBeNull();
+    const chain = await ledger().load(receipt.receiptId);
+    expect(chain.passes).toHaveLength(i + 2);
+    expect(chain.completion!.backupExpiresBy >= initial.backupExpiresBy).toBe(true);
+  }
+});

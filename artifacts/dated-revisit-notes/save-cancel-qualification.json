@@ -1,0 +1,168 @@
+{
+  "version": 1,
+  "status": "passed",
+  "scope": "focused-save-cancel-follow-up-and-project-tests; synthetic-local-only",
+  "sourceParentCommit": "f5cccdb6f05a66ec5b83cf3c3fefdc5238326d9e",
+  "sourceCommit": "8644937a61b105afd2eb21afa042aebe277dd22b",
+  "sourceTree": "78d024d3ae2a0ffb38f3a48c5af3433feb10772c",
+  "sourceDigest": "8fd6dc8f7a1538060e3700fc155508f7ad55d16950e07ec148c96c0523c33dcb",
+  "change": "Guard Cancel and editor replacement during a note save; disable Cancel, Edit note and Add revisit note until the acknowledgement or failure releases save ownership. Preserve typing, subsequent revisions and independent deletion/receipts.",
+  "validation": {
+    "browser": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "npm",
+        "run",
+        "test:browser",
+        "--",
+        "tests/browser/revisit-notes.spec.ts"
+      ],
+      "exitCode": 0,
+      "stats": {
+        "startTime": "2026-11-01T09:15:21.445Z",
+        "duration": 137229.459,
+        "expected": 34,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      },
+      "report": "artifacts/dated-revisit-notes/save-cancel/green-notes-browser-tests.json",
+      "sha256": "ef0a499d6a8ffbb991a39072de9c263181a67fc8c2644f193e4534391c403c04",
+      "executionSourceDigest": "c197056b366a13fa34fd776299fda8e002cd3c8dd9210781f5bc7cf21d67d4ba"
+    },
+    "project": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "durationMs": 84540,
+      "domain": {
+        "passed": 403,
+        "total": 403,
+        "filesPassed": 50,
+        "filesTotal": 50,
+        "evidence": "Fresh project-tests.log console summary, lines13-14"
+      },
+      "database": {
+        "passed": 525,
+        "total": 525,
+        "filesPassed": 46,
+        "filesTotal": 46,
+        "evidence": "Fresh project-tests.log console summary, lines254-255"
+      },
+      "log": "artifacts/dated-revisit-notes/save-cancel/project-tests.log",
+      "logSha256": "c0928eaf37ac0d7c0a6e03c7ae4335d1fac9a5a3443ec8b762b6a2c8e7ecacb8",
+      "executionRecord": "artifacts/dated-revisit-notes/save-cancel/project-tests-execution.json",
+      "executionRecordSha256": "16a26ea6a84ed3069ded8327262040776c019fcb835ea97f012b9343ff808240",
+      "reportProvenance": "npm test emitted console summaries only, not fresh JSON reports. The original runner copied pre-existing domain/database JSONs; those copies and the original execution metadata are preserved but are explicitly historical, excluded from current result evidence. See report-provenance.json."
+    },
+    "typecheck": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "executionSourceDigest": "c197056b366a13fa34fd776299fda8e002cd3c8dd9210781f5bc7cf21d67d4ba"
+    },
+    "lint": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "node_modules/@biomejs/biome/bin/biome",
+        "check",
+        "src/client/revisit-notes.tsx",
+        "tests/browser/revisit-notes.spec.ts"
+      ],
+      "exitCode": 0
+    },
+    "passedTestExecutions": 962
+  },
+  "regression": {
+    "red": {
+      "baseCommit": "f5cccdb6f05a66ec5b83cf3c3fefdc5238326d9e",
+      "stats": {
+        "startTime": "2026-11-01T09:14:12.359Z",
+        "duration": 25257.452,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 2,
+        "flaky": 0
+      },
+      "report": "artifacts/dated-revisit-notes/save-cancel/red-behavior-browser-tests.json",
+      "sha256": "9a5ec1ebc2c603dd040a9388a5d4177d99ec146a2730c5f720f91c7256e07d24",
+      "observed": "Both real local accepted writes were absent from the displayed list after cancellation/editor replacement; no manual refresh or reopen occurred."
+    },
+    "coverage": [
+      "Accepted POST survives attempted Cancel/Edit/Add activation and renders exactly one new note.",
+      "Accepted PUT survives editor replacement attempts; continued typing is retained and the next PUT uses revision2 on the same note.",
+      "Controls re-enable after acknowledgement; persisted note counts, revisions and unchanged unrelated note are checked.",
+      "Existing deletion-dominance case retains its delayed PUT, new-editor draft and complete receipt assertions; editor replacement occurs after accepted deletion releases save ownership, before the delayed PUT acknowledgement."
+    ],
+    "fixtureScope": "Real synthetic local service accepts each write before its response is held at the browser transport boundary. Native HTML button activation respects disabled controls; no database or acknowledgement body is fabricated."
+  },
+  "postBrowserFormatting": {
+    "change": "Biome joined the Cancel button opening tag onto one line; no token/behavior change.",
+    "beforeFileSha256": "24d323f8571ff07928f17085b1954d90fe73eb2b0f5d1fe6036dd828d2239544",
+    "afterFileSha256": "670e0f578ea88de94be290af019ceeca999df3bb83996a9ccd01bc2111ddcc93",
+    "emittedJavaScriptIdentical": true,
+    "emittedJavaScriptSha256": "7d372dac01b7529321aa12b6350610b852a90985a32e9a3a21c464ab9daaf04d",
+    "browserAndTypecheckSourceDigest": "c197056b366a13fa34fd776299fda8e002cd3c8dd9210781f5bc7cf21d67d4ba"
+  },
+  "earlierAttempts": [
+    {
+      "stage": "red",
+      "exitCode": 1,
+      "reason": "Anchored title filter selected no tests; collection failure is preserved and excluded from behavioral RED evidence."
+    },
+    {
+      "stage": "lint",
+      "exitCode": 1,
+      "reason": "Biome required one-line formatting of the Cancel opening tag; fixed with identical emitted JavaScript, then lint passed."
+    }
+  ],
+  "notRun": [
+    "Firefox, explicitly excluded by the user",
+    "Full npm run verify and full browser matrix; this delivery uses the focused note suite plus npm test",
+    "Release check, hosted/provider acceptance, merge and deployment"
+  ],
+  "previousFullQualification": {
+    "publicationCommit": "f5cccdb6f05a66ec5b83cf3c3fefdc5238326d9e",
+    "sourceCommit": "244c871d0d3688805f7e7a221d8913cd4d23f31b",
+    "sourceDigest": "badf76d1ff3a383caaebe5f4fb97a070efb43cd89540d27c29eada366fa7cec0",
+    "testExecutions": 1051,
+    "crossBrowserJourneys": 36,
+    "archive": "artifacts/dated-revisit-notes/f5cccdb-proof",
+    "scope": "Historical evidence for the prior source; not claimed as a fresh full qualification of this follow-up."
+  },
+  "diagnostics": "Fresh project console summaries report 403/403 domain/tooling and 525/525 database tests passed, with expected negative verification/coordinator diagnostics. No fresh domain/database JSON counters were emitted. Browser counters show no skipped/unexpected/flaky cases. Initial collection/formatting failures and the corrected report-provenance mistake are preserved.",
+  "publication": "Only this digest-excluded focused qualification JSON is added after the source commit. Prior qualification.json and verify.json are unchanged historical records.",
+  "evidencePrivacy": "Only source identities, aggregate results, scope, hashes and static explanations are published. Raw logs/reports and synthetic account or receipt credentials remain local and ignored.",
+  "evidenceCorrection": {
+    "finding": "SC-1",
+    "change": "Replace stale copied JSON references/counters with fresh npm test console summaries, log hash and execution-record hash. No test rerun or source change.",
+    "historicalCopies": "artifacts/dated-revisit-notes/save-cancel/report-provenance.json"
+  }
+}

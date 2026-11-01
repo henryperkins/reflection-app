@@ -53,6 +53,7 @@ export class ReadingRecords {
       editionIds: editions!.results.map((r) => r.id),
       reflectionIds: reflections!.results.map((r) => r.id),
       savedAt: row.saved_at === null ? null : iso(row.saved_at),
+      retentionExpiresAt: row.retention_expires_at === null ? null : iso(row.retention_expires_at),
       createdAt: iso(row.created_at),
       requests: requests!.results,
     });
@@ -199,26 +200,56 @@ export class ReadingRecords {
     });
     if (mutation.existing) return this.session(session, id);
     if (row.revision !== revision) throw new RecordError(409, 'CONFLICT', row.revision);
-    await this.base.atomic(
-      session,
-      [
-        this.base.sessionGuard(session, id, revision),
-        assertion(
+    const dependents = async () => {
+      if (
+        !saved &&
+        (await q(
           this.base.db,
-          'EXISTS(SELECT 1 FROM accounts WHERE id=? AND recovery_ack_at IS NOT NULL)',
-          session.subjectId,
-        ),
-        q(
-          this.base.db,
-          `UPDATE reading_sessions SET status=?,saved_at=${saved ? DB_NOW : 'NULL'},retention_expires_at=${saved ? 'NULL' : `${DB_NOW}+86400000`},revision=revision+1 WHERE owner_id=? AND id=?`,
-          saved ? 'saved' : 'open',
+          'SELECT 1 FROM revisits WHERE owner_id=? AND session_id=? AND deleted_at IS NULL LIMIT 1',
           session.subjectId,
           id,
-        ),
-        mutation.insert(id),
-      ],
-      true,
-    );
+        ).first())
+      )
+        throw new RecordError(409, 'DEPENDENTS_EXIST');
+    };
+    await dependents();
+    try {
+      await this.base.atomic(
+        session,
+        [
+          this.base.sessionGuard(session, id, revision),
+          ...(!saved
+            ? [
+                assertion(
+                  this.base.db,
+                  'NOT EXISTS(SELECT 1 FROM revisits WHERE owner_id=? AND session_id=? AND deleted_at IS NULL)',
+                  session.subjectId,
+                  id,
+                ),
+              ]
+            : []),
+          assertion(
+            this.base.db,
+            'EXISTS(SELECT 1 FROM accounts WHERE id=? AND recovery_ack_at IS NOT NULL)',
+            session.subjectId,
+          ),
+          q(
+            this.base.db,
+            `UPDATE reading_sessions SET status=?,saved_at=${saved ? DB_NOW : 'NULL'},retention_expires_at=${saved ? 'NULL' : `${DB_NOW}+86400000`},revision=revision+1 WHERE owner_id=? AND id=?`,
+            saved ? 'saved' : 'open',
+            session.subjectId,
+            id,
+          ),
+          mutation.insert(id),
+        ],
+        true,
+      );
+    } catch (error) {
+      await this.base.checked(session);
+      await this.base.ownedSession(session, id);
+      await dependents();
+      throw error;
+    }
     return this.session(session, id);
   }
   async permission(session: Session, allowed: boolean, revision: number, key: string) {

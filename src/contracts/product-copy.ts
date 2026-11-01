@@ -31,3 +31,9 @@ export const SPREAD_PHOTO_COPY = Object.freeze({
   liveProviderRetention:
     'Your question, cards and selected source meanings are sent to OpenAI to write the reading. Any spread photo you attach is sent to Meta for recognition. Saved readings and reflections are not sent automatically. OpenAI and Meta may retain request data under their API terms and account settings; zero retention is not guaranteed.',
 });
+
+/** Authored-note retention disclosure; separate from historical reading content. */
+export const REVISIT_PRODUCT_COPY = Object.freeze({
+  disclosure:
+    'This note is saved with this reading until you delete the note, reading or account. Editing keeps earlier saved versions, which are included in your export. Notes are encrypted at rest and can be read by this service when needed to show or manage them. Saving a note does not send it to an AI provider.',
+});

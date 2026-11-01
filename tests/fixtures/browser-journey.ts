@@ -1,4 +1,4 @@
-import { chromium, type Page } from '@playwright/test';
+import { chromium, expect, type Page } from '@playwright/test';
 import { account } from './browser-reading.ts';
 
 export const spreadPhotoPath = new URL('./spread-photo.jpg', import.meta.url).pathname;
@@ -79,4 +79,120 @@ export async function themeContrast(page: Page, selector?: string) {
       destructiveButton: ratio(color('--destructive-foreground'), color('--destructive-button')),
     };
   }, selector);
+}
+
+/** Complete synthetic note responses with fixed server dates, only at the browser boundary. */
+export async function datedNotesFixture(page: Page) {
+  const session = await page.request.get('/api/v1/sessions?status=saved').then((r) => r.json());
+  const parent = session.items[0];
+  const notes = [
+    {
+      kind: 'revisit.v2',
+      id: '00000000-0000-4000-8000-000000000001',
+      sessionId: parent.id,
+      editionId: parent.latestEditionId,
+      revision: 1,
+      note: 'Synthetic February thought.',
+      stance: 'unspecified',
+      createdAt: '2026-02-01T10:00:00.000Z',
+      updatedAt: '2026-02-01T10:00:00.000Z',
+    },
+    {
+      kind: 'revisit.v2',
+      id: '00000000-0000-4000-8000-000000000002',
+      sessionId: parent.id,
+      editionId: parent.latestEditionId,
+      revision: 1,
+      note: 'Synthetic March thought.',
+      stance: 'unsure',
+      createdAt: '2026-03-02T11:30:00.000Z',
+      updatedAt: '2026-03-02T11:30:00.000Z',
+    },
+  ];
+  const generationRequests: string[] = [];
+  page.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().endsWith('/requests')) generationRequests.push(r.url());
+  });
+  await page.route('**/api/v1/revisits**', async (route) => {
+    const request = route.request();
+    const id = new URL(request.url()).pathname.split('/').at(-1);
+    if (request.method() === 'GET')
+      return route.fulfill({
+        json:
+          id === 'revisits' ? { items: notes, nextCursor: null } : notes.find((n) => n.id === id),
+      });
+    if (request.method() === 'PUT') {
+      const note = notes.find((n) => n.id === id)!;
+      Object.assign(note, request.postDataJSON(), {
+        revision: note.revision + 1,
+        updatedAt: '2026-04-03T12:45:00.000Z',
+      });
+      return route.fulfill({ json: note });
+    }
+    return route.continue();
+  });
+  return { notes, generationRequests };
+}
+
+/** Every note state uses the real local synthetic server, including a real stale revision. */
+export async function noteJourneyStates(page: Page, capture: (state: string) => Promise<void>) {
+  const notes = page.getByRole('region', { name: 'Revisit notes', exact: true });
+  await expect(notes.getByText('No revisit notes yet.', { exact: true })).toBeVisible();
+  await capture('notes-empty');
+  await notes.getByRole('button', { name: 'Add revisit note', exact: true }).click();
+  const text = page.getByLabel('Your revisit note', { exact: true });
+  await expect(text).toBeFocused();
+  await text.fill(`Synthetic dated thought.\n\n${'LongUnbrokenAuthoredText'.repeat(50)}`);
+  await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Your response (optional)', { exact: true })).toBeFocused();
+  await page.getByLabel('Your response (optional)', { exact: true }).selectOption('unsure');
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Save note', exact: true })).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(notes.getByRole('status').filter({ hasText: 'Note saved.' })).toBeVisible();
+  await expect(notes.getByRole('heading', { level: 3 })).toBeFocused();
+  await capture('notes-populated');
+  await notes.getByRole('button', { name: 'Edit note', exact: true }).click();
+  await text.fill(`Synthetic unsaved later thought. ${'Word'.repeat(200)}`);
+  await capture('notes-edit');
+  const me = await page.request.get('/api/v1/me').then((r) => r.json());
+  const sessions = await page.request.get('/api/v1/sessions?status=saved').then((r) => r.json());
+  const list = await page.request
+    .get(`/api/v1/revisits?editionId=${sessions.items[0].latestEditionId}`)
+    .then((r) => r.json());
+  const note = list.items[0];
+  const response = await page.request.put(`/api/v1/revisits/${note.id}`, {
+    headers: {
+      Origin: new URL(page.url()).origin,
+      'X-CSRF-Token': me.csrfToken,
+      'If-Match': '"1"',
+      'Idempotency-Key': crypto.randomUUID(),
+    },
+    data: { note: 'Synthetic current saved version from another tab.', stance: 'disagree' },
+  });
+  expect(response.status()).toBe(200);
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(notes.getByText(/saved note changed/)).toBeVisible();
+  await page.getByRole('button', { name: 'Refresh saved note', exact: true }).click();
+  await expect(notes.getByRole('blockquote')).toContainText('Synthetic current saved version');
+  await capture('notes-conflict');
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(notes.getByRole('button', { name: 'Edit note', exact: true })).toBeFocused();
+  await notes.getByRole('button', { name: 'Refresh notes', exact: true }).click();
+  await expect(notes.getByRole('article')).toContainText('Synthetic current saved version');
+  await notes.getByRole('button', { name: 'Delete note', exact: true }).click();
+  await expect(
+    page.getByLabel('Delete this note and all saved versions permanently'),
+  ).toBeFocused();
+  await page.getByLabel('Delete this note and all saved versions permanently').check();
+  await capture('notes-deletion');
+  await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+  await expect(notes.getByRole('heading', { name: 'Deletion receipt', exact: true })).toBeVisible();
+  await expect(notes.getByRole('button', { name: 'Add revisit note', exact: true })).toBeFocused();
+  await capture('notes-receipt');
+  await page.getByRole('button', { name: 'Dismiss receipt', exact: true }).click();
+  await notes.getByRole('button', { name: 'Add revisit note', exact: true }).click();
+  await text.fill('Synthetic dated thought kept for return.');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(notes.getByRole('status').filter({ hasText: 'Note saved.' })).toBeVisible();
 }

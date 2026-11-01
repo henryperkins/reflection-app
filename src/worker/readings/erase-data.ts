@@ -17,6 +17,49 @@ export class EraseData {
       q(this.base.db, 'DELETE FROM accounts WHERE id=?', target.subjectId),
     ]);
   }
+  async revisit(job: { id: string }, target: Extract<Target, { scope: 'revisit' }>): Promise<void> {
+    const owner = target.subjectId,
+      id = target.revisitId;
+    await this.base.db.batch([
+      assertion(
+        this.base.db,
+        "EXISTS(SELECT 1 FROM deletion_jobs WHERE id=? AND state!='complete' AND target_enc IS NOT NULL)",
+        job.id,
+      ),
+      // Unsupported raw imports remain closed. An exact source alias can be detached safely.
+      assertion(
+        this.base.db,
+        'NOT EXISTS(SELECT 1 FROM import_items WHERE owner_id=?) AND NOT EXISTS(SELECT 1 FROM context_grants WHERE owner_id=?)',
+        owner,
+        owner,
+      ),
+      q(this.base.db, 'UPDATE accounts SET data_revision=data_revision+1 WHERE id=?', owner),
+      q(
+        this.base.db,
+        `UPDATE revisits SET note_enc=NULL,deleted_at=coalesce(deleted_at,${DB_NOW}),deletion_job_id=? WHERE owner_id=? AND id=?`,
+        job.id,
+        owner,
+        id,
+      ),
+      q(
+        this.base.db,
+        `UPDATE revisit_revisions SET body_enc=NULL,erased_at=coalesce(erased_at,${DB_NOW}) WHERE owner_id=? AND revisit_id=?`,
+        owner,
+        id,
+      ),
+      q(
+        this.base.db,
+        `UPDATE import_identities SET source_record_enc=NULL,session_id=NULL,edition_id=NULL,reflection_id=NULL,reflection_revision=NULL,revisit_id=NULL,erased_at=coalesce(erased_at,${DB_NOW}) WHERE owner_id=? AND revisit_id=?`,
+        owner,
+        id,
+      ),
+      q(
+        this.base.db,
+        `UPDATE deletion_jobs SET state='erasing',completed_at=coalesce(completed_at,${DB_NOW}) WHERE id=?`,
+        job.id,
+      ),
+    ]);
+  }
   async reflection(job: { id: string }, target: Extract<Target, { scope: 'reflection_revision' }>) {
     const owner = target.subjectId,
       id = target.reflectionId,
@@ -144,6 +187,13 @@ export class EraseData {
         owner,
         owner,
         id,
+        owner,
+        id,
+      ),
+      q(
+        this.base.db,
+        `UPDATE revisit_revisions SET body_enc=NULL,erased_at=coalesce(erased_at,${DB_NOW}) WHERE owner_id=? AND revisit_id IN (SELECT id FROM revisits WHERE owner_id=? AND session_id=?)`,
+        owner,
         owner,
         id,
       ),

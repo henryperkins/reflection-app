@@ -1,3 +1,4 @@
+import { planAccountDataKeyRetirement } from '../../src/worker/recovery/key-retirement.ts';
 import { keyInventoryFixture as fixture } from '../fixtures/key-inventory.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
@@ -157,4 +158,67 @@ test('a changed authenticated key wrap invalidates the repeated inventory even w
     verify: (manifest: BackupManifest) => f.backups.inventory.verify(manifest),
   };
   expect((await inventoryKeyReferences(f.runtime, f.context, backups)).complete).toBe(false);
+});
+
+test('retained old-key archived revisit bodies remain in inventory beside a new-key current body', async () => {
+  const f = await fixture();
+  const before = await inventoryKeyReferences(f.runtime, f.context, f.backups.inventory);
+  const first = before.accountKeys.find((key) => key.ownerId === f.owner && key.version === 1)!;
+  const keys = await f.runtime.identity.crypt.createAccountKeys(f.owner, 2);
+  await env.DB.prepare(
+    'INSERT INTO account_keys(owner_id,version,wrap_key_id,wrapped_key_enc,wrapped_index_key_enc,created_at) VALUES(?,2,?,?,?,1)',
+  )
+    .bind(f.owner, keys.wrapKeyId, keys.wrappedKey, keys.wrappedIndexKey)
+    .run();
+  const id = crypto.randomUUID();
+  const archived = await f.runtime.base.crypt.seal(
+    {
+      ownerId: f.owner,
+      table: 'revisit_revisions',
+      column: 'body_enc',
+      recordId: id + ':1',
+      aadRevision: 1,
+    },
+    { note: 'Synthetic retained archived crypto fixture' },
+    1,
+  );
+  const current = await f.runtime.base.crypt.seal(
+    { ownerId: f.owner, table: 'revisits', column: 'note_enc', recordId: id, aadRevision: 2 },
+    { note: 'Synthetic current crypto fixture' },
+    2,
+  );
+  await env.DB.batch([
+    env.DB.prepare(
+      'INSERT INTO revisits(id,owner_id,edition_id,session_id,note_enc,key_version,created_at,current_revision,updated_at) VALUES(?,?,?,?,?,2,1,2,2)',
+    ).bind(id, f.owner, f.created.reading.editionId, f.created.reading.sessionId, current),
+    env.DB.prepare(
+      'INSERT INTO revisit_revisions(revisit_id,owner_id,revision,body_enc,key_version,created_at) VALUES(?,?,1,?,1,1)',
+    ).bind(id, f.owner, archived),
+    env.DB.prepare('UPDATE accounts SET key_version=2 WHERE id=?').bind(f.owner),
+  ]);
+  const inventory = await inventoryKeyReferences(f.runtime, f.context, f.backups.inventory);
+  expect(inventory.complete).toBe(true);
+  for (const key of inventory.accountKeys.filter((key) => key.ownerId === f.owner)) {
+    const plan = await planAccountDataKeyRetirement(inventory, key.ownerId, key.version);
+    expect(plan.allowed).toBe(false);
+    expect(plan.reasons).toContain('ACCOUNT_KEY_REFERENCED');
+  }
+  expect(inventory.accountKeys).toContainEqual(
+    expect.objectContaining({
+      ownerId: f.owner,
+      version: 1,
+      active: false,
+      liveFields: first.liveFields + 1,
+      operationalReferences: first.operationalReferences + 1,
+    }),
+  );
+  expect(inventory.accountKeys).toContainEqual(
+    expect.objectContaining({
+      ownerId: f.owner,
+      version: 2,
+      active: true,
+      liveFields: 1,
+      operationalReferences: 1,
+    }),
+  );
 });

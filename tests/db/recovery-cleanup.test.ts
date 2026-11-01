@@ -1,10 +1,11 @@
+import { fixture, edited } from '../fixtures/revisits.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
 import { OfflineCleanup } from '../../src/worker/recovery/cleanup.ts';
 import { OfflineRestore } from '../../src/worker/recovery/restore.ts';
 import { CLEANUP_STATE_KEY } from '../../src/worker/recovery/cleanup-state.ts';
-import { IdentityCrypto } from '../../src/worker/identity/crypto.ts';
+import { IdentityCrypto, randomToken } from '../../src/worker/identity/crypto.ts';
 import { localIdentity } from '../../src/worker/identity/routes.ts';
 import { ErasureLedger, objects, DAY } from '../../src/worker/recovery/ledger.ts';
 import { clearDatabase } from '../fixtures/database.ts';
@@ -398,3 +399,131 @@ test('an over-bound chain stays whole while another eligible group is purged', a
   expect(await objects(env.RECOVERY, `erasures/v1/${small.proof.receiptId}/`)).toHaveLength(0);
   expect((await cleanupLedger().load(large.proof.receiptId)).completion?.revision).toBe(500);
 }, 30000);
+
+const proof = () => ({ receiptId: crypto.randomUUID(), receiptToken: randomToken() });
+async function ageNoteDeletion(
+  f: Awaited<ReturnType<typeof fixture>>,
+  noteId: string,
+  receipt: ReturnType<typeof proof>,
+) {
+  const ledger = cleanupLedger(),
+    original = await ledger.load(receipt.receiptId);
+  for (const object of await objects(env.RECOVERY, `erasures/v1/${receipt.receiptId}/`))
+    await env.RECOVERY.delete(object.key);
+  const at = Date.now() - 50 * DAY;
+  await ledger.putIntent(
+    await ledger.create(
+      original.target,
+      receipt.receiptId,
+      await ledger.token(receipt.receiptId, receipt.receiptToken),
+      at,
+    ),
+  );
+  const chain = await ledger.load(receipt.receiptId),
+    pass = await ledger.begin(chain, at);
+  const complete = await ledger.finish(chain, pass, at);
+  await env.DB.prepare(
+    'UPDATE deletion_jobs SET created_at=?,completed_at=?,backup_expires_by=? WHERE id=?',
+  )
+    .bind(at, at, Date.parse(complete.backupExpiresBy), receipt.receiptId)
+    .run();
+  await env.DB.prepare('UPDATE revisits SET deleted_at=? WHERE id=?').bind(at, noteId).run();
+  await env.DB.prepare('UPDATE idempotency_keys SET expires_at=1 WHERE owner_id=?')
+    .bind(f.kit.subjectId)
+    .run();
+}
+
+test('cleanup removes eligible note shells before exact job evidence and its undo restores both after backup failure', async () => {
+  const f = await fixture(),
+    { first } = await edited(f),
+    receipt = proof();
+  await f.erase.removeRevisit(f.session, first.id, 2, crypto.randomUUID(), receipt);
+  await ageNoteDeletion(f, first.id, receipt);
+  const backup = localBackup();
+  await expect(
+    new OfflineCleanup(cleanupBindings(), { ...backup, verify: async () => false }).run(),
+  ).rejects.toThrow(/backup/i);
+  expect(
+    await env.DB.prepare('SELECT deletion_job_id FROM revisits WHERE id=?')
+      .bind(first.id)
+      .first('deletion_job_id'),
+  ).toBe(receipt.receiptId);
+  expect(
+    (
+      await env.DB.prepare('SELECT * FROM revisit_revisions WHERE revisit_id=?')
+        .bind(first.id)
+        .all()
+    ).results,
+  ).toHaveLength(1);
+  expect(
+    await env.DB.prepare('SELECT id FROM deletion_jobs WHERE id=?').bind(receipt.receiptId).first(),
+  ).not.toBeNull();
+  expect((await new OfflineCleanup(cleanupBindings(), localBackup()).run()).purgedObjects).toBe(3);
+  expect(
+    await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(first.id).first(),
+  ).toBeNull();
+  expect(
+    await env.DB.prepare('SELECT id FROM deletion_jobs WHERE id=?').bind(receipt.receiptId).first(),
+  ).toBeNull();
+});
+
+test('cleanup refuses a remaining historical body even when the current note is erased', async () => {
+  const f = await fixture(),
+    { first } = await edited(f),
+    receipt = proof();
+  const body = await env.DB.prepare('SELECT body_enc FROM revisit_revisions WHERE revisit_id=?')
+    .bind(first.id)
+    .first<string>('body_enc');
+  await f.erase.removeRevisit(f.session, first.id, 2, crypto.randomUUID(), receipt);
+  await ageNoteDeletion(f, first.id, receipt);
+  await env.DB.prepare('UPDATE revisit_revisions SET body_enc=? WHERE revisit_id=?')
+    .bind(body, first.id)
+    .run();
+  await expect(new OfflineCleanup(cleanupBindings(), localBackup()).run()).rejects.toThrow(
+    /not erased/i,
+  );
+  expect(await objects(env.RECOVERY, `erasures/v1/${receipt.receiptId}/`)).toHaveLength(3);
+});
+
+test('note cleanup retains evidence if its tombstone has lost the exact job projection', async () => {
+  const f = await fixture(),
+    { first } = await edited(f),
+    receipt = proof();
+  await f.erase.removeRevisit(f.session, first.id, 2, crypto.randomUUID(), receipt);
+  await ageNoteDeletion(f, first.id, receipt);
+  await env.DB.prepare('DELETE FROM deletion_jobs WHERE id=?').bind(receipt.receiptId).run();
+  expect((await new OfflineCleanup(cleanupBindings(), localBackup()).run()).purgedObjects).toBe(0);
+  expect(
+    await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(first.id).first(),
+  ).not.toBeNull();
+  expect(await objects(env.RECOVERY, `erasures/v1/${receipt.receiptId}/`)).toHaveLength(3);
+});
+
+test('session cleanup independently rejects archived note content behind an empty current tombstone', async () => {
+  const f = await fixture(),
+    { first } = await edited(f);
+  const archived = await env.DB.prepare('SELECT body_enc FROM revisit_revisions WHERE revisit_id=?')
+    .bind(first.id)
+    .first<string>('body_enc');
+  await f.erase.remove(f.session, f.started.sessionId, 2, crypto.randomUUID(), proof());
+  await env.DB.prepare(
+    'INSERT INTO revisits(id,owner_id,edition_id,session_id,note_enc,key_version,created_at,updated_at,current_revision,deleted_at) VALUES(?,?,?,?,NULL,1,?,?,2,1)',
+  )
+    .bind(
+      first.id,
+      f.kit.subjectId,
+      f.reading.editionId,
+      f.started.sessionId,
+      Date.parse(first.createdAt),
+      Date.parse(first.createdAt),
+    )
+    .run();
+  await env.DB.prepare(
+    'INSERT INTO revisit_revisions(revisit_id,owner_id,revision,body_enc,key_version,created_at,erased_at) VALUES(?,?,1,?,1,?,1)',
+  )
+    .bind(first.id, f.kit.subjectId, archived, Date.parse(first.createdAt))
+    .run();
+  await expect(new OfflineCleanup(cleanupBindings(), localBackup()).run()).rejects.toThrow(
+    'Session is not erased',
+  );
+});

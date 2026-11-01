@@ -1,0 +1,212 @@
+{
+  "version": 1,
+  "status": "focused-validation-passed",
+  "scope": "reflection-deletion-follow-up-and-project-tests; synthetic-local-only",
+  "sourceParentCommit": "2ad0f1e798e067a232cee70c03e6dff124e43c30",
+  "sourceCommit": "374c02c1bcc3e791c01b07ac3f8f11dd83635893",
+  "sourceTree": "8b7816d224b8bf55dcc07cfb1a616a7db11d1053",
+  "sourceDigest": "5390a5d13aae814f3c0666fc78f8c534630efd809f0f5aba48ad375f3a5324ff",
+  "change": "After a typed reflection HTTP410, skip that candidate only when a fresh owned-session read confirms the session and selected edition remain available and the reflection ID is absent. Continue exact-edition selection while preserving drafts and parent/authentication/error/lifetime handling.",
+  "environment": {
+    "node": "v26.12.1",
+    "cpuAffinity": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "browser": "Chromium",
+    "workers": 1,
+    "retries": 0,
+    "testTimeoutMs": 45000
+  },
+  "validation": {
+    "browser": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "npm",
+        "run",
+        "test:browser",
+        "--",
+        "tests/browser/readings.spec.ts",
+        "tests/browser/revisit-notes.spec.ts"
+      ],
+      "exitCode": 0,
+      "durationMs": 195347,
+      "sourceDigest": "5390a5d13aae814f3c0666fc78f8c534630efd809f0f5aba48ad375f3a5324ff",
+      "log": "artifacts/dated-revisit-notes/reflection-deletion/green.log",
+      "logSha256": "f5a75445453ffebd05406e5401daef3948e2b2cfa976f38ef6d805829c99dec6",
+      "executionRecord": "artifacts/dated-revisit-notes/reflection-deletion/green-execution.json",
+      "executionRecordSha256": "4ed2bdf3460e859d134607dff302af2fd5f78a32ef227af225211b2b219f8fda",
+      "report": "artifacts/dated-revisit-notes/reflection-deletion/green-browser-tests.json",
+      "reportSha256": "2be6dca69858ec906206969554f009a0aef77ac0ec69f812317cb015dcf758ff",
+      "stats": {
+        "startTime": "2026-11-01T10:42:35.054Z",
+        "duration": 194835.525,
+        "expected": 51,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      }
+    },
+    "project": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "npm",
+        "test"
+      ],
+      "exitCode": 0,
+      "durationMs": 84633,
+      "sourceDigest": "5390a5d13aae814f3c0666fc78f8c534630efd809f0f5aba48ad375f3a5324ff",
+      "log": "artifacts/dated-revisit-notes/reflection-deletion/project-tests.log",
+      "logSha256": "2379902ba9b8612be298c0f19adc10d472271a6916434ab7744b13c65144c346",
+      "executionRecord": "artifacts/dated-revisit-notes/reflection-deletion/project-tests-execution.json",
+      "executionRecordSha256": "f24ce9873d62440cbbbfb92ed3c7bf2927e914f24e462412c2fc4c56d18ad934",
+      "domain": {
+        "passed": 403,
+        "total": 403,
+        "filesPassed": 50,
+        "filesTotal": 50
+      },
+      "database": {
+        "passed": 525,
+        "total": 525,
+        "filesPassed": 46,
+        "filesTotal": 46
+      },
+      "reportProvenance": "Fresh npm test console summaries only. This command emits no fresh JSON reports; historical root domain/database JSONs are excluded."
+    },
+    "typecheck": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "npm",
+        "run",
+        "typecheck"
+      ],
+      "exitCode": 0,
+      "durationMs": 6158,
+      "sourceDigest": "5390a5d13aae814f3c0666fc78f8c534630efd809f0f5aba48ad375f3a5324ff",
+      "log": "artifacts/dated-revisit-notes/reflection-deletion/typecheck.log",
+      "logSha256": "1513ea1f8ab5b7ad2479a4bb354fe5a94d249c2aca58e7ce934537893ed2ff64",
+      "executionRecord": "artifacts/dated-revisit-notes/reflection-deletion/typecheck-execution.json",
+      "executionRecordSha256": "b44bade79ca7105115ec6a7c3c604b5364fa9f755a3d80046171b0b1bfe16988"
+    },
+    "lint": {
+      "command": [
+        "taskset",
+        "-c",
+        "0-3",
+        "env",
+        "-u",
+        "NO_COLOR",
+        "npx",
+        "biome",
+        "check",
+        "src/client/readings.tsx",
+        "tests/browser/revisit-notes.spec.ts"
+      ],
+      "exitCode": 0,
+      "durationMs": 275,
+      "sourceDigest": "5390a5d13aae814f3c0666fc78f8c534630efd809f0f5aba48ad375f3a5324ff",
+      "log": "artifacts/dated-revisit-notes/reflection-deletion/lint.log",
+      "logSha256": "e699e26c04a52e10bbb9ff1869d03b315467a61352770a57bbe8341c18c98c37",
+      "executionRecord": "artifacts/dated-revisit-notes/reflection-deletion/lint-execution.json",
+      "executionRecordSha256": "8a5a03141b8615155de7d00ca0a1fbf40508838e8b3c93c7d10dfbbd02308e39"
+    },
+    "passingTestExecutions": 979
+  },
+  "regression": {
+    "red": {
+      "sourceParentCommit": "2ad0f1e798e067a232cee70c03e6dff124e43c30",
+      "sourceDigest": "4d79c15efe6e58c20ea8a43313e0ec3ec1f998472a1328fbc79cce784e282d69",
+      "sourceScope": "Unchanged production code plus the three new regression cases.",
+      "exitCode": 1,
+      "stats": {
+        "startTime": "2026-11-01T10:41:31.754Z",
+        "duration": 29714.444,
+        "expected": 1,
+        "skipped": 0,
+        "unexpected": 2,
+        "flaky": 0
+      },
+      "log": "artifacts/dated-revisit-notes/reflection-deletion/red.log",
+      "logSha256": "462ac33d1deabb85f9b6009f41369f4c8577b1030cfa2eb21be6fcbcdae1effa",
+      "executionRecord": "artifacts/dated-revisit-notes/reflection-deletion/red-execution.json",
+      "executionRecordSha256": "20a1cf223611ffda8357d33feee9691341b25f45857ec945c19dfae2858e42d7",
+      "report": "artifacts/dated-revisit-notes/reflection-deletion/red-browser-tests.json",
+      "reportSha256": "1592bae45c154ba267bb73e61f8d82119e4b0fc55c311397cde420ad2287df79"
+    },
+    "observedFailure": "The two reflection-only deletion cases lost the reflection and revisit editors because the shared 410 handler cleared the reading. The parent-deletion control passed before the fix.",
+    "green": "All three new cases pass in the 51-case affected Chromium suite.",
+    "cases": [
+      "Deleting the first reflection preserves the reading URL, reading text and revisit draft; the dirty reflection reconciles and PUT saves against the remaining reflection ID.",
+      "Deleting the only reflection preserves the reading and revisit draft, starts an empty reflection editor, and POST creates a new reflection for the exact edition.",
+      "Deleting the actual parent after its session snapshot still clears the reading workspace and draft, returning to history."
+    ],
+    "fixtureScope": "The real synthetic local service creates, erases and reads back records. The route holds a genuine pre-deletion session response until the real deletion has completed; no reflection/error/session body is fabricated."
+  },
+  "releaseCheck": {
+    "command": [
+      "taskset",
+      "-c",
+      "0-3",
+      "env",
+      "-u",
+      "NO_COLOR",
+      "npm",
+      "run",
+      "release",
+      "--",
+      "--check"
+    ],
+    "exitCode": 1,
+    "durationMs": 492,
+    "sourceDigest": "5390a5d13aae814f3c0666fc78f8c534630efd809f0f5aba48ad375f3a5324ff",
+    "log": "artifacts/dated-revisit-notes/reflection-deletion/release-check.log",
+    "logSha256": "02228d4888bb467eec264fb5d8311b00522c90f9d71aa2492c27ebb0cb3f047e",
+    "executionRecord": "artifacts/dated-revisit-notes/reflection-deletion/release-check-execution.json",
+    "executionRecordSha256": "6291d38477c2b1f354e4be0d36ebf19be7602233d995ac9c3b56a14a963e9411",
+    "status": "blocked-stale-full-receipt",
+    "reason": "The current source has scoped validation only. The preserved full verification receipt belongs to earlier source and is not accepted for release.",
+    "deploymentAllowed": false
+  },
+  "notRun": [
+    "Firefox, explicitly excluded by the user",
+    "Full npm run verify and the broad cross-browser journey matrix; prior evidence remains historical",
+    "Hosted/provider acceptance, merge and deployment"
+  ],
+  "previousFocusedQualification": {
+    "publicationCommit": "2ad0f1e798e067a232cee70c03e6dff124e43c30",
+    "path": "artifacts/dated-revisit-notes/save-cancel-qualification.json",
+    "sha256": "21a389d261f264869d4c8eee4b6e473fbc02accbf26582c1cc45e49be77442a2",
+    "sourceDigest": "8fd6dc8f7a1538060e3700fc155508f7ad55d16950e07ec148c96c0523c33dcb",
+    "scope": "Historical evidence for the prior save/cancel follow-up."
+  },
+  "previousFullQualification": {
+    "publicationCommit": "f5cccdb6f05a66ec5b83cf3c3fefdc5238326d9e",
+    "sourceCommit": "244c871d0d3688805f7e7a221d8913cd4d23f31b",
+    "sourceDigest": "badf76d1ff3a383caaebe5f4fb97a070efb43cd89540d27c29eada366fa7cec0",
+    "testExecutions": 1051,
+    "crossBrowserJourneys": 36,
+    "archive": "artifacts/dated-revisit-notes/f5cccdb-proof",
+    "scope": "Historical full qualification only; not evidence for the current source."
+  },
+  "diagnostics": "All current tests passed. Expected negative hosted/offline coordinator diagnostics appear in the D1 console log. Browser counters contain zero skipped, unexpected or flaky results. The two behavioral RED failures and blocked release check remain preserved.",
+  "publication": "Only this digest-excluded scoped qualification JSON is added after the source commit. Previous qualification.json, verify.json and save-cancel-qualification.json remain unchanged historical records.",
+  "evidencePrivacy": "Only aggregate results, source identities, commands, static scope descriptions and hashes are published. Raw logs, reports and synthetic credentials remain local and ignored."
+}

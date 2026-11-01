@@ -8,6 +8,10 @@ Milestone 1 is complete. Identity/recovery, the complete downloadable handle-and
 
 The current local retention/accounting/cleanup slice is complete locally after independent review, correction of both material findings, and a 13-stage/260-test verification run. The disclosed minor request-cursor issue is addressed by the subsequent request-lifecycle integration. Its evidence is recorded in `RETENTION_CLEANUP_RESULTS.md`; it does not close all Milestone 2 gates.
 
+## Dated revisit increment — November 1
+
+The separately approved dated-note increment is implemented and qualified with synthetic local tests; see the [feature evidence and limits](verification/2026-11-01/dated-revisit-notes.md). It adds exact-edition notes, retained revisions, export, durable whole-note erasure and stale-restore replay, with AI off. This does not close production acceptance. Migration 0017 is undeployed and requires quiesced writers plus a matching binary; old ordinary writers must not resume after new-schema records exist. The existing preview on main `0c72114` predates this feature.
+
 ## Current application inventory
 
 Updated on 2026-10-27 from merged application `6b9b1fc`. The [integration verification](../artifacts/main-integration/verify.json) records the 14-stage local gate; the [preview smoke record](superpowers/evidence/2026-10-27-hosted-preview-smoke.json) records the separate hosted development journey. Ignored local receipts are execution artifacts, not production approvals.
@@ -53,7 +57,7 @@ Further production work consists of the explicit external gates in [production a
 
 ## Later scope
 
-Milestone 3 retains follow-ups tied to an exact saved parent, selected-context preview/grant/revocation, separate dated revisit notes and supported legacy imports/export-import round trips. Ordinary saved history, reopening and initial reflection editing remain Milestone 2 and already have local evidence.
+Milestone 3 retains follow-ups tied to an exact saved parent, selected-context preview/grant/revocation and supported legacy imports/export-import round trips. Separate dated revisit notes were brought forward under explicit November 1 approval and are implemented locally. Ordinary saved history, reopening and initial reflection editing remain Milestone 2 and already have local evidence.
 
 Astrology, coaching/check-ins, narration, recognition, Time Travel as a product feature, astrocartography, portraits, MCP and billing remain conditional later work. Product Time Travel is distinct from the database restore/privacy qualification required for launch. No later-feature scaffolding is needed to close this local MVP journey.
 

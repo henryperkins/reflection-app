@@ -2215,6 +2215,7 @@ paths:
             type: integer
             minimum: 1
             maximum: 50
+            default: 20
         - name: editionId
           in: query
           required: false
@@ -3445,8 +3446,8 @@ paths:
         omission. Null questions stay null; full text is available on
         reopen/export. Show createdAt as the reading date. Keyset created_at
         DESC,id DESC, limit20 default/50 max. Cursor MAC binds
-        owner/filter/page; no provider call or plaintext search. Imports and
-        dedicated dated revisit notes remain completed-v1 features.
+        owner/filter/page; no provider call or plaintext search. Dated revisit
+        notes have their own chronological list. Imports remain deferred.
       security:
         - sessionCookie: []
       parameters:
@@ -3462,6 +3463,7 @@ paths:
             type: integer
             minimum: 1
             maximum: 50
+            default: 20
         - name: status
           in: query
           required: false
@@ -3986,8 +3988,9 @@ paths:
         the existing reading until user deletion or a separately disclosed
         explicit Unsave; existing source-erasure/withdrawal rules still apply.
         Confirm only after commit; saving does not call a provider or change
-        model permission. Unsave resets24h retention from that explicit action.
-        30 mutations/min/account.
+        model permission. Unsave resets24h retention from that explicit action;
+        active revisit notes reject Unsave with DEPENDENTS_EXIST. 30
+        mutations/min/account.
       security:
         - sessionCookie: []
       parameters:
@@ -5086,9 +5089,13 @@ paths:
     post:
       operationId: addRevisit
       summary: addRevisit
-      description: Explicit authored note tied to exact owned edition; max2000 chars.
-        No automatic tracking of reopening, no provider. Included in
-        history/detail/export.
+      description: Explicit authored note tied to exact owned edition; 1–2000 Unicode
+        code points; optional stance defaults to unspecified. Saved parent
+        required; at most100 active notes per edition and20MiB account estimate.
+        NOTE_LIMIT_EXCEEDED or STORAGE_LIMIT_EXCEEDED require an explicit user
+        decision. Exact noteId:revision result replays within seven days; after
+        that window stop automatic submissions and reconcile. No automatic
+        tracking of reopening, no provider. Included in history/detail/export.
       security:
         - sessionCookie: []
       parameters:
@@ -5118,6 +5125,11 @@ paths:
               schema:
                 type: string
                 format: uuid
+            ETag:
+              schema:
+                type: string
+                pattern: ^"[1-9][0-9]*"$
+              description: Exact returned authored revision.
           content:
             application/json:
               schema:
@@ -5263,8 +5275,10 @@ paths:
     get:
       operationId: revisits
       summary: revisits
-      description: Keyset created_at DESC,id DESC, owned notes only, default20/max50.
-        Response RevisitPage.
+      description: Keyset created_at ASC,id ASC, owned notes only, default20/max50.
+        Cursor MAC binds owner, current auth epoch, exact edition and ascending
+        order; every page independently reauthorizes. Live ordered view, not a
+        frozen snapshot. Response RevisitPage.
       security:
         - sessionCookie: []
       parameters:
@@ -5280,9 +5294,10 @@ paths:
             type: integer
             minimum: 1
             maximum: 50
+            default: 20
         - name: editionId
           in: query
-          required: false
+          required: true
           schema:
             type: string
             format: uuid
@@ -5434,6 +5449,573 @@ paths:
               schema:
                 type: integer
                 minimum: 1
+  /revisits/{revisitId}:
+    get:
+      operationId: revisit
+      summary: revisit
+      description: Current note or exact retained revision1–100 with ETag. Normalizes
+        valid legacy notes without changing their original dates. Withdrawn
+        reading content does not remove notes. 410 if erased or parent
+        expired/deleted; foreign404.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: revisitId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: revision
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+      responses:
+        "200":
+          description: Successful result; private,no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Correlation-ID:
+              schema:
+                type: string
+                format: uuid
+            ETag:
+              schema:
+                type: string
+                pattern: ^"[1-9][0-9]*"$
+              description: Exact returned authored revision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Revisit"
+        "400":
+          description: Invalid shape/range.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "401":
+          description: Sign in again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "403":
+          description: Permission or recent authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "404":
+          description: Absent or not owned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "409":
+          description: Refresh state; preserve local draft.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "410":
+          description: Owned resource erased/withdrawn/expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "413":
+          description: Payload exceeds budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "422":
+          description: Unsupported language, safety boundary or invalid content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "428":
+          description: If-Match required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "429":
+          description: Quota or rate limit; honor Retry-After.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "500":
+          description: Internal failure; use correlation ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "503":
+          description: Dependency, key, spend or recovery unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+    put:
+      operationId: editRevisit
+      summary: editRevisit
+      description: Exact current If-Match; atomically retain prior version and append
+        the next version. Saved parent required; withdrawn editions retain
+        annotations. 100 total revisions per note; REVISION_LIMIT_EXCEEDED
+        requires a new explicit decision. Preserve text/draft on conflict409
+        with currentRevision. Seven-day exact-revision idempotency window; stop
+        automatic retries after expiry. No provider call.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: revisitId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^"[1-9][0-9]*"$
+          description: Quoted current integer revision. Missing428; stale409.
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+          description: Same key+payload returns same committed logical result; changed
+            payload409.
+        - name: X-CSRF-Token
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Successful result; private,no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Correlation-ID:
+              schema:
+                type: string
+                format: uuid
+            ETag:
+              schema:
+                type: string
+                pattern: ^"[1-9][0-9]*"$
+              description: Exact returned authored revision.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Revisit"
+        "400":
+          description: Invalid shape/range.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "401":
+          description: Sign in again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "403":
+          description: Permission or recent authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "404":
+          description: Absent or not owned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "409":
+          description: Refresh state; preserve local draft.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "410":
+          description: Owned resource erased/withdrawn/expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "413":
+          description: Payload exceeds budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "422":
+          description: Unsupported language, safety boundary or invalid content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "428":
+          description: If-Match required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "429":
+          description: Quota or rate limit; honor Retry-After.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "500":
+          description: Internal failure; use correlation ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "503":
+          description: Dependency, key, spend or recovery unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RevisitUpdate"
+    delete:
+      operationId: deleteRevisit
+      summary: deleteRevisit
+      description: Delete entire note and every saved revision through the durable
+        ledger. New stale If-Match returns409 with currentRevision before
+        fencing. Matching accepted receipt retries retain normal receipt
+        semantics. Receipt status remains available after session loss. Ledger
+        outage leaves a fenced pending job. No provider call.
+      security:
+        - sessionCookie: []
+      parameters:
+        - name: revisitId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: If-Match
+          in: header
+          required: true
+          schema:
+            type: string
+            pattern: ^"[1-9][0-9]*"$
+          description: Quoted current integer revision. Missing428; stale409.
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 16
+            maxLength: 128
+          description: Same key+payload returns same committed logical result; changed
+            payload409.
+        - name: X-CSRF-Token
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "202":
+          description: Successful result; private,no-store.
+          headers:
+            Cache-Control:
+              schema:
+                type: string
+                const: private, no-store
+            X-Correlation-ID:
+              schema:
+                type: string
+                format: uuid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletionReceipt"
+        "400":
+          description: Invalid shape/range.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "401":
+          description: Sign in again.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "403":
+          description: Permission or recent authentication required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "404":
+          description: Absent or not owned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "409":
+          description: Refresh state; preserve local draft.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "410":
+          description: Owned resource erased/withdrawn/expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "413":
+          description: Payload exceeds budget.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "422":
+          description: Unsupported language, safety boundary or invalid content.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "428":
+          description: If-Match required.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "429":
+          description: Quota or rate limit; honor Retry-After.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "500":
+          description: Internal failure; use correlation ID.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+        "503":
+          description: Dependency, key, spend or recovery unavailable.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorEnvelope"
+          headers:
+            Retry-After:
+              schema:
+                type: integer
+                minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteRequest"
   /exports:
     post:
       operationId: createExport
@@ -5616,7 +6198,9 @@ paths:
     get:
       operationId: exportPage
       summary: exportPage
-      description: <=100 portable records and <=1MiB/page. Cursor MAC binds
+      description: <=100 portable records and <=950000 serialized record bytes/page,
+        including every current and archived note revision. Parent/account
+        deletion invalidates at admission. Cursor MAC binds
         owner,ticket,snapshot,table and last key. Any data revision change
         returns409 EXPORT_CHANGED and client discards partial file. No-store.
         Client writes NDJSON only after completion.
@@ -6526,6 +7110,10 @@ components:
                 - IDEMPOTENCY_MISMATCH
                 - RATE_LIMITED
                 - QUOTA_EXCEEDED
+                - NOTE_LIMIT_EXCEEDED
+                - REVISION_LIMIT_EXCEEDED
+                - STORAGE_LIMIT_EXCEEDED
+                - DEPENDENTS_EXIST
                 - SPEND_LIMIT
                 - CONSENT_REQUIRED
                 - CONTEXT_CHANGED
@@ -6754,6 +7342,10 @@ components:
                           - IDEMPOTENCY_MISMATCH
                           - RATE_LIMITED
                           - QUOTA_EXCEEDED
+                          - NOTE_LIMIT_EXCEEDED
+                          - REVISION_LIMIT_EXCEEDED
+                          - STORAGE_LIMIT_EXCEEDED
+                          - DEPENDENTS_EXIST
                           - SPEND_LIMIT
                           - CONSENT_REQUIRED
                           - CONTEXT_CHANGED
@@ -6805,6 +7397,10 @@ components:
                     - IDEMPOTENCY_MISMATCH
                     - RATE_LIMITED
                     - QUOTA_EXCEEDED
+                    - NOTE_LIMIT_EXCEEDED
+                    - REVISION_LIMIT_EXCEEDED
+                    - STORAGE_LIMIT_EXCEEDED
+                    - DEPENDENTS_EXIST
                     - SPEND_LIMIT
                     - CONSENT_REQUIRED
                     - CONTEXT_CHANGED
@@ -6934,6 +7530,10 @@ components:
                       - IDEMPOTENCY_MISMATCH
                       - RATE_LIMITED
                       - QUOTA_EXCEEDED
+                      - NOTE_LIMIT_EXCEEDED
+                      - REVISION_LIMIT_EXCEEDED
+                      - STORAGE_LIMIT_EXCEEDED
+                      - DEPENDENTS_EXIST
                       - SPEND_LIMIT
                       - CONSENT_REQUIRED
                       - CONTEXT_CHANGED
@@ -6985,6 +7585,10 @@ components:
                 - IDEMPOTENCY_MISMATCH
                 - RATE_LIMITED
                 - QUOTA_EXCEEDED
+                - NOTE_LIMIT_EXCEEDED
+                - REVISION_LIMIT_EXCEEDED
+                - STORAGE_LIMIT_EXCEEDED
+                - DEPENDENTS_EXIST
                 - SPEND_LIMIT
                 - CONSENT_REQUIRED
                 - CONTEXT_CHANGED
@@ -7075,6 +7679,10 @@ components:
                 - IDEMPOTENCY_MISMATCH
                 - RATE_LIMITED
                 - QUOTA_EXCEEDED
+                - NOTE_LIMIT_EXCEEDED
+                - REVISION_LIMIT_EXCEEDED
+                - STORAGE_LIMIT_EXCEEDED
+                - DEPENDENTS_EXIST
                 - SPEND_LIMIT
                 - CONSENT_REQUIRED
                 - CONTEXT_CHANGED
@@ -9046,6 +9654,12 @@ components:
               format: date-time
               pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
             - type: "null"
+        retentionExpiresAt:
+          anyOf:
+            - type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+            - type: "null"
         createdAt:
           type: string
           format: date-time
@@ -9278,6 +9892,12 @@ components:
                           format: uuid
                           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                       savedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      retentionExpiresAt:
                         anyOf:
                           - type: string
                             format: date-time
@@ -11322,29 +11942,80 @@ components:
                   originalId:
                     type: string
                   value:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                        format: uuid
-                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-                      editionId:
-                        type: string
-                        format: uuid
-                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-                      note:
-                        type: string
-                        maxLength: 2000
-                      createdAt:
-                        type: string
-                        format: date-time
-                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
-                    required:
-                      - id
-                      - editionId
-                      - note
-                      - createdAt
-                    additionalProperties: false
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          editionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          note:
+                            type: string
+                            maxLength: 2000
+                          createdAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        required:
+                          - id
+                          - editionId
+                          - note
+                          - createdAt
+                        additionalProperties: false
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
+                            const: revisit.v2
+                          id:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          sessionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          editionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: integer
+                            minimum: 1
+                            maximum: 100
+                          note:
+                            type: string
+                            maxLength: 2000
+                          stance:
+                            type: string
+                            enum:
+                              - resonates
+                              - unsure
+                              - disagree
+                              - unspecified
+                          createdAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          updatedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        required:
+                          - kind
+                          - id
+                          - sessionId
+                          - editionId
+                          - revision
+                          - note
+                          - stance
+                          - createdAt
+                          - updatedAt
+                        additionalProperties: false
                 required:
                   - kind
                   - identity
@@ -12119,6 +12790,10 @@ components:
                       - IDEMPOTENCY_MISMATCH
                       - RATE_LIMITED
                       - QUOTA_EXCEEDED
+                      - NOTE_LIMIT_EXCEEDED
+                      - REVISION_LIMIT_EXCEEDED
+                      - STORAGE_LIMIT_EXCEEDED
+                      - DEPENDENTS_EXIST
                       - SPEND_LIMIT
                       - CONSENT_REQUIRED
                       - CONTEXT_CHANGED
@@ -12884,15 +13559,55 @@ components:
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         note:
           type: string
+          minLength: 1
+          pattern: \S
           maxLength: 2000
+          description: 1–2,000 Unicode code points, including at least one non-whitespace
+            character. Authored text is preserved.
+        stance:
+          default: unspecified
+          type: string
+          enum:
+            - resonates
+            - unsure
+            - disagree
+            - unspecified
       required:
         - editionId
+        - note
+      additionalProperties: false
+    RevisitUpdate:
+      type: object
+      properties:
+        note:
+          type: string
+          minLength: 1
+          pattern: \S
+          maxLength: 2000
+          description: 1–2,000 Unicode code points, including at least one non-whitespace
+            character. Authored text is preserved.
+        stance:
+          default: unspecified
+          type: string
+          enum:
+            - resonates
+            - unsure
+            - disagree
+            - unspecified
+      required:
         - note
       additionalProperties: false
     Revisit:
       type: object
       properties:
+        kind:
+          type: string
+          const: revisit.v2
         id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        sessionId:
           type: string
           format: uuid
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
@@ -12900,18 +13615,38 @@ components:
           type: string
           format: uuid
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
         note:
           type: string
           maxLength: 2000
+        stance:
+          type: string
+          enum:
+            - resonates
+            - unsure
+            - disagree
+            - unspecified
         createdAt:
           type: string
           format: date-time
           pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
       required:
+        - kind
         - id
+        - sessionId
         - editionId
+        - revision
         - note
+        - stance
         - createdAt
+        - updatedAt
       additionalProperties: false
     RevisitPage:
       type: object
@@ -12922,7 +13657,14 @@ components:
           items:
             type: object
             properties:
+              kind:
+                type: string
+                const: revisit.v2
               id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              sessionId:
                 type: string
                 format: uuid
                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
@@ -12930,18 +13672,38 @@ components:
                 type: string
                 format: uuid
                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              revision:
+                type: integer
+                minimum: 1
+                maximum: 100
               note:
                 type: string
                 maxLength: 2000
+              stance:
+                type: string
+                enum:
+                  - resonates
+                  - unsure
+                  - disagree
+                  - unspecified
               createdAt:
                 type: string
                 format: date-time
                 pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
             required:
+              - kind
               - id
+              - sessionId
               - editionId
+              - revision
               - note
+              - stance
               - createdAt
+              - updatedAt
             additionalProperties: false
         nextCursor:
           type:

@@ -5,6 +5,7 @@ import { apiSchemas } from '../../src/contracts/index.ts';
 import { READING_PRODUCT_COPY, SPREAD_PHOTO_COPY } from '../../src/contracts/product-copy.ts';
 import {
   journeyAccount,
+  noteJourneyStates,
   longFilename,
   longQuestion,
   spreadPhotoPath,
@@ -193,6 +194,7 @@ for (const width of [320, 390, 768, 1280]) {
         page.getByRole('heading', { name: 'Edit reflection', exact: true }),
       ).toBeVisible();
       await capture('reflection');
+      await noteJourneyStates(page, capture);
       await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
       await expect(
         page.getByRole('heading', { name: 'Saved readings', exact: true }),
@@ -210,6 +212,9 @@ for (const width of [320, 390, 768, 1280]) {
         element.style.zoom = '2';
       });
       await capture('reading-css-zoom-200');
+      await page.getByRole('button', { name: 'Edit note', exact: true }).click();
+      await capture('notes-edit-css-zoom-200');
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
       await page.getByRole('link', { name: 'Account', exact: true }).click();
       await capture('account-css-zoom-200');
       await page.locator('html').evaluate((element) => {

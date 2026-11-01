@@ -2,7 +2,12 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium, expect, type Page } from '@playwright/test';
 import { READING_PRODUCT_COPY } from '../../src/contracts/product-copy.ts';
-import { longFilename, longQuestion, spreadPhotoPath } from './browser-journey.ts';
+import {
+  longFilename,
+  longQuestion,
+  noteJourneyStates,
+  spreadPhotoPath,
+} from './browser-journey.ts';
 import { enableAi } from './browser-reading.ts';
 
 export async function nativeZoomContext(baseURL: string, theme: 'light' | 'dark') {
@@ -193,6 +198,7 @@ export async function displayJourney(page: Page, capture: (state: string) => Pro
   await page.keyboard.press('Enter');
   await expect(page.getByRole('status').filter({ hasText: 'Reflection saved.' })).toBeVisible();
   await capture('reflection');
+  await noteJourneyStates(page, capture);
   await page.getByRole('link', { name: 'Account', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeFocused();

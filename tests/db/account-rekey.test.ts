@@ -107,12 +107,14 @@ async function deferredFields(f: Awaited<ReturnType<typeof fixture>>) {
     request = (await env.DB.prepare('SELECT id FROM generation_requests LIMIT 1').first<string>(
       'id',
     ))!;
-  const encrypt = (table: string, column: string, recordId: string, value: unknown) =>
-    f.runtime.base.crypt.seal(
-      { ownerId: owner, table, column, recordId, aadRevision: 1 },
-      value,
-      1,
-    );
+  const encrypt = (
+    table: string,
+    column: string,
+    recordId: string,
+    value: unknown,
+    aadRevision = 1,
+  ) =>
+    f.runtime.base.crypt.seal({ ownerId: owner, table, column, recordId, aadRevision }, value, 1);
   const batch = crypto.randomUUID(),
     revisit = crypto.randomUUID(),
     grant = crypto.randomUUID(),
@@ -152,11 +154,31 @@ async function deferredFields(f: Awaited<ReturnType<typeof fixture>>) {
         original: 'Synthetic import identity',
       }),
     ),
-    env.DB.prepare('INSERT INTO revisits VALUES(?,?,?,?,1,?)').bind(
+    env.DB.prepare(
+      'INSERT INTO revisits(id,owner_id,edition_id,note_enc,key_version,created_at,session_id,current_revision,updated_at) VALUES(?,?,?,?,1,?,?,2,?)',
+    ).bind(
       revisit,
       owner,
       edition,
-      await encrypt('revisits', 'note_enc', revisit, { note: 'Synthetic deferred revisit' }),
+      await encrypt(
+        'revisits',
+        'note_enc',
+        revisit,
+        { note: 'Synthetic current crypto fixture' },
+        2,
+      ),
+      Date.now(),
+      f.created.reading.sessionId,
+      Date.now(),
+    ),
+    env.DB.prepare(
+      'INSERT INTO revisit_revisions(revisit_id,owner_id,revision,body_enc,key_version,created_at) VALUES(?,?,1,?,1,?)',
+    ).bind(
+      revisit,
+      owner,
+      await encrypt('revisit_revisions', 'body_enc', revisit + ':1', {
+        note: 'Synthetic archived crypto fixture',
+      }),
       Date.now(),
     ),
     env.DB.prepare(
@@ -208,6 +230,9 @@ test('bounded replacement resumes in fresh instances, preserves exact values and
   await deferredFields(f);
   const before = await values(f),
     index = await f.runtime.base.crypt.hash(f.owner, 'mutation', { same: 'identity' });
+  expect(Object.keys(before).some((key) => key.startsWith('revisit_revisions.body_enc:'))).toBe(
+    true,
+  );
   expect(new Set(Object.keys(before).map((key) => key.split(':')[0]))).toEqual(
     new Set(ACCOUNT_FIELD_HANDLERS.map((field) => field.table + '.' + field.column)),
   );
@@ -295,9 +320,10 @@ test('a superseded coordinator lease cannot resume without explicit adoption of 
   expect((await resumed.step(start.operationId, 20)).phase).toMatch(/inventorying|rewriting/);
 });
 
-test('loss immediately after a committed rewrite batch resumes without rewriting completed ciphertext', async () => {
-  const f = await fixture(),
-    start = await f.service.begin(f.owner, 1);
+test('loss between archived and current note rewrites resumes without rewriting completed ciphertext', async () => {
+  const f = await fixture();
+  await deferredFields(f);
+  const start = await f.service.begin(f.owner, 1);
   while (
     (await env.DB.prepare('SELECT phase FROM account_rekey_jobs').first('phase')) === 'inventorying'
   )
@@ -328,7 +354,7 @@ test('loss immediately after a committed rewrite batch resumes without rewriting
           if (
             armed &&
             statements.some((st) =>
-              (sql.get(st) ?? '').startsWith('UPDATE basis_snapshots SET body_enc='),
+              (sql.get(st) ?? '').startsWith('UPDATE revisit_revisions SET body_enc='),
             )
           ) {
             armed = false;
@@ -340,27 +366,40 @@ test('loss immediately after a committed rewrite batch resumes without rewriting
       return typeof value === 'function' ? value.bind(target) : value;
     },
   });
+  const before = await values(f);
+  const interrupted = new AccountRekey(
+    new RecordBase(db, f.runtime.identity),
+    f.runtime.coordinator!,
+  );
   await expect(
-    new AccountRekey(new RecordBase(db, f.runtime.identity), f.runtime.coordinator!).step(
-      start.operationId,
-      20,
-    ),
+    (async () => {
+      for (let step = 0; step < 100; step++) await interrupted.step(start.operationId, 1);
+    })(),
   ).rejects.toThrow('Synthetic Worker loss');
-  const body = await env.DB.prepare('SELECT body_enc FROM basis_snapshots').first('body_enc');
+  const body = await env.DB.prepare('SELECT body_enc FROM revisit_revisions').first<string>(
+    'body_enc',
+  );
+  const current = await env.DB.prepare('SELECT note_enc FROM revisits').first<string>('note_enc');
+  expect(JSON.parse(body!).keyVersion).toBe(2);
+  expect(JSON.parse(current!).keyVersion).toBe(1);
   let phase = '';
   while (phase !== 'complete')
     phase = (
       await new AccountRekey(f.runtime.base, f.runtime.coordinator!).step(start.operationId, 20)
     ).phase;
-  expect(await env.DB.prepare('SELECT body_enc FROM basis_snapshots').first('body_enc')).toBe(body);
+  expect(await env.DB.prepare('SELECT body_enc FROM revisit_revisions').first('body_enc')).toBe(
+    body,
+  );
+  expect(await values(f)).toEqual(before);
   await f.service.validate(start.operationId);
 });
 
 test.each(['before', 'during', 'after'] as const)(
   'database snapshots taken %s replacement restore and preserve exact values',
   async (point) => {
-    const f = await fixture(),
-      original = await values(f);
+    const f = await fixture();
+    await deferredFields(f);
+    const original = await values(f);
     let saved = await snapshot(env.DB);
     const start = await f.service.begin(f.owner, 1);
     while (

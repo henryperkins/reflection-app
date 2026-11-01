@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "status": "passed",
+  "scope": "full-synthetic-local-qualification-for-authorized-preview-rollout",
+  "sourceCommit": "5512175532f0d2e6a3a0f08732921f461cefa0c2",
+  "sourceTree": "a8d0f86711b172f4586c5a61f0b0985b75dd0da8",
+  "sourceDigest": "5b3e663fab5b7adb4925532958c147c817cd8f1d3ef05db20923c81e23cdc33f",
+  "verification": {
+    "stagesPassed": 14,
+    "durationMs": 479006,
+    "deadlineMs": 540000,
+    "domainTests": 403,
+    "databaseTests": 525,
+    "chromiumTests": 129,
+    "totalTests": 1057,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "releaseCheck": {
+    "exitCode": 0,
+    "productionDeploymentAllowed": false,
+    "productionAcceptance": "not-qualified",
+    "target": "reflection-preview"
+  },
+  "changes": [
+    "Confirm a fresh owned parent and selected edition before treating a reading HTTP410 as withdrawn content.",
+    "Real parent-deletion regression covers a session with no reflections.",
+    "Note fixtures retain real UI Start and service reads, using the existing reconnect status check to avoid unrelated polling backoff; all prior assertions remain."
+  ],
+  "review": "Scoped source and test refinement approved with no findings; completed suites not rerun by reviewer.",
+  "preservedAttempts": [
+    "Behavioral RED failed stale request navigation on base production.",
+    "First full verification reached the unchanged deadline after 122 browser passes; no complete browser report was produced.",
+    "Owned orphaned server was stopped after verification termination; port-conflict attempt preserved.",
+    "Intermediate fixture run exposed premature deletion before a saved-article acknowledgement; synchronization strengthened without removing original assertions."
+  ],
+  "constraints": [
+    "Firefox skipped by user instruction.",
+    "No extra full cross-browser matrix or live provider request.",
+    "Historical qualifications retain their original source identities.",
+    "Production/hosted recovery, real devices, physical authenticators and assistive technology remain unqualified."
+  ],
+  "provenance": "All report hashes below reference fresh artifacts emitted by the successful complete verification; original failed attempts and capture directories are preserved separately.",
+  "hashes": {
+    "artifacts/verify.json": "7742976c8e9a5c7342f882622c5a516655d1393562c74378eec9cec3d2f046a2",
+    "artifacts/pr10-release/verify-final-verify.json": "7742976c8e9a5c7342f882622c5a516655d1393562c74378eec9cec3d2f046a2",
+    "artifacts/pr10-release/verify-final-domain-tests.json": "4d05c6becd4bc80e4150d3b5ebf5ea3260a462c939d54dc5bb9a0f201f8cd4c6",
+    "artifacts/pr10-release/verify-final-db-tests.json": "33acd4298111adf80c4ef8acc351b002e8c19b110b8a7498640f56298dec4b16",
+    "artifacts/pr10-release/verify-final-browser-tests.json": "9fd9dfe28721830a6bf70e44c798f117663245497fdab29d22d3117ef27c4d4f",
+    "artifacts/pr10-release/verify-final.log": "979ccb1cdd31e097d5567ae964941ec2d54ff6cdf91edd0d24469c87747d6c0c",
+    "artifacts/pr10-release/verify-final-execution.json": "c2bdce814c37d7727fac5b343d77e92e704edb5836911408cd7ba3c4540d5847",
+    "artifacts/pr10-release/release-check.log": "f9bc0a481a432c8e256e58951ee0cd09247619ba5a00a195d9f4ff36aea3d272",
+    "artifacts/pr10-release/release-check-execution.json": "941120127b510b79498ee8250d82f9da77e63d861fc6db6bf52d8a764b8d43c5"
+  }
+}

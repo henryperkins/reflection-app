@@ -7,6 +7,7 @@ import { RequestState } from './request-state.ts';
 import { generationService, type GenerationFactory } from './runtime.ts';
 import { RecordBase, RecordError } from './base.ts';
 import { ReadingRecords } from './records.ts';
+import { Revisits } from './revisits.ts';
 import { Reflections } from './reflections.ts';
 import { ReadingExports } from './export.ts';
 import { SessionErasure } from './erasure.ts';
@@ -30,6 +31,14 @@ const messages: Record<string, string> = {
   QUOTA_EXCEEDED: 'Your reading allowance has been used. Saved readings remain available.',
   RATE_LIMITED: 'Too many requests. Please try again later.',
   KEY_UNAVAILABLE: 'This encrypted record could not be opened. It has not been replaced or erased.',
+  NOTE_LIMIT_EXCEEDED:
+    'This reading has 100 active notes. Delete a note and all its saved versions before adding another.',
+  REVISION_LIMIT_EXCEEDED:
+    'This note has 100 saved versions. Keep it and add a new note, or delete the whole note and its saved versions.',
+  STORAGE_LIMIT_EXCEEDED:
+    'Your account storage is full. Export your records or delete notes or readings to free space. Reading and deletion remain available.',
+  DEPENDENTS_EXIST:
+    'This reading has revisit notes. Delete those notes before unsaving, or delete the whole reading.',
   EXPORT_CHANGED: 'Your records changed during export. Start a new export.',
 };
 export function recordResponse(body: unknown, status = 200, revision?: number) {
@@ -108,6 +117,7 @@ export async function readingRoute(
     const session = await identity.sessions.get(token);
     const records = new ReadingRecords(base),
       generation = new RequestState(base);
+    const revisits = new Revisits(base);
     const reflections = new Reflections(base),
       exports = new ReadingExports(base);
     const mutate = method !== 'GET';
@@ -237,6 +247,50 @@ export async function readingRoute(
       );
       return recordResponse(value, 200, value.revision);
     }
+    if (method === 'POST' && path === '/revisits') {
+      const value = await revisits.create(session, apiSchemas.RevisitWrite.parse(body), key());
+      return recordResponse(value, 201, value.revision);
+    }
+    if (method === 'GET' && path === '/revisits')
+      return recordResponse(
+        await revisits.list(
+          session,
+          Id.parse(url.searchParams.get('editionId')),
+          url.searchParams.get('cursor'),
+          Number(url.searchParams.get('limit') ?? 20),
+        ),
+      );
+    const revisitMatch = match(/^\/revisits\/([^/]+)$/);
+    if (revisitMatch && method === 'GET') {
+      const wanted = url.searchParams.get('revision');
+      const value = await revisits.read(
+        session,
+        Id.parse(revisitMatch[1]),
+        wanted === null ? undefined : z.coerce.number().int().min(1).max(100).parse(wanted),
+      );
+      return recordResponse(value, 200, value.revision);
+    }
+    if (revisitMatch && method === 'PUT') {
+      const value = await revisits.update(
+        session,
+        Id.parse(revisitMatch[1]),
+        revision(),
+        key(),
+        apiSchemas.RevisitUpdate.parse(body),
+      );
+      return recordResponse(value, 200, value.revision);
+    }
+    if (revisitMatch && method === 'DELETE')
+      return recordResponse(
+        await erasure.removeRevisit(
+          session,
+          Id.parse(revisitMatch[1]),
+          revision(),
+          key(),
+          apiSchemas.DeleteRequest.parse(body),
+        ),
+        202,
+      );
     if (method === 'POST' && path === '/exports') {
       apiSchemas.Empty.parse(body);
       return recordResponse(await exports.create(session, key()), 201);
@@ -307,8 +361,14 @@ export async function readingRoute(
           message:
             messages[failure.code] ?? 'This action could not be completed. Please try again.',
           correlationId: crypto.randomUUID(),
-          retry:
-            failure.status === 409
+          retry: [
+            'NOTE_LIMIT_EXCEEDED',
+            'REVISION_LIMIT_EXCEEDED',
+            'STORAGE_LIMIT_EXCEEDED',
+            'DEPENDENTS_EXIST',
+          ].includes(failure.code)
+            ? 'never'
+            : failure.status === 409
               ? 'refresh_then_retry'
               : failure.status >= 429
                 ? 'after_delay'
