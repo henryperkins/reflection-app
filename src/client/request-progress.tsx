@@ -51,7 +51,11 @@ function description(status: Status | null) {
 export function RequestProgress(props: {
   request: ReadingRequest;
   user: View;
-  onAccepted: (sessionId: string, focus: boolean) => void;
+  onAccepted: (
+    sessionId: string,
+    focus: boolean,
+    target: { editionId: string; requestId: string },
+  ) => void;
   onSession: (view: View) => void;
   onExpired: () => void;
   onTarget: (target: ReadingRequest['target']) => void;
@@ -102,8 +106,15 @@ export function RequestProgress(props: {
             .catch(() => undefined);
       }
       if (value.state === 'published' && !opening) {
+        if (!value.editionId) {
+          setNotice('This published request has no reading edition. Check this request again.');
+          return;
+        }
         opening = true;
-        latest.current.onAccepted(value.sessionId, initial.focus);
+        latest.current.onAccepted(value.sessionId, initial.focus, {
+          editionId: value.editionId,
+          requestId: value.requestId,
+        });
       }
     };
     const lost = (error: unknown, submission = false) => {
@@ -293,7 +304,17 @@ export function RequestProgress(props: {
         </p>
         <div className="actions progress-actions">
           {status?.state === 'published' && (
-            <button type="button" onClick={() => latest.current.onAccepted(status.sessionId, true)}>
+            <button
+              type="button"
+              disabled={!status.editionId}
+              onClick={() => {
+                if (status.editionId)
+                  latest.current.onAccepted(status.sessionId, true, {
+                    editionId: status.editionId,
+                    requestId: status.requestId,
+                  });
+              }}
+            >
               Open reading
             </button>
           )}
