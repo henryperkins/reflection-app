@@ -50,24 +50,23 @@
       "durationMs": 84540,
       "domain": {
         "passed": 403,
-        "failed": 0,
-        "pending": 0,
-        "todo": 0,
-        "files": 50,
-        "success": true,
-        "report": "artifacts/dated-revisit-notes/save-cancel/project-tests-domain-tests.json",
-        "sha256": "3cafa63e694c08a1935ab642e8e91bff1cf2679d9cce790bce8ec25baf202dd2"
+        "total": 403,
+        "filesPassed": 50,
+        "filesTotal": 50,
+        "evidence": "Fresh project-tests.log console summary, lines13-14"
       },
       "database": {
         "passed": 525,
-        "failed": 0,
-        "pending": 0,
-        "todo": 0,
-        "files": 46,
-        "success": true,
-        "report": "artifacts/dated-revisit-notes/save-cancel/project-tests-db-tests.json",
-        "sha256": "0131dba2b4cf79714361dd418c2cd4d5585a196c7bd2305301ffacc401e5996f"
-      }
+        "total": 525,
+        "filesPassed": 46,
+        "filesTotal": 46,
+        "evidence": "Fresh project-tests.log console summary, lines254-255"
+      },
+      "log": "artifacts/dated-revisit-notes/save-cancel/project-tests.log",
+      "logSha256": "c0928eaf37ac0d7c0a6e03c7ae4335d1fac9a5a3443ec8b762b6a2c8e7ecacb8",
+      "executionRecord": "artifacts/dated-revisit-notes/save-cancel/project-tests-execution.json",
+      "executionRecordSha256": "16a26ea6a84ed3069ded8327262040776c019fcb835ea97f012b9343ff808240",
+      "reportProvenance": "npm test emitted console summaries only, not fresh JSON reports. The original runner copied pre-existing domain/database JSONs; those copies and the original execution metadata are preserved but are explicitly historical, excluded from current result evidence. See report-provenance.json."
     },
     "typecheck": {
       "command": [
@@ -158,7 +157,12 @@
     "archive": "artifacts/dated-revisit-notes/f5cccdb-proof",
     "scope": "Historical evidence for the prior source; not claimed as a fresh full qualification of this follow-up."
   },
-  "diagnostics": "Project suite includes expected negative verification/coordinator diagnostics. Final counters show no failed, pending or todo tests. The initial collection and formatting failures are preserved separately.",
+  "diagnostics": "Fresh project console summaries report 403/403 domain/tooling and 525/525 database tests passed, with expected negative verification/coordinator diagnostics. No fresh domain/database JSON counters were emitted. Browser counters show no skipped/unexpected/flaky cases. Initial collection/formatting failures and the corrected report-provenance mistake are preserved.",
   "publication": "Only this digest-excluded focused qualification JSON is added after the source commit. Prior qualification.json and verify.json are unchanged historical records.",
-  "evidencePrivacy": "Only source identities, aggregate results, scope, hashes and static explanations are published. Raw logs/reports and synthetic account or receipt credentials remain local and ignored."
+  "evidencePrivacy": "Only source identities, aggregate results, scope, hashes and static explanations are published. Raw logs/reports and synthetic account or receipt credentials remain local and ignored.",
+  "evidenceCorrection": {
+    "finding": "SC-1",
+    "change": "Replace stale copied JSON references/counters with fresh npm test console summaries, log hash and execution-record hash. No test rerun or source change.",
+    "historicalCopies": "artifacts/dated-revisit-notes/save-cancel/report-provenance.json"
+  }
 }
