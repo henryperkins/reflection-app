@@ -853,6 +853,7 @@ main {
   border-color: var(--primary);
 }
 .reading-navigation button[aria-current="page"]:hover:enabled {
+  color: var(--primary-foreground);
   background: color-mix(in oklch, var(--primary) 90%, var(--foreground));
 }
 @media (forced-colors: active) {

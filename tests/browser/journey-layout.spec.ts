@@ -28,6 +28,22 @@ for (const width of [320, 390, 768, 1280]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
       const capture = async (state: string) => {
+        if (['saved-empty', 'saved-populated', 'new-empty'].includes(state)) {
+          const destination = state === 'new-empty' ? 'New reading' : 'Saved readings';
+          const current = page.getByRole('button', { name: destination, exact: true });
+          await expect(current).toHaveAttribute('aria-current', 'page');
+          await current.hover();
+          const contrast = await themeContrast(
+            page,
+            '.reading-navigation button[aria-current="page"]',
+          );
+          expect(
+            contrast.selectedText,
+            `${prefix} ${destination} hovered text contrast`,
+          ).toBeGreaterThanOrEqual(4.5);
+          evidence.push({ state: `${state}-hover-contrast`, ...contrast });
+          await page.mouse.move(0, 0);
+        }
         await page.evaluate(async () => {
           await document.fonts.ready;
           await Promise.all(
