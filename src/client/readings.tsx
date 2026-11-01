@@ -355,8 +355,29 @@ export function ReadingWorkspace({
     const loadReflection = async () => {
       for (const reflectionId of session.reflectionIds) {
         if (!current()) return null;
-        const note = await api(`/reflections/${reflectionId}`, apiSchemas.Reflection);
-        if (note.sessionId === id && note.editionId === editionId) return note;
+        const note = await api(`/reflections/${reflectionId}`, apiSchemas.Reflection).catch(
+          async (error: unknown) => {
+            if (
+              !(error instanceof ApiFailure) ||
+              error.status !== 410 ||
+              error.code !== 'CONTENT_UNAVAILABLE'
+            )
+              throw error;
+            if (!current()) return null;
+            // A reflection's 410 can also mean its parent expired or was deleted.
+            // Skip only a confirmed deleted candidate from the stale session snapshot.
+            const latest = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
+            if (!current()) return null;
+            if (
+              latest.id !== id ||
+              !latest.editionIds.includes(editionId) ||
+              latest.reflectionIds.includes(reflectionId)
+            )
+              throw error;
+            return null;
+          },
+        );
+        if (note?.sessionId === id && note.editionId === editionId) return note;
       }
       return null;
     };

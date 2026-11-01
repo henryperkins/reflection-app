@@ -607,6 +607,163 @@ test('chronological pagination keeps the active editor and authored whitespace i
   ).toBeFocused();
 });
 
+for (const outcome of [
+  'remaining reflection',
+  'no remaining reflection',
+  'deleted parent',
+] as const) {
+  test(`reflection deletion race: ${outcome}`, async ({ page }) => {
+    const { original } = await savedReading(
+      page,
+      outcome === 'remaining reflection'
+        ? '192.0.2.181'
+        : outcome === 'no remaining reflection'
+          ? '192.0.2.182'
+          : '192.0.2.183',
+    );
+    const sessionPath = `/api/v1/sessions/${original.session.id}`;
+    const headers = {
+      Origin: 'http://localhost:8787',
+      'X-CSRF-Token': original.me.csrfToken,
+      'Idempotency-Key': crypto.randomUUID(),
+    };
+    if (outcome === 'remaining reflection') {
+      const response = await page.request.post(`${sessionPath}/reflections`, {
+        headers,
+        data: {
+          editionId: original.reading.editionId,
+          text: 'Synthetic remaining reflection.',
+          stance: 'disagree',
+        },
+      });
+      expect(response.status()).toBe(201);
+    }
+    // Use the service's actual ordering, since reflection IDs are random.
+    await page.reload();
+    const before = apiSchemas.SessionRecord.parse(
+      await page.request.get(sessionPath).then((response) => response.json()),
+    );
+    const erased = apiSchemas.Reflection.parse(
+      await page.request
+        .get(`/api/v1/reflections/${before.reflectionIds[0]}`)
+        .then((response) => response.json()),
+    );
+    const reflectionEditor = page.getByLabel('Your reflection', { exact: true });
+    await expect(reflectionEditor).toHaveValue(erased.text);
+    const requestUrl = page.url();
+    const readingText = await page.getByTestId('accepted-reading').textContent();
+    await add(page, 'Synthetic saved note retained across reflection deletion.');
+    await page.getByRole('button', { name: 'Edit note', exact: true }).click();
+    const noteEditor = page.getByLabel('Your revisit note', { exact: true });
+    const noteDraft = 'Synthetic unsaved revisit draft must survive reflection deletion.';
+    await noteEditor.fill(noteDraft);
+    const reflectionDraft = 'Synthetic unsaved reflection to reconcile after deletion.';
+    if (outcome === 'remaining reflection') await reflectionEditor.fill(reflectionDraft);
+    let deleted = false;
+    const fetched: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'GET') fetched.push(new URL(request.url()).pathname);
+    });
+    await page.route(`**${sessionPath}`, async (route) => {
+      if (deleted || route.request().method() !== 'GET') return route.continue();
+      // Another tab deletes after this genuine snapshot, before the client reads its IDs.
+      const response = await route.fetch();
+      expect(response.status()).toBe(200);
+      const stale = apiSchemas.SessionRecord.parse(await response.json());
+      expect(stale.reflectionIds).toContain(erased.id);
+      const deletionPath =
+        outcome === 'deleted parent'
+          ? sessionPath
+          : `/api/v1/reflections/${erased.id}/revisions/${erased.revision}`;
+      const deletion = await page.request.delete(deletionPath, {
+        headers: {
+          ...headers,
+          'Idempotency-Key': crypto.randomUUID(),
+          'If-Match': `"${outcome === 'deleted parent' ? stale.revision : erased.revision}"`,
+        },
+        data: {
+          receiptId: crypto.randomUUID(),
+          receiptToken: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString(
+            'base64url',
+          ),
+        },
+      });
+      expect(deletion.status()).toBe(202);
+      const unavailable = await page.request.get(`/api/v1/reflections/${erased.id}`);
+      expect(unavailable.status()).toBe(410);
+      expect(apiSchemas.ErrorEnvelope.parse(await unavailable.json()).error.code).toBe(
+        'CONTENT_UNAVAILABLE',
+      );
+      deleted = true;
+      await route.fulfill({ response });
+    });
+    const missing = page.waitForResponse(
+      (response) =>
+        response.url().endsWith(`/reflections/${erased.id}`) && response.status() === 410,
+    );
+    await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+    await missing;
+    if (outcome === 'deleted parent') {
+      await expect(page).toHaveURL('http://localhost:8787/');
+      await expect(
+        page.getByRole('heading', { name: 'Saved readings', exact: true }),
+      ).toBeVisible();
+      await expect(page.getByTestId('accepted-reading')).toHaveCount(0);
+      await expect(noteEditor).toHaveCount(0);
+      expect((await page.request.get(sessionPath)).status()).toBe(410);
+    } else {
+      if (outcome === 'remaining reflection') {
+        await expect(
+          page.getByRole('button', { name: 'Keep my draft for the next save', exact: true }),
+        ).toBeEnabled();
+        await expect(reflectionEditor).toHaveValue(reflectionDraft);
+        expect(fetched).toContain(`/api/v1/reflections/${before.reflectionIds[1]}`);
+        await page
+          .getByRole('button', { name: 'Keep my draft for the next save', exact: true })
+          .click();
+      } else {
+        await expect(reflectionEditor).toHaveValue('');
+        await reflectionEditor.fill(reflectionDraft);
+      }
+      await expect(page).toHaveURL(requestUrl);
+      await expect(page.getByTestId('accepted-reading')).toHaveText(readingText!);
+      await expect(noteEditor).toHaveValue(noteDraft);
+      const persisted = page.waitForResponse(
+        (response) =>
+          response.request().method() === (outcome === 'remaining reflection' ? 'PUT' : 'POST') &&
+          new URL(response.url()).pathname ===
+            (outcome === 'remaining reflection'
+              ? `/api/v1/reflections/${before.reflectionIds[1]}`
+              : `${sessionPath}/reflections`),
+      );
+      await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
+      const savedResponse = await persisted;
+      expect(savedResponse.ok()).toBe(true);
+      const saved = apiSchemas.Reflection.parse(await savedResponse.json());
+      expect(saved).toMatchObject({
+        sessionId: original.session.id,
+        editionId: original.reading.editionId,
+        text: reflectionDraft,
+      });
+      expect(saved.id).not.toBe(erased.id);
+      if (outcome === 'remaining reflection') expect(saved.id).toBe(before.reflectionIds[1]);
+      const after = apiSchemas.SessionRecord.parse(
+        await page.request.get(sessionPath).then((response) => response.json()),
+      );
+      expect(after.reflectionIds).toEqual([saved.id]);
+      const readback = apiSchemas.Reflection.parse(
+        await page.request
+          .get(`/api/v1/reflections/${saved.id}`)
+          .then((response) => response.json()),
+      );
+      expect(readback).toEqual(saved);
+      await expect(noteEditor).toHaveValue(noteDraft);
+      expect((await page.request.get(`/api/v1/reflections/${erased.id}`)).status()).toBe(410);
+    }
+    expect(deleted).toBe(true);
+  });
+}
+
 // These fixtures supply multiple editions at the HTTP boundary; selected-edition
 // reflection writes and readback still use the real synthetic local service.
 test('older request and latest history keep owned edition reflections across matching and new saves', async ({
