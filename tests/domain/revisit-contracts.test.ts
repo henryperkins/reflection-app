@@ -89,3 +89,15 @@ test('updates reject identity/date mutations and report distinct admission error
   ])
     expect(ErrorCode.safeParse(error).success).toBe(true);
 });
+
+test.each(['', ' \n\t'])('normalized stored responses preserve valid legacy text %j', (note) => {
+  const old = Revisit.parse({ ...legacy, note });
+  const normalized = { ...current, note: old.note };
+  expect(apiSchemas.Revisit.parse(normalized)).toEqual(normalized);
+  expect(
+    apiSchemas.RevisitPage.parse({ items: [normalized], nextCursor: null }).items[0]!.note,
+  ).toBe(note);
+  expect(AnyRevisit.parse(normalized)).toEqual(normalized);
+  expect(apiSchemas.RevisitWrite.safeParse({ editionId, note }).success).toBe(false);
+  expect(apiSchemas.RevisitUpdate.safeParse({ note }).success).toBe(false);
+});

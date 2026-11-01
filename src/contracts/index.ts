@@ -818,14 +818,16 @@ export const Revisit = z.strictObject({
   note: z.string().max(2000),
   createdAt: Instant,
 });
-const RevisitText = z
+// Stored responses include valid legacy empty/whitespace notes unchanged.
+const StoredRevisitText = z
   .string()
-  .min(1)
-  .regex(/\S/u, 'Include at least one non-whitespace character')
   .refine(
     (text) => revisitTextLength(text) <= REVISIT_LIMITS.textCodePoints,
-    'Use 1–2,000 Unicode code points with at least one non-whitespace character',
+    'Use at most 2,000 Unicode code points',
   )
+  .meta({ maxLength: REVISIT_LIMITS.textCodePoints });
+const RevisitText = StoredRevisitText.min(1)
+  .regex(/\S/u, 'Include at least one non-whitespace character')
   .meta({
     maxLength: REVISIT_LIMITS.textCodePoints,
     description:
@@ -837,7 +839,7 @@ export const RevisitV2 = z.strictObject({
   sessionId: Id,
   editionId: Id,
   revision: Revision.max(REVISIT_LIMITS.revisionsPerNote),
-  note: RevisitText,
+  note: StoredRevisitText,
   stance: Reflection.shape.stance,
   createdAt: Instant,
   updatedAt: Instant,

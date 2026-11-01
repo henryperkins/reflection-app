@@ -44,9 +44,12 @@ const operations:Op[]=[
  {method:'delete',path:'/account',body:'DeleteRequest',id:'deleteAccount',out:'DeletionReceipt',status:202,recent:true,key:true,description:'Fence account, revoke auth and cancel work atomically. Receipt token provides status after logout. Completion requires durable erasure ledger and active-store/key removal.'},
  {method:'get',path:'/deletions/{receiptId}',id:'deletionStatus',out:'DeletionStatus',public:true,description:'Requires X-Deletion-Token scoped only to receipt; generic404 on invalid. 10/min/receipt. Coarse state only, no account identifiers/content.'},
 ];
+// Defaulted request fields may be omitted; responses still describe decoded output.
+// RevisitUpdate is a request contract whose route is wired in the later API slice.
+const requestSchemas = new Set<Name>([...operations.flatMap(op=>op.body?[op.body]:[]),'RevisitUpdate']);
 const schemas:Record<string,unknown>={};
 for(const[name,schema]of Object.entries(apiSchemas)){
- const doc=z.toJSONSchema(schema,{target:'draft-2020-12',unrepresentable:'throw'});
+ const doc=z.toJSONSchema(schema,{target:'draft-2020-12',unrepresentable:'throw',io:requestSchemas.has(name as Name)?'input':'output'});
  delete doc.$schema;schemas[name]=doc;
 }
 const paths:Record<string,Record<string,unknown>>={};

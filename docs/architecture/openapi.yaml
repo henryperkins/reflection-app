@@ -11406,11 +11406,7 @@ components:
                             maximum: 100
                           note:
                             type: string
-                            minLength: 1
-                            pattern: \S
                             maxLength: 2000
-                            description: 1–2,000 Unicode code points, including at least one non-whitespace
-                              character. Authored text is preserved.
                           stance:
                             type: string
                             enum:
@@ -12996,7 +12992,6 @@ components:
       required:
         - editionId
         - note
-        - stance
       additionalProperties: false
     RevisitUpdate:
       type: object
@@ -13018,7 +13013,6 @@ components:
             - unspecified
       required:
         - note
-        - stance
       additionalProperties: false
     Revisit:
       type: object
@@ -13044,11 +13038,7 @@ components:
           maximum: 100
         note:
           type: string
-          minLength: 1
-          pattern: \S
           maxLength: 2000
-          description: 1–2,000 Unicode code points, including at least one non-whitespace
-            character. Authored text is preserved.
         stance:
           type: string
           enum:
@@ -13105,11 +13095,7 @@ components:
                 maximum: 100
               note:
                 type: string
-                minLength: 1
-                pattern: \S
                 maxLength: 2000
-                description: 1–2,000 Unicode code points, including at least one non-whitespace
-                  character. Authored text is preserved.
               stance:
                 type: string
                 enum:
