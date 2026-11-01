@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { expect, test, type Page, type Request } from '@playwright/test';
+import { expect, test, type Dialog, type Page, type Request } from '@playwright/test';
 import { apiSchemas } from '../../src/contracts/index.ts';
 import {
   account,
@@ -145,6 +145,130 @@ test('lost create response retries the same intent once, preserves offline draft
   await expect(page.getByRole('button', { name: 'Save as a new note', exact: true })).toBeVisible();
   expect(posts).toBe(0);
 });
+
+for (const mutation of ['create', 'update'] as const) {
+  test(`save/cancel: accepted ${mutation} survives attempted cancellation and editor replacement`, async ({
+    page,
+  }) => {
+    const { original } = await savedReading(
+      page,
+      mutation === 'create' ? '192.0.2.171' : '192.0.2.172',
+    );
+    const otherText = 'Synthetic other note retained during save';
+    await add(page, otherText);
+    if (mutation === 'update') await add(page, 'Synthetic note before guarded update');
+    const before = apiSchemas.RevisitPage.parse(
+      await page.request
+        .get(`/api/v1/revisits?editionId=${original.reading.editionId}`)
+        .then((response) => response.json()),
+    );
+    const region = page.getByRole('region', { name: 'Revisit notes', exact: true });
+    const otherEdit = region
+      .getByRole('article')
+      .filter({ hasText: otherText })
+      .getByRole('button', { name: 'Edit note', exact: true });
+    const addNote = region.getByRole('button', { name: 'Add revisit note', exact: true });
+    if (mutation === 'create') await addNote.click();
+    else
+      await region
+        .getByRole('article')
+        .filter({ hasText: 'Synthetic note before guarded update' })
+        .getByRole('button', { name: 'Edit note', exact: true })
+        .click();
+    const submitted = `Synthetic accepted ${mutation} must reach the displayed list`;
+    const newerDraft = 'Synthetic typing retained while the accepted update is pending';
+    const editor = page.getByLabel('Your revisit note', { exact: true });
+    await editor.fill(submitted);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let accepted!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      accepted = resolve;
+    });
+    const method = mutation === 'create' ? 'POST' : 'PUT';
+    const writes: { method: string; path: string; revision: string | undefined }[] = [];
+    let savedId = '';
+    const acceptDialog = (dialog: Dialog) => dialog.accept();
+    page.on('dialog', acceptDialog);
+    await page.route('**/api/v1/revisits**', async (route) => {
+      const request = route.request();
+      if (request.method() !== method) return route.continue();
+      writes.push({
+        method: request.method(),
+        path: new URL(request.url()).pathname,
+        revision: request.headers()['if-match'],
+      });
+      const response = await route.fetch();
+      expect(response.ok()).toBe(true);
+      savedId = apiSchemas.Revisit.parse(await response.json()).id;
+      if (writes.length === 1) {
+        accepted();
+        await gate;
+      }
+      await route.fulfill({ response });
+    });
+    try {
+      await page.getByRole('button', { name: 'Save note', exact: true }).click();
+      await pending;
+      if (mutation === 'update') await editor.fill(newerDraft);
+      const cancel = region.getByRole('button', { name: 'Cancel', exact: true });
+      const controls =
+        mutation === 'create' ? [cancel, otherEdit, addNote] : [otherEdit, addNote, cancel];
+      const disabled = await Promise.all(controls.map((control) => control.isDisabled()));
+      // Native button activation respects disabled controls without Playwright waiting for enablement.
+      for (const control of controls)
+        await control.evaluate((button: HTMLButtonElement) => button.click());
+      const finished = page.waitForEvent('requestfinished', {
+        predicate: (request) => request.method() === method,
+      });
+      release();
+      await finished;
+      // This must arrive through the delayed acknowledgement, with no manual refresh/reopen.
+      await expect(region.getByRole('article').filter({ hasText: submitted })).toBeVisible();
+      await expect(region.getByRole('article')).toHaveCount(2);
+      expect(disabled).toEqual([true, true, true]);
+      expect(writes).toHaveLength(1);
+      await expect(addNote).toBeEnabled();
+      await expect(otherEdit).toBeEnabled();
+      if (mutation === 'update') {
+        await expect(editor).toHaveValue(newerDraft);
+        await expect(cancel).toBeEnabled();
+        await page.getByRole('button', { name: 'Save note', exact: true }).click();
+        await expect(region.getByRole('article').filter({ hasText: newerDraft })).toBeVisible();
+        expect(writes).toEqual([
+          { method: 'PUT', path: `/api/v1/revisits/${savedId}`, revision: '"1"' },
+          { method: 'PUT', path: `/api/v1/revisits/${savedId}`, revision: '"2"' },
+        ]);
+      } else {
+        await expect(editor).toHaveCount(0);
+        expect(writes[0]).toEqual({
+          method: 'POST',
+          path: '/api/v1/revisits',
+          revision: undefined,
+        });
+      }
+      const after = apiSchemas.RevisitPage.parse(
+        await page.request
+          .get(`/api/v1/revisits?editionId=${original.reading.editionId}`)
+          .then((response) => response.json()),
+      );
+      expect(after.items).toHaveLength(2);
+      expect(after.items.find((note) => note.id === savedId)).toMatchObject({
+        note: mutation === 'create' ? submitted : newerDraft,
+        revision: mutation === 'create' ? 1 : 3,
+      });
+      expect(after.items.find((note) => note.note === otherText)).toEqual(
+        before.items.find((note) => note.note === otherText),
+      );
+    } finally {
+      release();
+      await page.unrouteAll({ behavior: 'wait' });
+      page.off('dialog', acceptDialog);
+    }
+  });
+}
 
 test('conflicts keep the editable draft, require refreshed revision, and stale deletion needs new confirmation', async ({
   page,
@@ -1153,17 +1277,6 @@ for (const draft of ['same-note', 'unrelated'] as const) {
     await page
       .getByLabel('Your revisit note', { exact: true })
       .fill('Synthetic newer draft for deleted note');
-    if (draft === 'unrelated') {
-      page.once('dialog', (dialog) => dialog.accept());
-      await region
-        .getByRole('article')
-        .filter({ hasText: 'Synthetic unrelated note B' })
-        .getByRole('button', { name: 'Edit note', exact: true })
-        .click();
-      await page
-        .getByLabel('Your revisit note', { exact: true })
-        .fill('Synthetic unrelated draft must remain');
-    }
     await first.getByRole('button', { name: 'Delete note', exact: true }).click();
     await page.getByLabel('Delete this note and all saved versions permanently').check();
     const rejected = page.waitForResponse((response) => response.request().method() === 'DELETE');
@@ -1181,6 +1294,18 @@ for (const draft of ['same-note', 'unrelated'] as const) {
     await expect(
       page.getByRole('heading', { name: 'Deletion receipt', exact: true }),
     ).toBeVisible();
+    if (draft === 'unrelated') {
+      // Accepted deletion ends this editor's save ownership before the held PUT returns.
+      await expect(page.getByLabel('Your revisit note', { exact: true })).toHaveCount(0);
+      await region
+        .getByRole('article')
+        .filter({ hasText: 'Synthetic unrelated note B' })
+        .getByRole('button', { name: 'Edit note', exact: true })
+        .click();
+      await page
+        .getByLabel('Your revisit note', { exact: true })
+        .fill('Synthetic unrelated draft must remain');
+    }
     failRefresh = true;
     const finished = page.waitForEvent('requestfinished', {
       predicate: (request) => request.method() === 'PUT',

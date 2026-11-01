@@ -218,6 +218,7 @@ export function RevisitNotes({
     };
   }, [run, list]);
   const cancel = () => {
+    if (busy === 'save') return;
     operation.current++;
     running.current = false;
     setBusy(null);
@@ -233,6 +234,7 @@ export function RevisitNotes({
     setMessage(null);
   };
   const begin = (note: RevisitNote | null, trigger: HTMLElement) => {
+    if (busy === 'save') return;
     if (
       editor &&
       dirty &&
@@ -533,7 +535,7 @@ export function RevisitNotes({
                 <button
                   type="button"
                   className="secondary"
-                  disabled={!saved}
+                  disabled={!saved || busy === 'save'}
                   onClick={(event) => begin(note, event.currentTarget)}
                 >
                   Edit note
@@ -568,6 +570,7 @@ export function RevisitNotes({
         ref={addRef}
         type="button"
         disabled={
+          busy === 'save' ||
           !saved ||
           !loaded ||
           (page.items.length >= REVISIT_LIMITS.activePerEdition && !page.nextCursor)
@@ -640,7 +643,7 @@ export function RevisitNotes({
             >
               Save note
             </button>
-            <button type="button" className="secondary" onClick={cancel}>
+            <button type="button" className="secondary" disabled={busy === 'save'} onClick={cancel}>
               Cancel
             </button>
           </div>
