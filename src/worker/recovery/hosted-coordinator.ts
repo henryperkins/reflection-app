@@ -292,8 +292,6 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     this.ctx.storage.transactionSync(() => {
       this.ctx.storage.sql.exec('DELETE FROM writers WHERE id=? AND operation_id IS NULL', id);
       this.#closeDrainedFence();
-      if (this.#row().mode === 'closing' && this.#count() === 0)
-        this.ctx.storage.sql.exec("UPDATE control SET mode='offline'");
     });
   }
   async acquire(
