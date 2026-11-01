@@ -26,6 +26,16 @@ const labels: Record<RevisitNote['stance'], string> = {
   unsure: 'Unsure',
   disagree: 'Disagree',
 };
+function mergeNotes(previous: RevisitNote[], incoming: RevisitNote[]): RevisitNote[] {
+  const merged = new Map(previous.map((note) => [note.id, note]));
+  for (const note of incoming) {
+    const prior = merged.get(note.id);
+    if (!prior || prior.revision <= note.revision) merged.set(note.id, note);
+  }
+  return [...merged.values()].sort(
+    (a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || a.id.localeCompare(b.id),
+  );
+}
 export interface RevisitNotesHandle {
   hasUnsavedChanges(): boolean;
 }
@@ -67,15 +77,20 @@ export function RevisitNotes({
   } | null>(null);
   const [message, setMessage] = useState<NoticeMessage | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [deletionBusy, setDeletionBusy] = useState(false);
   const lifetime = useRef(0),
     operation = useRef(0),
-    running = useRef(false);
+    running = useRef(false),
+    deletionOperation = useRef(0),
+    deletionRunning = useRef(false),
+    listVersion = useRef(0);
   const addRef = useRef<HTMLButtonElement>(null),
     textRef = useRef<HTMLTextAreaElement>(null),
     checkRef = useRef<HTMLInputElement>(null);
   const initiator = useRef<HTMLElement | null>(null);
   const deleteInitiator = useRef<HTMLElement | null>(null);
   const focusAfter = useRef<string | 'add' | 'origin' | null>(null);
+  const deleteFocusAfter = useRef<string | null>(null);
   const headings = useRef(new Map<string, HTMLHeadingElement>());
   const edits = useRef(0);
   const intent = useRef<{ payload: string; key: string; at: number } | null>(null);
@@ -103,6 +118,12 @@ export function RevisitNotes({
         headings.current.get(target)?.focus();
       else addRef.current?.focus();
     }
+    // Deletion's outcome must receive focus even while a different draft stays open.
+    if (deleteFocusAfter.current) {
+      const target = deleteFocusAfter.current;
+      deleteFocusAfter.current = null;
+      (headings.current.get(target) ?? addRef.current)?.focus();
+    }
   });
   useLayoutEffect(() => {
     if (deleting) checkRef.current?.focus();
@@ -110,12 +131,17 @@ export function RevisitNotes({
   const callbacks = useRef({ onExpired, onChanged });
   callbacks.current = { onExpired, onChanged };
   const run = useCallback(async (name: string, work: (current: () => boolean) => Promise<void>) => {
-    if (running.current) return;
-    running.current = true;
+    // Editor replacement/cancellation owns only its channel; accepted deletions keep theirs.
+    const deleting = name === 'delete';
+    const active = deleting ? deletionRunning : running;
+    const sequence = deleting ? deletionOperation : operation;
+    if (active.current) return;
+    active.current = true;
     const live = lifetime.current,
-      version = ++operation.current;
-    const current = () => lifetime.current === live && operation.current === version;
-    setBusy(name);
+      version = ++sequence.current;
+    const current = () => lifetime.current === live && sequence.current === version;
+    if (deleting) setDeletionBusy(true);
+    else setBusy(name);
     setMessage(null);
     try {
       await work(current);
@@ -131,28 +157,30 @@ export function RevisitNotes({
       });
     } finally {
       if (current()) {
-        running.current = false;
-        setBusy(null);
+        active.current = false;
+        if (deleting) setDeletionBusy(false);
+        else setBusy(null);
       }
     }
   }, []);
   const list = useCallback(
     async (current: () => boolean, cursor: string | null = null, all = false) => {
+      const version = ++listVersion.current;
       let result: Page = { items: [], nextCursor: cursor };
       do {
         const next = await api(
           `/revisits?editionId=${encodeURIComponent(editionId)}${result.nextCursor ? `&cursor=${encodeURIComponent(result.nextCursor)}` : ''}`,
           apiSchemas.RevisitPage,
         );
-        if (!current()) return;
+        if (!current() || listVersion.current !== version) return;
         if (next.items.some((note) => note.sessionId !== sessionId || note.editionId !== editionId))
           throw new Error('The note list did not match this reading. Refresh to try again.');
         result = { items: [...result.items, ...next.items], nextCursor: next.nextCursor };
       } while (all && result.nextCursor);
-      if (current()) {
+      if (current() && listVersion.current === version) {
         setPage((prior) =>
           cursor && !all
-            ? { items: [...prior.items, ...result.items], nextCursor: result.nextCursor }
+            ? { items: mergeNotes(prior.items, result.items), nextCursor: result.nextCursor }
             : result,
         );
         setLoaded(true);
@@ -165,7 +193,10 @@ export function RevisitNotes({
     return () => {
       lifetime.current++;
       operation.current++;
+      deletionOperation.current++;
+      listVersion.current++;
       running.current = false;
+      deletionRunning.current = false;
       intent.current = null;
       erase.current = null;
     };
@@ -258,11 +289,11 @@ export function RevisitNotes({
         throw error;
       }
       if (!current()) return;
-      // Retrying a successful create may return a prior snapshot: reread the chronological list.
-      await list(current, null, true);
-      if (!current()) return;
-      callbacks.current.onChanged();
+      // Acknowledgement owns identity/revision even if a later read fails offline.
       intent.current = null;
+      listVersion.current++;
+      setPage((prior) => ({ ...prior, items: mergeNotes(prior.items, [result]) }));
+      callbacks.current.onChanged();
       if (edits.current === edit) {
         focusAfter.current = result.id;
         setEditor(null);
@@ -274,6 +305,20 @@ export function RevisitNotes({
       } else {
         setEditor({ base: result });
         setMessage({ tone: 'success', text: 'Note saved. Your newer draft is still here.' });
+      }
+      // The acknowledged submission is finished; its read must not block another intent.
+      running.current = false;
+      setBusy(null);
+      try {
+        // Replayed mutations may return a prior snapshot; refresh the list separately.
+        await list(current, null, true);
+      } catch (error) {
+        if (!current()) return;
+        if (error instanceof ApiFailure && error.status === 401) throw error;
+        setMessage({
+          tone: 'error',
+          text: 'Note saved, but the note list could not be refreshed. Your draft is still here. Use Refresh notes to retry the read.',
+        });
       }
     });
   };
@@ -295,7 +340,7 @@ export function RevisitNotes({
       await list(current, null, true);
       if (!current()) return;
       if (deleting) {
-        focusAfter.current = deleting.id;
+        deleteFocusAfter.current = deleting.id;
         setDeleting(null);
         setChecked(false);
         erase.current = null;
@@ -322,7 +367,7 @@ export function RevisitNotes({
         });
     });
   const remove = () => {
-    if (!deleting || !checked) return;
+    if (!deleting || !checked || deletionRunning.current) return;
     if (erase.current && tooOld(erase.current.at)) {
       setExpired(true);
       return;
@@ -355,7 +400,8 @@ export function RevisitNotes({
           initial: { state: result.state, backupExpiresBy: result.backupExpiresBy },
         });
         const index = page.items.findIndex((note) => note.id === attempt.id);
-        focusAfter.current = page.items[index + 1]?.id ?? page.items[index - 1]?.id ?? 'add';
+        deleteFocusAfter.current = page.items[index + 1]?.id ?? page.items[index - 1]?.id ?? 'add';
+        listVersion.current++;
         setPage((prior) => ({
           ...prior,
           items: prior.items.filter((note) => note.id !== attempt.id),
@@ -376,7 +422,7 @@ export function RevisitNotes({
           setChecked(false);
           await list(current, null, true);
           if (current()) {
-            focusAfter.current = attempt.id;
+            deleteFocusAfter.current = attempt.id;
             setMessage({
               tone: 'notice',
               text: 'The note changed. Review the saved note and confirm deletion again.',
@@ -474,20 +520,18 @@ export function RevisitNotes({
           Load more notes
         </button>
       )}
-      {!editor && (
-        <button
-          ref={addRef}
-          type="button"
-          disabled={
-            !saved ||
-            !loaded ||
-            (page.items.length >= REVISIT_LIMITS.activePerEdition && !page.nextCursor)
-          }
-          onClick={(event) => begin(null, event.currentTarget)}
-        >
-          Add revisit note
-        </button>
-      )}
+      <button
+        ref={addRef}
+        type="button"
+        disabled={
+          !saved ||
+          !loaded ||
+          (page.items.length >= REVISIT_LIMITS.activePerEdition && !page.nextCursor)
+        }
+        onClick={(event) => begin(null, event.currentTarget)}
+      >
+        Add revisit note
+      </button>
       {page.items.length >= REVISIT_LIMITS.activePerEdition && (
         <p>This reading has reached its 100-note limit. You can still read or delete notes.</p>
       )}
@@ -647,7 +691,7 @@ export function RevisitNotes({
             <button
               type="button"
               className="danger"
-              disabled={!checked || busy === 'delete' || expired}
+              disabled={!checked || deletionBusy || expired}
               onClick={remove}
             >
               Confirm note deletion

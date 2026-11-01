@@ -522,6 +522,8 @@ test('an older unavailable request keeps its exact edition, notes and URL throug
     }),
   ).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/requests/${requestId}$`));
+  // Acknowledgement no longer waits for the independent session/list refresh.
+  await page.unrouteAll({ behavior: 'wait' });
 });
 
 test('an expired offline deletion reconciles notes and requires a fresh dated confirmation', async ({
@@ -580,3 +582,302 @@ test('cancelling a deletion while editing does not replace the editor Cancel foc
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await expect(edit).toBeFocused();
 });
+
+test('review: acknowledged create retains its identity when a newer draft survives a failed list refresh', async ({
+  page,
+}) => {
+  const { original } = await savedReading(page, '192.0.2.153');
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let acknowledged!: () => void;
+  const accepted = new Promise<void>((resolve) => {
+    acknowledged = resolve;
+  });
+  const writes: Array<{ method: string; path: string; revision: string | undefined }> = [];
+  let savedId = '',
+    failList = false;
+  await page.route('**/api/v1/revisits**', async (route) => {
+    const request = route.request();
+    if (request.method() === 'GET' && failList) {
+      failList = false;
+      return route.abort('internetdisconnected');
+    }
+    if (request.method() === 'POST' || request.method() === 'PUT') {
+      writes.push({
+        method: request.method(),
+        path: new URL(request.url()).pathname,
+        revision: request.headers()['if-match'],
+      });
+      const response = await route.fetch();
+      if (request.method() === 'POST') {
+        savedId = (await response.json()).id;
+        acknowledged();
+        await gate;
+        failList = true;
+      }
+      return route.fulfill({ response });
+    }
+    return route.continue();
+  });
+  await page.getByRole('button', { name: 'Add revisit note', exact: true }).click();
+  await page
+    .getByLabel('Your revisit note', { exact: true })
+    .fill('Synthetic acknowledged first draft');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await accepted;
+  await page
+    .getByLabel('Your revisit note', { exact: true })
+    .fill('Synthetic newer draft after acknowledgement');
+  release();
+  await expect(page.getByRole('alert')).toContainText(
+    'Note saved, but the note list could not be refreshed.',
+  );
+  await expect(page.getByLabel('Your revisit note', { exact: true })).toHaveValue(
+    'Synthetic newer draft after acknowledgement',
+  );
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Note saved.' })).toBeVisible();
+  expect(writes).toEqual([
+    { method: 'POST', path: '/api/v1/revisits', revision: undefined },
+    { method: 'PUT', path: `/api/v1/revisits/${savedId}`, revision: '"1"' },
+  ]);
+  const list = apiSchemas.RevisitPage.parse(
+    await page.request
+      .get(`/api/v1/revisits?editionId=${original.reading.editionId}`)
+      .then((response) => response.json()),
+  );
+  expect(list.items).toHaveLength(1);
+  expect(list.items[0]).toMatchObject({
+    id: savedId,
+    revision: 2,
+    note: 'Synthetic newer draft after acknowledgement',
+  });
+});
+
+for (const action of ['begin', 'cancel'] as const) {
+  test(`review: delayed accepted deletion keeps its full receipt through editor ${action}`, async ({
+    page,
+  }) => {
+    await savedReading(page, action === 'begin' ? '192.0.2.154' : '192.0.2.155');
+    await add(page, 'Synthetic note A retained during delayed deletion');
+    await add(page, 'Synthetic note B for delayed deletion');
+    const articles = page
+      .getByRole('region', { name: 'Revisit notes', exact: true })
+      .getByRole('article');
+    const first = articles.filter({ hasText: 'Synthetic note A retained during delayed deletion' });
+    const second = articles.filter({ hasText: 'Synthetic note B for delayed deletion' });
+    if (action === 'cancel') {
+      await first.getByRole('button', { name: 'Edit note', exact: true }).click();
+      await page
+        .getByLabel('Your revisit note', { exact: true })
+        .fill('Synthetic editable draft before delete');
+    }
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let accepted!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      accepted = resolve;
+    });
+    let proof: { receiptId: string; receiptToken: string };
+    await page.route('**/api/v1/revisits/*', async (route) => {
+      if (route.request().method() !== 'DELETE') return route.continue();
+      proof = route.request().postDataJSON();
+      const response = await route.fetch();
+      expect(response.status()).toBe(202);
+      accepted();
+      await gate;
+      await route.fulfill({ response });
+    });
+    await second.getByRole('button', { name: 'Delete note', exact: true }).click();
+    await page.getByLabel('Delete this note and all saved versions permanently').check();
+    await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+    await pending;
+    if (action === 'begin') {
+      await first.getByRole('button', { name: 'Edit note', exact: true }).click();
+      await page
+        .getByLabel('Your revisit note', { exact: true })
+        .fill('Synthetic new draft while delete finishes');
+    } else await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    release();
+    await expect(
+      page.getByRole('heading', { name: 'Deletion receipt', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText(/Backups are kept until/)).toBeVisible();
+    await expect(
+      page.getByText('Synthetic note B for delayed deletion', { exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Note deletion accepted.' }),
+    ).toBeVisible();
+    const download = page.waitForEvent('download');
+    await page.getByRole('button', { name: 'Download deletion receipt', exact: true }).click();
+    const receipt = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+    expect(receipt).toMatchObject(proof!);
+    if (action === 'begin')
+      await expect(page.getByLabel('Your revisit note', { exact: true })).toHaveValue(
+        'Synthetic new draft while delete finishes',
+      );
+    else await expect(page.getByLabel('Your revisit note', { exact: true })).toHaveCount(0);
+  });
+}
+
+for (const destination of ['adjacent', 'add'] as const) {
+  test(`review: deletion restores ${destination} focus independently of the active editor draft`, async ({
+    page,
+  }) => {
+    await savedReading(page, destination === 'adjacent' ? '192.0.2.156' : '192.0.2.157');
+    if (destination === 'adjacent') await add(page, 'Synthetic adjacent note A');
+    await add(page, 'Synthetic deleted note B');
+    const region = page.getByRole('region', { name: 'Revisit notes', exact: true });
+    const first = region.getByRole('article').filter({ hasText: 'Synthetic adjacent note A' });
+    const second = region.getByRole('article').filter({ hasText: 'Synthetic deleted note B' });
+    if (destination === 'adjacent')
+      await first.getByRole('button', { name: 'Edit note', exact: true }).click();
+    else await region.getByRole('button', { name: 'Add revisit note', exact: true }).click();
+    await page
+      .getByLabel('Your revisit note', { exact: true })
+      .fill('Synthetic editor draft kept through deletion focus');
+    await second.getByRole('button', { name: 'Delete note', exact: true }).click();
+    await page.getByLabel('Delete this note and all saved versions permanently').check();
+    await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Deletion receipt', exact: true }),
+    ).toBeVisible();
+    await expect(page.getByLabel('Your revisit note', { exact: true })).toHaveValue(
+      'Synthetic editor draft kept through deletion focus',
+    );
+    await expect(
+      destination === 'adjacent'
+        ? first.getByRole('heading', { level: 3 })
+        : region.getByRole('button', { name: 'Add revisit note', exact: true }),
+    ).toBeFocused();
+  });
+}
+
+test('review: an older list response cannot revive a note deleted by an independent action', async ({
+  page,
+}) => {
+  await savedReading(page, '192.0.2.158');
+  await add(page, 'Synthetic retained note before held list');
+  await add(page, 'Synthetic deleted note from older list');
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let started!: () => void;
+  const pending = new Promise<void>((resolve) => {
+    started = resolve;
+  });
+  await page.route('**/api/v1/revisits?*', async (route) => {
+    const response = await route.fetch();
+    started();
+    await gate;
+    await route.fulfill({ response });
+  });
+  const refresh = page.getByRole('button', { name: 'Refresh notes', exact: true });
+  await refresh.click();
+  await pending;
+  const deleted = page
+    .getByRole('article')
+    .filter({ hasText: 'Synthetic deleted note from older list' });
+  await deleted.getByRole('button', { name: 'Delete note', exact: true }).click();
+  await page.getByLabel('Delete this note and all saved versions permanently').check();
+  await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Deletion receipt', exact: true })).toBeVisible();
+  release();
+  // Enabled means the held list response has been processed and its operation finished.
+  await expect(refresh).toBeEnabled();
+  await expect(deleted).toHaveCount(0);
+  await expect(
+    page.getByText('Synthetic retained note before held list', { exact: true }),
+  ).toBeVisible();
+});
+
+for (const mutation of ['create', 'update'] as const) {
+  test(`review: acknowledged ${mutation} survives an older independent conflict refresh`, async ({
+    page,
+  }) => {
+    const { original } = await savedReading(
+      page,
+      mutation === 'create' ? '192.0.2.159' : '192.0.2.160',
+    );
+    await add(page, 'Synthetic earlier note to retain');
+    await add(page, 'Synthetic stale deletion target');
+    const notes = apiSchemas.RevisitPage.parse(
+      await page.request
+        .get(`/api/v1/revisits?editionId=${original.reading.editionId}`)
+        .then((response) => response.json()),
+    );
+    const stale = notes.items.find((note) => note.note === 'Synthetic stale deletion target')!;
+    expect(
+      (
+        await page.request.put(`/api/v1/revisits/${stale.id}`, {
+          headers: {
+            Origin: 'http://localhost:8787',
+            'X-CSRF-Token': original.me.csrfToken,
+            'If-Match': '"1"',
+            'Idempotency-Key': crypto.randomUUID(),
+          },
+          data: { note: 'Synthetic newer deletion target' },
+        })
+      ).status(),
+    ).toBe(200);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      started = resolve;
+    });
+    let first = true;
+    await page.route('**/api/v1/revisits?*', async (route) => {
+      if (!first) return route.continue();
+      first = false;
+      const response = await route.fetch();
+      started();
+      await gate;
+      await route.fulfill({ response });
+    });
+    const region = page.getByRole('region', { name: 'Revisit notes', exact: true });
+    await region
+      .getByRole('article')
+      .filter({ hasText: 'Synthetic stale deletion target' })
+      .getByRole('button', { name: 'Delete note', exact: true })
+      .click();
+    await page.getByLabel('Delete this note and all saved versions permanently').check();
+    await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+    await pending;
+    if (mutation === 'update')
+      await region
+        .getByRole('article')
+        .filter({ hasText: 'Synthetic earlier note to retain' })
+        .getByRole('button', { name: 'Edit note', exact: true })
+        .click();
+    else await region.getByRole('button', { name: 'Add revisit note', exact: true }).click();
+    const authored = `Synthetic acknowledged ${mutation} after the old list`;
+    await page.getByLabel('Your revisit note', { exact: true }).fill(authored);
+    await page.getByRole('button', { name: 'Save note', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: 'Note saved.' })).toBeVisible();
+    // This marker was absent locally: seeing it proves the newer list has committed.
+    await expect(
+      region.getByRole('article').filter({ hasText: 'Synthetic newer deletion target' }),
+    ).toBeVisible();
+    release();
+    await expect(page.getByText(/confirm deletion again/)).toBeVisible();
+    await expect(region.getByRole('article').filter({ hasText: authored })).toBeVisible();
+    const current = apiSchemas.RevisitPage.parse(
+      await page.request
+        .get(`/api/v1/revisits?editionId=${original.reading.editionId}`)
+        .then((response) => response.json()),
+    );
+    expect(current.items).toHaveLength(mutation === 'create' ? 3 : 2);
+    expect(current.items.find((note) => note.note === authored)?.revision).toBe(
+      mutation === 'create' ? 1 : 2,
+    );
+  });
+}
