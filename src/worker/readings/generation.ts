@@ -1,5 +1,7 @@
 import { costReservationStatement, reconcileProviderCost } from '../provider/costs.ts';
 import { providerReceiptStatements } from '../provider/receipts.ts';
+import { reserveSpreadCost, settleSpreadCost } from '../provider/spread-costs.ts';
+import { SPREAD_PROVIDER_POLICY } from '../../contracts/spread-policy.ts';
 import {
   READING_PROVIDER_POLICY,
   READING_V2_APPLICATION_POLICY,
@@ -23,12 +25,14 @@ import {
   AnyPreparedPlan,
   TarotBasis,
   ProviderReceipt,
+  type SpreadRecognizer,
   type WriterOutcome,
   type WritingProvider,
   type ErrorCode,
 } from '../../contracts/index.ts';
 import { inputAdmission, boundedCandidateJson } from '../../domain/tarot/safety.ts';
-import { drawTarot } from '../../domain/tarot/draw.ts';
+import { basisFromSpread, drawTarot } from '../../domain/tarot/draw.ts';
+import { DeterministicSpreadRecognizer } from '../provider/meta-vision.ts';
 import { currentGuard } from '../db/statements.ts';
 import { renderFacts } from '../../domain/tarot/facts.ts';
 import { assertion, onlineGuard } from '../identity/checkpoint.ts';
@@ -45,7 +49,11 @@ import {
 } from './writer-versions.ts';
 import { RequestState, requestEvent } from './request-state.ts';
 
-type DependencyBase = { content: ContentRepository; ensureReady: () => Promise<void> };
+type DependencyBase = {
+  content: ContentRepository;
+  ensureReady: () => Promise<void>;
+  spreadRecognizer?: SpreadRecognizer;
+};
 /** Trusted runtime dependencies, never request fields. No implicit writer or content bootstrap. */
 export type GenerationDependencies = DependencyBase &
   (
@@ -83,6 +91,12 @@ export class ReadingGeneration extends RequestState {
   }
   private get development() {
     return ['live-local', 'live-preview'].includes(this.dependencies.authorization.kind);
+  }
+  private get spreadRecognizer() {
+    return (
+      this.dependencies.spreadRecognizer ??
+      (this.synthetic ? new DeterministicSpreadRecognizer() : null)
+    );
   }
   private async policyHash() {
     const auth = this.dependencies.authorization;
@@ -208,34 +222,42 @@ export class ReadingGeneration extends RequestState {
     const requestId = crypto.randomUUID(),
       sessionId = crypto.randomUUID(),
       basisId = crypto.randomUUID();
-    const basis = await drawTarot({
-      deck: content.deck.map((c) => c.id),
-      deckEdition: content.deckEdition,
-      basisId,
-      drawnAt: iso(Date.now()),
-      reversals: input.reversals,
-    });
-    const plan = await buildWriterPlan(
-      {
-        requestId,
-        basis,
-        content,
-        question: input.question,
-        language: 'en',
-        operation: 'initial',
-        parentEditionId: null,
-        selected: [],
-        permissionRevision: input.permissionRevision,
-        keyVersion: account.key_version,
-        promptHash: policyHash,
-        validatorHash: policyHash,
-        generationPolicyHash: policyHash,
-      },
-      this.dependencies.policy,
-      this.synthetic || this.development,
-    );
+    if (input.spreadPhoto && !this.spreadRecognizer)
+      throw new RecordError(503, 'PROVIDER_UNAVAILABLE');
+    // Photos are recognized only after the request and quota hold are durable.
+    const basis = input.spreadPhoto
+      ? null
+      : await drawTarot({
+          deck: content.deck.map((c) => c.id),
+          deckEdition: content.deckEdition,
+          basisId,
+          drawnAt: iso(Date.now()),
+          reversals: input.reversals,
+        });
+    const plan = basis
+      ? await buildWriterPlan(
+          {
+            requestId,
+            basis,
+            content,
+            question: input.question,
+            language: 'en',
+            operation: 'initial',
+            parentEditionId: null,
+            selected: [],
+            permissionRevision: input.permissionRevision,
+            keyVersion: account.key_version,
+            promptHash: policyHash,
+            validatorHash: policyHash,
+            generationPolicyHash: policyHash,
+            ...(input.spreadPhoto ? { spreadPhoto: input.spreadPhoto } : {}),
+          },
+          this.dependencies.policy,
+          this.synthetic || this.development,
+        )
+      : null;
     try {
-      await prepareWriter(plan, this.dependencies.policy);
+      if (plan) await prepareWriter(plan, this.dependencies.policy);
     } catch (error) {
       if (error instanceof Error && error.message.startsWith('INPUT_TOO_LARGE'))
         throw new RecordError(422, 'INPUT_TOO_LARGE');
@@ -251,10 +273,10 @@ export class ReadingGeneration extends RequestState {
       v: 1,
       text: input.question,
     });
-    const basisEnc = await seal('basis_snapshots', 'body_enc', basisId, basis);
+    const basisEnc = basis ? await seal('basis_snapshots', 'body_enc', basisId, basis) : null;
     const inputEnc = await seal('generation_requests', 'input_enc', requestId, input);
-    const planEnc = await seal('generation_requests', 'plan_enc', requestId, plan);
-    const planHash = await this.base.crypt.hash(session.subjectId, 'plan', plan);
+    const planEnc = plan ? await seal('generation_requests', 'plan_enc', requestId, plan) : null;
+    const planHash = plan ? await this.base.crypt.hash(session.subjectId, 'plan', plan) : null;
     try {
       await this.base.atomic(session, [
         ...ready.guards,
@@ -289,24 +311,29 @@ export class ReadingGeneration extends RequestState {
           session.subjectId,
           question,
         ),
+        ...(basisEnc
+          ? [
+              q(
+                this.base.db,
+                `INSERT INTO basis_snapshots(id,owner_id,session_id,kind,schema_version,body_enc,key_version,created_at) VALUES (?,?,?,'tarot.v1',1,?,?,${DB_NOW})`,
+                basisId,
+                session.subjectId,
+                sessionId,
+                basisEnc,
+                account.key_version,
+              ),
+            ]
+          : []),
         q(
           this.base.db,
-          `INSERT INTO basis_snapshots(id,owner_id,session_id,kind,schema_version,body_enc,key_version,created_at) VALUES (?,?,?,'tarot.v1',1,?,?,${DB_NOW})`,
-          basisId,
-          session.subjectId,
-          sessionId,
-          basisEnc,
-          account.key_version,
-        ),
-        q(
-          this.base.db,
-          `INSERT INTO generation_requests(id,owner_id,session_id,client_intent_id,basis_id,operation,payload_hmac,state,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,created_at,expires_at) VALUES (?,?,?,?,?,'initial',?,'prepared',${DB_NOW},?,?,?,?,?,?,?,?,${DB_NOW},${DB_NOW}+180000)`,
+          `INSERT INTO generation_requests(id,owner_id,session_id,client_intent_id,basis_id,operation,payload_hmac,state,next_run_at,permission_revision,key_version,content_hash,content_policy_revision,policy_hash,input_enc,plan_enc,plan_hmac,created_at,expires_at) VALUES (?,?,?,?,?,'initial',?,?,${DB_NOW},?,?,?,?,?,?,?,?,${DB_NOW},${DB_NOW}+180000)`,
           requestId,
           session.subjectId,
           sessionId,
           input.clientIntentId,
-          basisId,
+          basis ? basisId : null,
           mutation.payloadHash,
+          basis ? 'prepared' : 'reserved',
           input.permissionRevision,
           account.key_version,
           content.editionHash,
@@ -357,7 +384,7 @@ export class ReadingGeneration extends RequestState {
 
   /** Durable D1 work is authoritative; waitUntil only reduces latency. */
   get providerTimeoutMs() {
-    return this.dependencies.policy.timeoutMs;
+    return this.dependencies.policy.timeoutMs + SPREAD_PROVIDER_POLICY.timeoutMs;
   }
   async maintenance(
     budget: { deadlineMs: number; concurrency: 4 } = {
@@ -431,7 +458,7 @@ export class ReadingGeneration extends RequestState {
   private guardCurrent(
     h: Lease,
     state: string,
-    stage: 'dispatch' | 'publish' | 'recover' = 'recover',
+    stage: 'dispatch' | 'publish' | 'recover' | 'recognize' = 'recover',
   ) {
     return currentGuard(
       this.base.db,
@@ -585,6 +612,116 @@ export class ReadingGeneration extends RequestState {
       // Concurrent terminalization/publication owns the final outcome.
     }
   }
+  private async recognizeSpread(h: Lease) {
+    if (h.state !== 'reserved' || !h.input_enc || h.plan_enc)
+      throw new GenerationFailure('CONTENT_UNAVAILABLE');
+    // Once egress was authorized, absence of a saved basis is ambiguous. Never resend.
+    if (h.spread_dispatch_id) throw new GenerationFailure('PROVIDER_UNCERTAIN');
+    const recognizer = this.spreadRecognizer;
+    if (!recognizer) throw new GenerationFailure('PROVIDER_UNAVAILABLE');
+    const input = await this.base.crypt.open(
+      {
+        ownerId: h.owner_id,
+        table: 'generation_requests',
+        column: 'input_enc',
+        recordId: h.id,
+        aadRevision: 1,
+      },
+      h.input_enc,
+      StartRequest,
+    );
+    if (!input.spreadPhoto) throw new GenerationFailure('CONTENT_UNAVAILABLE');
+    const ready = await this.ready(h.content_hash);
+    const dispatchId = crypto.randomUUID();
+    await this.base.db.batch([
+      onlineGuard(this.base.db),
+      ...ready.guards,
+      this.guardCurrent(h, 'reserved', 'recognize'),
+      assertion(
+        this.base.db,
+        `(SELECT count(*) FROM provider_dispatches WHERE state='authorized')+(SELECT count(*) FROM generation_requests WHERE spread_dispatch_id IS NOT NULL AND basis_id IS NULL AND state NOT IN (${terminalStates}))<10`,
+      ),
+      ...(!this.synthetic
+        ? await reserveSpreadCost(this.base.db, h.owner_id, dispatchId, h.policy_hash)
+        : []),
+      q(
+        this.base.db,
+        `UPDATE generation_requests SET spread_dispatch_id=?,revision=revision+1 WHERE id=? AND spread_dispatch_id IS NULL AND lease_expires_at>=${DB_NOW}+? AND expires_at>=${DB_NOW}+?`,
+        dispatchId,
+        h.id,
+        SPREAD_PROVIDER_POLICY.timeoutMs + 3000,
+        SPREAD_PROVIDER_POLICY.timeoutMs + 3000,
+      ),
+      assertion(this.base.db, 'changes()=1'),
+      ...requestEvent(this.base.db, h.owner_id, h.id, 'PREPARING'),
+      ...this.accountWrite(h.owner_id),
+    ]);
+    h.spread_dispatch_id = dispatchId;
+    let basis: TarotBasis;
+    try {
+      const recognized = await recognizer.recognize({
+        spreadPhoto: input.spreadPhoto,
+        deck: ready.bundle.deck.map((c) => ({ id: c.id, name: c.name })),
+        signal: AbortSignal.timeout(SPREAD_PROVIDER_POLICY.timeoutMs),
+        ...(!this.synthetic
+          ? {
+              onReceipt: (receipt: ProviderReceipt) =>
+                settleSpreadCost(this.base.db, dispatchId, receipt),
+            }
+          : {}),
+      });
+      basis = await basisFromSpread({
+        deck: ready.bundle.deck.map((c) => c.id),
+        deckEdition: ready.bundle.deckEdition,
+        basisId: crypto.randomUUID(),
+        drawnAt: iso(Date.now()),
+        reversals: input.reversals,
+        spreadPhoto: input.spreadPhoto,
+        recognized,
+      });
+    } catch (error) {
+      if (error instanceof Error && error.message.startsWith('PROVIDER_REFUSAL'))
+        throw new GenerationFailure('PROVIDER_REFUSAL');
+      if (error instanceof Error && /^(INVALID_CANDIDATE|BAD_INPUT)/.test(error.message))
+        throw new GenerationFailure('BAD_INPUT');
+      throw new GenerationFailure('PROVIDER_UNCERTAIN');
+    }
+    const encrypted = await this.base.crypt.seal(
+      {
+        ownerId: h.owner_id,
+        table: 'basis_snapshots',
+        column: 'body_enc',
+        recordId: basis.basisId,
+        aadRevision: 1,
+      },
+      basis,
+      h.key_version,
+    );
+    await this.base.db.batch([
+      onlineGuard(this.base.db),
+      ...ready.guards,
+      this.guardCurrent(h, 'reserved', 'recognize'),
+      q(
+        this.base.db,
+        `INSERT INTO basis_snapshots(id,owner_id,session_id,kind,schema_version,body_enc,key_version,created_at) VALUES (?,?,?,'tarot.v1',1,?,?,${DB_NOW})`,
+        basis.basisId,
+        h.owner_id,
+        h.session_id,
+        encrypted,
+        h.key_version,
+      ),
+      q(
+        this.base.db,
+        `UPDATE generation_requests SET basis_id=?,lease_expires_at=${DB_NOW}+75000 WHERE id=? AND spread_dispatch_id=? AND basis_id IS NULL`,
+        basis.basisId,
+        h.id,
+        dispatchId,
+      ),
+      assertion(this.base.db, 'changes()=1'),
+      ...this.accountWrite(h.owner_id),
+    ]);
+    h.basis_id = basis.basisId;
+  }
   private async plan(h: Lease): Promise<VersionedPlan> {
     try {
       let plan: VersionedPlan;
@@ -648,6 +785,7 @@ export class ReadingGeneration extends RequestState {
             promptHash: h.policy_hash,
             validatorHash: h.policy_hash,
             generationPolicyHash: h.policy_hash,
+            ...(input.spreadPhoto ? { spreadPhoto: input.spreadPhoto } : {}),
           },
           this.dependencies.policy,
           this.synthetic || this.development,
@@ -774,7 +912,7 @@ export class ReadingGeneration extends RequestState {
       assertion(this.base.db, 'changes()=2'),
       assertion(
         this.base.db,
-        "(SELECT count(*) FROM provider_dispatches WHERE state='authorized')<10",
+        `(SELECT count(*) FROM provider_dispatches WHERE state='authorized')+(SELECT count(*) FROM generation_requests WHERE spread_dispatch_id IS NOT NULL AND basis_id IS NULL AND state NOT IN (${terminalStates}))<10`,
       ),
       q(
         this.base.db,
@@ -999,6 +1137,7 @@ export class ReadingGeneration extends RequestState {
       parentEditionId: null,
       question: plan.question,
       basis: plan.basis,
+      ...(plan.spreadPhoto ? { spreadPhoto: plan.spreadPhoto } : {}),
       mode: template ? 'template' : 'model',
       contentHash: plan.contentHash,
       planHash: h.plan_hmac,
@@ -1146,6 +1285,7 @@ export class ReadingGeneration extends RequestState {
       if (h.error_code === 'PROVIDER_REFUSAL' || h.error_code === 'PROVIDER_UNAVAILABLE')
         throw new GenerationFailure(h.error_code);
       await this.ready(h.content_hash);
+      if (!h.basis_id) await this.recognizeSpread(h);
       const plan = await this.plan(h);
       let dispatch = await this.dispatchRow(id);
       if (!dispatch) {
@@ -1203,6 +1343,7 @@ interface RequestRow {
   owner_id: string;
   session_id: string;
   basis_id: string | null;
+  spread_dispatch_id: string | null;
   state: string;
   run_epoch: number;
   lease_token: string | null;

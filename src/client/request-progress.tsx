@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas, Id } from '../contracts/index.ts';
 import { api, ApiFailure } from './api.ts';
-import { Art } from './art.tsx';
 import { Icon } from './icon.tsx';
 
 type Status = z.infer<typeof apiSchemas.RequestStatus>;
@@ -36,9 +35,9 @@ function description(status: Status | null) {
     return 'AI permission was turned off. This request stopped; your saved readings remain available.';
   if (status.errorCode === 'PROVIDER_REFUSAL') return READING_PRODUCT_COPY.providerRefusal;
   if (status.errorCode === 'PROVIDER_UNCERTAIN')
-    return 'The writer did not confirm a result. This can happen after a timeout or lost connection. This request will not be sent again automatically.';
+    return 'The reading service did not confirm a result. This can happen after a timeout or lost connection. This request will not be sent again automatically.';
   if (status.errorCode === 'PROVIDER_UNAVAILABLE')
-    return 'The writer is unavailable. No reading was created and no reading allowance was used.';
+    return 'The reading service is unavailable. No reading was created and no reading allowance was used.';
   if (status.state === 'failed' || status.state === 'blocked')
     return 'This request could not produce a reading. Your saved readings remain available.';
   if (status.state === 'dispatching') return 'Writing your reading…';
@@ -55,6 +54,7 @@ export function RequestProgress(props: {
   onAccepted: (sessionId: string, focus: boolean) => void;
   onSession: (view: View) => void;
   onExpired: () => void;
+  onTarget: (target: ReadingRequest['target']) => void;
   onAllowNew: () => void;
 }) {
   const latest = useRef(props);
@@ -86,7 +86,7 @@ export function RequestProgress(props: {
       snapshot = value;
       cursor = Math.max(cursor, value.nextSequence);
       target = { kind: 'request', id: value.requestId };
-      window.history.replaceState(null, '', requestPath(target));
+      latest.current.onTarget(target);
       setStatus(value);
       setNotice('');
       setCanRetry(false);
@@ -276,7 +276,6 @@ export function RequestProgress(props: {
           : null;
   return (
     <section className="card request-progress" aria-label="Reading request">
-      <Art name="progress-strip" className="progress-art" />
       <div className="progress-content">
         <h2 className="title-section">Reading progress</h2>
         <p
@@ -300,7 +299,7 @@ export function RequestProgress(props: {
           )}
           {canRetry && (
             <button type="button" onClick={() => actions.current.retry()}>
-              Retry the same Start
+              Retry this request
             </button>
           )}
           {notice && (

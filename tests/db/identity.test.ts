@@ -211,7 +211,107 @@ test('identity errors use the published envelope and never include credential de
   expect(response.status).toBe(401);
   const error = apiSchemas.ErrorEnvelope.parse(await response.json());
   expect(error.error.code).toBe('UNAUTHENTICATED');
+  expect(error.error.message).toContain('recovery handle and code were not accepted');
+  expect(error.error.retry).toBe('never');
   expect(JSON.stringify(error)).not.toContain('missing');
+});
+test('registration failures name the actionable cause while staying in the generic envelope', async () => {
+  const messageOf = async (response: Response) => {
+    expect(response.status).toBe(401);
+    const error = apiSchemas.ErrorEnvelope.parse(await response.json());
+    expect(error.error.code).toBe('UNAUTHENTICATED');
+    return error.error;
+  };
+  // No challenge cookie in this browser.
+  const orphan = new Client(),
+    orphanKey = await syntheticPasskey(),
+    orphanOptions = await orphan.options();
+  const missing = await messageOf(
+    await new Client().request('/auth/register', {
+      challengeId: orphanOptions.challengeId,
+      credential: await orphanKey.register(orphanOptions),
+    }),
+  );
+  expect(missing.message).toContain('not found in this browser');
+  expect(missing.retry).toBe('refresh_then_retry');
+  // Challenge left to expire.
+  const expiredClient = new Client(),
+    expiredKey = await syntheticPasskey(),
+    expiredOptions = await expiredClient.options();
+  await env.DB.prepare('UPDATE auth_challenges SET expires_at=0 WHERE id=?')
+    .bind(expiredOptions.challengeId)
+    .run();
+  const expired = await messageOf(
+    await expiredClient.request('/auth/register', {
+      challengeId: expiredOptions.challengeId,
+      credential: await expiredKey.register(expiredOptions),
+    }),
+  );
+  expect(expired.message).toContain('expired');
+  expect(expired.retry).toBe('refresh_then_retry');
+  // Authenticator did not report a discoverable credential.
+  const rkClient = new Client(),
+    rkKey = await syntheticPasskey(),
+    rkOptions = await rkClient.options();
+  const rkCredential = await rkKey.register(rkOptions);
+  const notDiscoverable = await messageOf(
+    await rkClient.request('/auth/register', {
+      challengeId: rkOptions.challengeId,
+      credential: {
+        ...rkCredential,
+        clientExtensionResults: { credProps: { rk: false } },
+      },
+    }),
+  );
+  expect(notDiscoverable.message).toContain('discoverable');
+  // Authenticator did not perform user verification.
+  const uvClient = new Client(),
+    uvKey = await syntheticPasskey(),
+    uvOptions = await uvClient.options();
+  const unverified = await messageOf(
+    await uvClient.request('/auth/register', {
+      challengeId: uvOptions.challengeId,
+      credential: await uvKey.register(uvOptions, IDENTITY_ORIGIN, false),
+    }),
+  );
+  expect(unverified.message).toContain('verification was not completed');
+  // A consumed challenge cannot be replayed.
+  const usedClient = new Client(),
+    usedKey = await syntheticPasskey(),
+    usedOptions = await usedClient.options();
+  const usedBody = {
+    challengeId: usedOptions.challengeId,
+    credential: await usedKey.register(usedOptions),
+  };
+  const browserCookie = usedClient.cookies.get('__Host-challenge')!;
+  expect((await usedClient.request('/auth/register', usedBody)).status).toBe(200);
+  // Success clears the cookie; restore it to replay against the consumed challenge.
+  usedClient.cookies.set('__Host-challenge', browserCookie);
+  const used = await messageOf(await usedClient.request('/auth/register', usedBody));
+  expect(used.message).toContain('already used');
+  expect(used.retry).toBe('refresh_then_retry');
+});
+test('registration accepts a passkey whose browser does not report credProps', async () => {
+  const client = new Client(),
+    key = await syntheticPasskey(),
+    options = await client.options();
+  const credential = await key.register(options);
+  const response = await client.request('/auth/register', {
+    challengeId: options.challengeId,
+    credential: { ...credential, clientExtensionResults: {} },
+  });
+  expect(response.status).toBe(200);
+  const result = AuthResult.parse(await response.json());
+  client.csrf = result.csrfToken;
+  expect(result.recoveryCodes).toHaveLength(10);
+  // The resulting credential still works in the discoverable sign-in flow.
+  expect((await client.request('/auth/logout', {})).status).toBe(204);
+  const signInOptions = await client.options('authenticate');
+  const signedIn = await client.request('/auth/authenticate', {
+    challengeId: signInOptions.challengeId,
+    credential: await key.authenticate(signInOptions, encode(uuidBytes(result.subjectId))),
+  });
+  expect(signedIn.status).toBe(200);
 });
 test('rate limits deny new challenges and do not store raw addresses', async () => {
   const client = new Client();

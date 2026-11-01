@@ -6,6 +6,20 @@ import { type Checkpoint, encode, type IdentityCrypto, randomToken, uuidBytes } 
 import { IdentitySessions } from './sessions.ts';
 import { type Challenge, type CredentialRow, IdentityError, type Session } from './types.ts';
 
+// Map SimpleWebAuthn verification failures to safe, actionable categories. The
+// library's raw messages can name expected origins/challenges, so they never
+// reach the client; only these codes cross the boundary.
+function verificationFailure(error: unknown, fallback: string): IdentityError {
+  const message = error instanceof Error ? error.message : '';
+  if (/origin|RP ID hash/i.test(message)) return new IdentityError(401, 'PASSKEY_ORIGIN_MISMATCH');
+  if (/user verification|user presence|user.*not present/i.test(message))
+    return new IdentityError(401, 'PASSKEY_VERIFICATION_REQUIRED');
+  if (/public key alg|attestation format/i.test(message))
+    return new IdentityError(401, 'PASSKEY_UNSUPPORTED');
+  if (/challenge/i.test(message)) return new IdentityError(401, 'CHALLENGE_INVALID');
+  return new IdentityError(401, fallback);
+}
+
 export class IdentityService {
   readonly sessions: IdentitySessions;
   readonly checkpoints: IdentityCheckpoints;
@@ -138,14 +152,19 @@ export class IdentityService {
     browser: string | undefined,
     purposes: string[],
   ): Promise<Challenge> {
-    if (!browser) throw new IdentityError(401, 'AUTH_FAILED');
+    if (!browser) throw new IdentityError(401, 'CHALLENGE_MISSING');
     const row = await statement(
       this.db,
-      `SELECT * FROM auth_challenges WHERE id=? AND browser_hash=? AND consumed_at IS NULL AND expires_at>${DB_NOW}`,
+      'SELECT * FROM auth_challenges WHERE id=?',
       id,
-      await this.crypt.hash('browser', browser),
     ).first<Challenge>();
-    if (!row || !purposes.includes(row.purpose)) throw new IdentityError(401, 'AUTH_FAILED');
+    // Expiry/reuse are only disclosed to the browser holding the challenge
+    // cookie; anyone else gets the same answer as an unknown challenge.
+    if (!row || row.browser_hash !== (await this.crypt.hash('browser', browser)))
+      throw new IdentityError(401, 'CHALLENGE_INVALID');
+    if (!purposes.includes(row.purpose)) throw new IdentityError(401, 'CHALLENGE_INVALID');
+    if (row.consumed_at !== null) throw new IdentityError(401, 'CHALLENGE_USED');
+    if (row.expires_at <= Date.now()) throw new IdentityError(401, 'CHALLENGE_EXPIRED');
     if (row.owner_id) {
       const account = await statement(
         this.db,
@@ -192,7 +211,7 @@ export class IdentityService {
       "SELECT * FROM accounts WHERE id=? AND status='active' AND write_fence IS NULL",
       subjectId,
     ).first<{ auth_epoch: number; recovery_handle_hash: string; recovery_ack_at: number | null }>();
-    if (!account) throw new IdentityError(401, 'AUTH_FAILED');
+    if (!account) throw new IdentityError(401, 'ACCOUNT_UNAVAILABLE');
     const credentials = await statement(
       this.db,
       'SELECT * FROM credentials WHERE owner_id=? ORDER BY id',
@@ -243,14 +262,16 @@ export class IdentityService {
     if (current) {
       if (csrfToken !== current.csrfToken) throw new IdentityError(403, 'FORBIDDEN');
       if (current.subjectId !== challenge.owner_id || current.epoch !== challenge.auth_epoch)
-        throw new IdentityError(401, 'AUTH_FAILED');
+        throw new IdentityError(401, 'AUTH_REQUIRED');
     }
     const credential = input.credential;
-    if (
-      credential.id !== credential.rawId ||
-      credential.clientExtensionResults.credProps?.rk !== true
-    )
-      throw new IdentityError(401, 'AUTH_FAILED');
+    if (credential.id !== credential.rawId)
+      throw new IdentityError(401, 'PASSKEY_VERIFICATION_FAILED');
+    // Only an explicit rk:false proves the credential is not discoverable.
+    // Several browsers/managers never return credProps; for them the
+    // residentKey:'required' creation option already guarantees discoverability.
+    if (credential.clientExtensionResults.credProps?.rk === false)
+      throw new IdentityError(401, 'PASSKEY_NOT_DISCOVERABLE');
     const verified = await verifyRegistrationResponse({
       response: {
         id: credential.id,
@@ -268,11 +289,12 @@ export class IdentityService {
       expectedRPID: new URL(this.origin).hostname,
       requireUserVerification: true,
       supportedAlgorithmIDs: [-7, -257],
-    }).catch(() => {
-      throw new IdentityError(401, 'AUTH_FAILED');
+    }).catch((error: unknown) => {
+      throw verificationFailure(error, 'PASSKEY_VERIFICATION_FAILED');
     });
-    if (!verified.verified || verified.registrationInfo.fmt !== 'none')
-      throw new IdentityError(401, 'AUTH_FAILED');
+    if (!verified.verified) throw new IdentityError(401, 'PASSKEY_VERIFICATION_FAILED');
+    if (verified.registrationInfo.fmt !== 'none')
+      throw new IdentityError(401, 'PASSKEY_UNSUPPORTED');
     if (current) {
       const previous = await this.snapshot(current.subjectId);
       if (previous.credentials.length >= 10) throw new IdentityError(409, 'CREDENTIAL_LIMIT');
@@ -351,7 +373,7 @@ export class IdentityService {
       recoveryCodes: kit.verifiers,
     };
     if (previous && previous.epoch !== challenge.auth_epoch)
-      throw new IdentityError(401, 'AUTH_FAILED');
+      throw new IdentityError(401, 'CHALLENGE_INVALID');
     await this.checkpoints.commit(snapshot, {
       ...(previous
         ? { expected: previous }
@@ -390,7 +412,7 @@ export class IdentityService {
         session.epoch !== row.auth_epoch ||
         challenge.owner_id !== row.owner_id)
     )
-      throw new IdentityError(401, 'AUTH_FAILED');
+      throw new IdentityError(401, 'AUTH_REQUIRED');
     const verified = await verifyAuthenticationResponse({
       response: {
         id: input.credential.id,
@@ -412,8 +434,10 @@ export class IdentityService {
         publicKey: new Uint8Array(row.public_key),
         counter: row.sign_count,
       },
-    }).catch(() => {
-      throw new IdentityError(401, 'AUTH_FAILED');
+    }).catch((error: unknown) => {
+      // Origin/verification problems are actionable by the person signing in;
+      // signature and counter failures stay under the generic AUTH_FAILED.
+      throw verificationFailure(error, 'AUTH_FAILED');
     });
     if (!verified.verified) throw new IdentityError(401, 'AUTH_FAILED');
     const now = Date.now();
@@ -486,7 +510,8 @@ export class IdentityService {
       ]);
       if (results.slice(1).some((result) => result.results[0]!.count > 5))
         throw new IdentityError(429, 'RATE_LIMITED');
-      throw new IdentityError(401, 'AUTH_FAILED');
+      // Preserve the specific 401 (e.g. RECOVERY_FAILED) instead of flattening it.
+      throw error instanceof IdentityError ? error : new IdentityError(401, 'AUTH_FAILED');
     }
   }
   private async recoverAccount(input: z.infer<typeof apiSchemas.Recover>) {
@@ -498,7 +523,7 @@ export class IdentityService {
       handleHash,
       codeHash,
     ).first<{ id: string }>();
-    if (!account) throw new IdentityError(401, 'AUTH_FAILED');
+    if (!account) throw new IdentityError(401, 'RECOVERY_FAILED');
     const previous = await this.snapshot(account.id),
       epoch = previous.epoch + 1;
     const made = await this.newChallenge('recover', account.id, epoch),

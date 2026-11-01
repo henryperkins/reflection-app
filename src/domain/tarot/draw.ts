@@ -1,4 +1,15 @@
-import { CardId, Hash, Id, Instant, Position, Suit, TarotBasis } from '../../contracts/index.ts';
+import {
+  CardId,
+  Hash,
+  Id,
+  Instant,
+  Position,
+  SpreadPhoto,
+  SpreadRecognition,
+  Suit,
+  TarotBasis,
+} from '../../contracts/index.ts';
+import { assertBasis } from './facts.ts';
 export type DrawInput = {
   deck: readonly string[];
   deckEdition: string;
@@ -6,6 +17,15 @@ export type DrawInput = {
   drawnAt: string;
   reversals: boolean;
   seed?: Uint8Array;
+};
+export type SpreadBasisInput = {
+  deck: readonly string[];
+  deckEdition: string;
+  basisId: string;
+  drawnAt: string;
+  reversals: boolean;
+  spreadPhoto: string;
+  recognized: SpreadRecognition;
 };
 /** Rejection sampling over unsigned 32-bit words, with a bound on pathological exhaustion. */
 export async function uniformIndex(nextWord: () => Promise<number>, size: number): Promise<number> {
@@ -84,6 +104,63 @@ export async function drawTarot(input: DrawInput): Promise<TarotBasis> {
       .replace(/\//g, '_')
       .replace(/=+$/, ''),
     reversals: input.reversals,
+    cards,
+    counts: Suit.options.map((suit) => ({
+      kind: 'tarot.suit_count',
+      id: `count:${suit}`,
+      suit,
+      count: cards.filter((card) => card.cardId.startsWith(`${suit}-`)).length,
+    })),
+    drawnAt: input.drawnAt,
+  });
+}
+
+/** Construct a canonical TarotBasis from a recognized 3-card offline spread photo. */
+export async function basisFromSpread(input: SpreadBasisInput): Promise<TarotBasis> {
+  const parsedRecognition = SpreadRecognition.safeParse(input.recognized);
+  if (
+    input.deck.length !== 78 ||
+    new Set(input.deck).size !== 78 ||
+    input.deck.some((id) => !CardId.safeParse(id).success) ||
+    !Hash.safeParse(input.deckEdition).success ||
+    !Id.safeParse(input.basisId).success ||
+    !Instant.safeParse(input.drawnAt).success ||
+    typeof input.reversals !== 'boolean' ||
+    !SpreadPhoto.safeParse(input.spreadPhoto).success ||
+    !parsedRecognition.success
+  ) {
+    throw new Error('BAD_INPUT: spread parameters');
+  }
+  const deckSet = new Set(input.deck);
+  const cards: TarotBasis['cards'] = Position.options.map((position) => {
+    const match = parsedRecognition.data.cards.find((card) => card.position === position);
+    if (!match || !deckSet.has(match.cardId)) throw new Error('BAD_INPUT: spread card binding');
+    return {
+      kind: 'tarot.card',
+      id: `card:${position}`,
+      position,
+      cardId: match.cardId,
+      orientation: match.orientation,
+    };
+  });
+  if (new Set(cards.map((card) => card.cardId)).size !== 3)
+    throw new Error('BAD_INPUT: repeated card');
+  const digest = new Uint8Array(
+    await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input.spreadPhoto)),
+  );
+  const reversals = input.reversals || cards.some((card) => card.orientation === 'reversed');
+  return assertBasis({
+    kind: 'tarot.v1',
+    schemaVersion: 1,
+    basisId: input.basisId,
+    deckEdition: input.deckEdition,
+    spread: 'situation-tension-possibility.v1',
+    drawAlgorithm: 'hmac-sha256-fisher-yates-reject.v1',
+    seed: btoa(String.fromCharCode(...digest))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, ''),
+    reversals,
     cards,
     counts: Suit.options.map((suit) => ({
       kind: 'tarot.suit_count',

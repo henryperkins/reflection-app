@@ -15,7 +15,7 @@ export {
 export function currentGuard(
   db: D1Database,
   values: Record<string, Binding>,
-  stage: 'start' | 'dispatch' | 'publish' | 'recover',
+  stage: 'start' | 'dispatch' | 'publish' | 'recover' | 'recognize',
   developmentContent = false,
 ) {
   let source = publicationGuard;
@@ -25,7 +25,24 @@ export function currentGuard(
       "AND c.state IN('approved','superseded') AND c.rights_status='cleared'\n    AND c.reviewed_hash=c.hash AND c.reviewer_kind='human_approved'",
       "AND c.state='staged' AND c.rights_status!='disallowed' AND c.reviewer_kind='agent_reviewed'",
     );
-  if (stage === 'recover')
+  if (stage === 'recognize')
+    source = source
+      .replace('JOIN basis_snapshots b ON', 'LEFT JOIN basis_snapshots b ON')
+      .replace('AND b.body_enc IS NOT NULL', 'AND r.basis_id IS NULL')
+      .replace("r.state IN('validating','fallback_pending')", "r.state='reserved'")
+      .replace(
+        'AND r.plan_hmac=:plan_hmac AND r.plan_enc IS NOT NULL',
+        'AND r.plan_hmac IS NULL AND r.plan_enc IS NULL',
+      )
+      .replace(
+        'AND sys.generation_enabled=1',
+        "AND sys.dispatch_mode='model' AND sys.generation_enabled=1",
+      )
+      .replace(
+        'AND r.context_count=:context_count',
+        `AND r.context_count=0 AND EXISTS(SELECT 1 FROM quota_reservations qr WHERE qr.request_id=r.id AND qr.owner_id=r.owner_id AND qr.state='held' AND qr.expires_at>${DB_NOW})`,
+      );
+  else if (stage === 'recover')
     source = source.replace(
       "r.state IN('validating','fallback_pending')",
       "r.state IN('reserved','prepared','dispatching','received','validating','fallback_pending','uncertain')",

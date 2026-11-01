@@ -107,7 +107,7 @@ export class RetentionMaintenance {
       this.invalidate('generation_requests', stale),
       q(
         this.db,
-        `UPDATE cost_reservations SET owner_id=NULL,dispatch_id=NULL WHERE dispatch_id IN (SELECT id FROM provider_dispatches WHERE request_id IN (SELECT id FROM generation_requests WHERE rowid IN (${stale})))`,
+        `UPDATE cost_reservations SET owner_id=NULL,dispatch_id=NULL WHERE dispatch_id IN (SELECT id FROM provider_dispatches WHERE request_id IN (SELECT id FROM generation_requests WHERE rowid IN (${stale})) UNION SELECT spread_dispatch_id FROM generation_requests WHERE rowid IN (${stale}))`,
       ),
       q(this.db, `DELETE FROM generation_requests WHERE rowid IN (${stale})`),
     ]);
@@ -178,7 +178,7 @@ export class RetentionMaintenance {
       this.invalidate(source, shells),
       q(
         this.db,
-        `UPDATE cost_reservations SET owner_id=NULL,dispatch_id=NULL WHERE dispatch_id IN (SELECT d.id FROM provider_dispatches d JOIN generation_requests r ON r.id=d.request_id WHERE r.session_id IN (SELECT id FROM reading_sessions WHERE rowid IN (${shells})))`,
+        `UPDATE cost_reservations SET owner_id=NULL,dispatch_id=NULL WHERE dispatch_id IN (SELECT d.id FROM provider_dispatches d JOIN generation_requests r ON r.id=d.request_id WHERE r.session_id IN (SELECT id FROM reading_sessions WHERE rowid IN (${shells})) UNION SELECT spread_dispatch_id FROM generation_requests WHERE session_id IN (SELECT id FROM reading_sessions WHERE rowid IN (${shells})))`,
       ),
       q(this.db, `DELETE FROM reading_sessions WHERE rowid IN (${shells})`),
     ]);

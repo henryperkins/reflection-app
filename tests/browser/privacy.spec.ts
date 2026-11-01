@@ -1,6 +1,12 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test } from '@playwright/test';
-import { account, reading, savedSnapshot } from '../fixtures/browser-reading.ts';
+import {
+  account,
+  backToReadings,
+  openAccount,
+  reading,
+  savedSnapshot,
+} from '../fixtures/browser-reading.ts';
 
 test('erase an old reflection revision with consent off while keeping current text and an unsubmitted draft', async ({
   page,
@@ -18,7 +24,15 @@ test('erase an old reflection revision with consent off while keeping current te
   await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
   await expect(page.getByText('Reflection saved.', { exact: true })).toBeVisible();
   const saved = await savedSnapshot(page);
+  await openAccount(page);
   await page.getByRole('button', { name: 'Turn off AI readings', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'AI readings are off', exact: true }),
+  ).toBeVisible();
+  await backToReadings(page);
+  await expect(page.getByLabel('Your reflection', { exact: true })).toHaveValue(
+    'Synthetic current reflection to retain',
+  );
   await page.getByLabel('Your reflection', { exact: true }).fill('Synthetic unsaved local thought');
   await expect(page.getByText('Reflection revisions', { exact: true })).toBeVisible();
   await page.getByText('Reflection revisions', { exact: true }).click();
@@ -66,6 +80,7 @@ for (const lost of [false, true])
         expect(response.status()).toBe(202);
         await route.abort('failed');
       });
+    await openAccount(page);
     await expect(page.getByText('Delete account', { exact: true })).toBeVisible();
     await page.getByText('Delete account', { exact: true }).click();
     await page.getByLabel('Permanently delete my account, readings and reflections').check();
@@ -73,12 +88,18 @@ for (const lost of [false, true])
     await expect(
       page.getByRole('heading', { name: 'Deletion receipt', exact: true }),
     ).toBeVisible();
+    await expect(page.locator('.receipt-card img')).toHaveCount(0);
     await expect(
       page.getByRole('button', { name: 'Sign in with a passkey', exact: true }),
     ).toBeVisible();
     await expect(page.getByTestId('accepted-reading')).toHaveCount(0);
     await page.getByRole('button', { name: 'Check deletion status', exact: true }).click();
-    await expect(page.getByText('Active-store deletion complete.', { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Deletion is complete for active storage.' }),
+    ).toBeVisible();
+    await expect(page.getByText(/Backups are kept until/)).toBeVisible();
+    await expect(page.getByText(/Downloaded copies are unchanged/)).toBeVisible();
+    await expect(page.getByText('Active-store')).toHaveCount(0);
     const pending = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download deletion receipt', exact: true }).click();
     const receipt = JSON.parse(await readFile((await (await pending).path())!, 'utf8'));

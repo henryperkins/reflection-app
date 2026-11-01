@@ -114,6 +114,20 @@ export const TarotBasis = z.strictObject({
   drawnAt: Instant,
 }); // Relational checks: one of each position/suit; unique cards; IDs bind position/suit; counts recomputed.
 export type TarotBasis = z.infer<typeof TarotBasis>;
+export const SpreadPhoto = z
+  .string()
+  .max(180000)
+  .regex(/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/]+=*$/);
+export type SpreadPhoto = z.infer<typeof SpreadPhoto>;
+export const SpreadCardRecognition = z.strictObject({
+  position: Position,
+  cardId: CardId,
+  orientation: Orientation,
+});
+export const SpreadRecognition = z.strictObject({
+  cards: z.array(SpreadCardRecognition).length(3),
+});
+export type SpreadRecognition = z.infer<typeof SpreadRecognition>;
 
 export const BirthTime = z.discriminatedUnion('certainty', [
   z.strictObject({
@@ -300,6 +314,7 @@ export const PreparedPlan = z.strictObject({
   generationPolicyHash: Hash,
   // Optional without a default: old encrypted plans must retain their exact HMAC shape.
   fallbackClosing: z.string().min(1).max(250).optional(),
+  spreadPhoto: SpreadPhoto.optional(),
 });
 export type PreparedPlan = z.infer<typeof PreparedPlan>;
 
@@ -351,6 +366,7 @@ export const AcceptedReading = z.strictObject({
   parentEditionId: Id.nullable(),
   question: z.string().max(500),
   basis: TarotBasis,
+  spreadPhoto: SpreadPhoto.optional(),
   mode: z.enum(['model', 'template']),
   contentHash: Hash,
   planHash: Hash,
@@ -675,6 +691,7 @@ export const StartRequest = z.strictObject({
   permissionRevision: Revision,
   parentEditionId: Id.nullable(),
   selection: z.array(Selection).max(3),
+  spreadPhoto: SpreadPhoto.optional(),
 });
 export const StartResponse = z.strictObject({
   requestId: Id,
@@ -1062,6 +1079,14 @@ export interface WritingProvider {
     signal: AbortSignal;
   }): Promise<WriterOutcome>;
 } // One call; no SDK auto-retries, tools, moderation call, or implicit provider state.
+export interface SpreadRecognizer {
+  recognize(input: {
+    spreadPhoto: SpreadPhoto;
+    deck: ReadonlyArray<{ id: z.infer<typeof CardId>; name: string }>;
+    signal?: AbortSignal;
+    onReceipt?: (receipt: ProviderReceipt) => Promise<void>;
+  }): Promise<SpreadRecognition>;
+}
 export interface GenerationService {
   start(
     p: Principal,

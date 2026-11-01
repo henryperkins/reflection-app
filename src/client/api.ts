@@ -6,6 +6,9 @@ export class ApiFailure extends Error {
     message: string,
     readonly code: string | null = null,
     readonly currentRevision: number | null = null,
+    readonly correlationId: string | null = null,
+    readonly retry: string | null = null,
+    readonly retryAfterSeconds: number | null = null,
   ) {
     super(message);
   }
@@ -39,6 +42,9 @@ export async function api<T>(
         : 'The account service is unavailable. Please try again.',
       parsed.success ? parsed.data.error.code : null,
       parsed.success ? parsed.data.error.currentRevision : null,
+      parsed.success ? parsed.data.error.correlationId : null,
+      parsed.success ? parsed.data.error.retry : null,
+      parsed.success ? parsed.data.error.retryAfterSeconds : null,
     );
   }
   return schema.parse(response.status === 204 ? {} : await response.json());

@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas } from '../contracts/index.ts';
 import { date } from './date.ts';
-import { Art } from './art.tsx';
 import { Icon } from './icon.tsx';
 import { Notice } from './notice.tsx';
 
@@ -78,7 +77,6 @@ export function DeletionReceiptPanel({
   };
   return (
     <section className="card receipt-card" aria-label="Deletion receipt">
-      <Art name="study-tension" className="receipt-art" />
       <div className="receipt-content">
         <h2>Deletion receipt</h2>
         <p
@@ -88,7 +86,9 @@ export function DeletionReceiptPanel({
           <Icon name={status?.state === 'complete' ? 'check' : status ? 'clock' : 'info'} />
           <span>
             {status?.state === 'complete'
-              ? 'Active-store deletion complete.'
+              ? status.backupExpiresBy
+                ? 'Deletion is complete for active storage.'
+                : 'Deletion is complete for active storage. Downloaded copies are unchanged.'
               : status
                 ? 'Deletion is pending. Access is blocked while it completes.'
                 : 'Deletion has not been confirmed. Check the receipt status.'}
@@ -96,8 +96,7 @@ export function DeletionReceiptPanel({
         </p>
         {status?.backupExpiresBy && (
           <p>
-            Backup retention deadline: {date(status.backupExpiresBy)}. Downloaded copies are
-            unchanged.
+            Backups are kept until {date(status.backupExpiresBy)}. Downloaded copies are unchanged.
           </p>
         )}
         <p className="muted">

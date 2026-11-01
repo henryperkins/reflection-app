@@ -16,6 +16,7 @@ import { providerPolicyHash } from '../../domain/provider-policy.ts';
 import { D1ContentRepository, type ContentRepository } from '../content/repository.ts';
 import { authenticateProviderQualification } from '../provider/qualification.ts';
 import { OpenAIWritingProvider } from '../provider/openai.ts';
+import { MetaSpreadRecognizer } from '../provider/meta-vision.ts';
 import { z } from 'zod';
 
 export interface RuntimeBindings extends Env {
@@ -30,6 +31,7 @@ export interface RuntimeBindings extends Env {
   QUALIFICATION_TRUST?: string;
   OPENAI_API_KEY?: string;
   OPENAI_PROJECT_ID?: string;
+  MODEL_API_KEY?: string;
 }
 export interface ApplicationRuntime {
   manifest: RuntimeManifest;
@@ -198,6 +200,14 @@ async function qualified(
     content,
     policy,
     writer,
+    ...(env.MODEL_API_KEY?.trim()
+      ? {
+          spreadRecognizer: new MetaSpreadRecognizer({
+            apiKey: env.MODEL_API_KEY,
+            fetch: fetcher,
+          }),
+        }
+      : {}),
     authorization: { kind: 'application', qualification },
     ensureReady,
   };

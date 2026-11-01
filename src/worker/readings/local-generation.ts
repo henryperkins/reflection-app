@@ -1,5 +1,9 @@
 import type { z } from 'zod';
-import { AnyContentBundle, type WritingProvider } from '../../contracts/index.ts';
+import {
+  AnyContentBundle,
+  type SpreadRecognizer,
+  type WritingProvider,
+} from '../../contracts/index.ts';
 import {
   READING_PROVIDER_POLICY,
   READING_V2_EVALUATION_POLICY,
@@ -215,13 +219,14 @@ class LocalContentRepository implements ContentRepository {
 }
 /** Explicit localhost simulation. Owns all synthetic installation and local migration. */
 export class LocalGeneration extends ReadingGeneration {
-  constructor(base: RecordBase, supplied?: WritingProvider) {
+  constructor(base: RecordBase, supplied?: WritingProvider, spreadRecognizer?: SpreadRecognizer) {
     const bootstrap = new LocalBootstrap(base);
     super(base, {
       content: new LocalContentRepository(base, bootstrap),
       policy: READING_V2_EVALUATION_POLICY,
       authorization: { kind: 'synthetic-local', policyHash: () => bootstrap.policyHash() },
       ensureReady: () => bootstrap.refresh(),
+      ...(spreadRecognizer ? { spreadRecognizer } : {}),
       writer: async (plan) =>
         supplied ??
         new InterceptedWritingProvider({

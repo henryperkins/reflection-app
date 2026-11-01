@@ -23,3 +23,11 @@ export const READING_PRODUCT_COPY = Object.freeze({
   initialClosing: 'Use these prompts to reflect on what feels relevant to you.',
   followupClosing: 'This provides another reflection prompt based on the original draw.',
 });
+
+/** Photo-processing notices are UI disclosure, outside historical reading content. */
+export const SPREAD_PHOTO_COPY = Object.freeze({
+  spreadPhotoProcessing:
+    'Starting this reading sends your attached photo to Meta for card recognition and stores it with the reading. Meta may retain request data under its API terms and account settings; zero retention is not guaranteed. Save reading keeps the photo until you delete the reading.',
+  liveProviderRetention:
+    'Your question, cards and selected source meanings are sent to OpenAI to write the reading. Any spread photo you attach is sent to Meta for recognition. Saved readings and reflections are not sent automatically. OpenAI and Meta may retain request data under their API terms and account settings; zero retention is not guaranteed.',
+});

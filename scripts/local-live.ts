@@ -31,6 +31,7 @@ export function loadLocalLiveSettings(
   const values = file ? parseEnv(readFileSync(resolve(file), 'utf8')) : {};
   const apiKey = environment.OPENAI_API_KEY ?? values.OPENAI_API_KEY;
   const projectId = environment.OPENAI_PROJECT_ID ?? values.OPENAI_PROJECT_ID;
+  const modelApiKey = environment.MODEL_API_KEY ?? values.MODEL_API_KEY;
   const persistence = join(root, '.wrangler', 'live-development');
   mkdirSync(persistence, { recursive: true, mode: 0o700 });
   const identityFile = join(persistence, 'identity.json');
@@ -50,7 +51,13 @@ export function loadLocalLiveSettings(
   const identitySecrets = readFileSync(identityFile, 'utf8');
   if (parseIdentitySecrets(identitySecrets).environment !== 'live-local')
     throw new Error('Local app key configuration unavailable');
-  return { apiKey: apiKey ?? '', projectId: projectId ?? '', identitySecrets, persistence };
+  return {
+    apiKey: apiKey ?? '',
+    projectId: projectId ?? '',
+    ...(modelApiKey ? { modelApiKey } : {}),
+    identitySecrets,
+    persistence,
+  };
 }
 
 export function localLiveRuntimeOptions(
@@ -77,6 +84,7 @@ export function localLiveRuntimeOptions(
       IDENTITY_SECRETS: settings.identitySecrets,
       OPENAI_API_KEY: settings.apiKey,
       OPENAI_PROJECT_ID: settings.projectId,
+      ...(settings.modelApiKey ? { MODEL_API_KEY: settings.modelApiKey } : {}),
     },
     assets: {
       directory: join(root, 'dist/client'),

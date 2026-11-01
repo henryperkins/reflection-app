@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { apiSchemas } from '../../src/contracts/index.ts';
 import { expect, type Page, test } from '@playwright/test';
+import { openAccount } from '../fixtures/browser-reading.ts';
 async function authenticator(page: Page) {
   const cdp = await page.context().newCDPSession(page);
   await cdp.send('WebAuthn.enable');
@@ -45,9 +46,11 @@ test('complete downloaded kit recovers the same account in a new browser without
   expect(kit.recoveryHandle).toBeTruthy();
   expect(kit.codes).toHaveLength(10);
   expect(kit.origin).toBe('http://localhost:8787');
+  expect(kit.instructions).toContain('Enter the recovery handle and one unused code');
+  expect(kit.instructions).not.toContain('encryption keys');
   await page.getByLabel('I have saved the complete kit with the handle and codes.').check();
-  await page.getByRole('button', { name: 'Continue to account' }).click();
-  await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your readings' })).toBeVisible();
   const before = apiSchemas.SessionView.parse(
     await page.evaluate(async () => (await fetch('/api/v1/me')).json()),
   );
@@ -58,9 +61,10 @@ test('complete downloaded kit recovers the same account in a new browser without
     databases: await indexedDB.databases(),
   }));
   expect(storage).toEqual({ local: {}, session: {}, databases: [] });
+  await openAccount(page);
   await page.getByRole('button', { name: 'Sign out', exact: true }).click();
   await page.getByRole('button', { name: 'Sign in with a passkey' }).click();
-  await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Your readings' })).toBeVisible();
   await original.cdp.send('WebAuthn.removeVirtualAuthenticator', {
     authenticatorId: original.authenticatorId,
   });
@@ -115,8 +119,8 @@ test('complete downloaded kit recovers the same account in a new browser without
   await recoveredPage
     .getByLabel('I have saved the complete kit with the handle and codes.')
     .check();
-  await recoveredPage.getByRole('button', { name: 'Continue to account' }).click();
-  await expect(recoveredPage.getByRole('heading', { name: 'Your account' })).toBeVisible();
+  await recoveredPage.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(recoveredPage.getByRole('heading', { name: 'Your readings' })).toBeVisible();
   await recoveredPage.screenshot({ path: '/tmp/reflection-identity-mobile.png', fullPage: true });
   expect(faults).toEqual([]);
   expect(outbound).toEqual([]);
@@ -190,8 +194,9 @@ test('an explicitly invalidated session clears a replacement kit after rotation'
   await page.getByRole('button', { name: 'Download recovery kit' }).click();
   await downloaded;
   await page.getByLabel('I have saved the complete kit with the handle and codes.').check();
-  await page.getByRole('button', { name: 'Continue to account' }).click();
-  await expect(page.getByRole('heading', { name: 'Your account' })).toBeVisible();
+  await page.getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Your readings' })).toBeVisible();
+  await openAccount(page);
   let invalidated = false;
   await page.route('**/api/v1/auth/recovery-codes', async (route) => {
     const response = await route.fetch();

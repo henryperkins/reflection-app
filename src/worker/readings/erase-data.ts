@@ -156,9 +156,11 @@ export class EraseData {
       ),
       q(
         this.base.db,
-        `UPDATE cost_reservations SET owner_id=NULL,dispatch_id=NULL WHERE owner_id=? AND dispatch_id IN (SELECT id FROM provider_dispatches WHERE owner_id=? AND request_id IN (${requests}))`,
+        `UPDATE cost_reservations SET owner_id=NULL,dispatch_id=NULL WHERE owner_id=? AND dispatch_id IN (SELECT id FROM provider_dispatches WHERE owner_id=? AND request_id IN (${requests}) UNION SELECT spread_dispatch_id FROM generation_requests WHERE owner_id=? AND session_id=?)`,
         owner,
         owner,
+        owner,
+        id,
         owner,
         id,
       ),
