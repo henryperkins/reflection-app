@@ -5086,8 +5086,9 @@ paths:
     post:
       operationId: addRevisit
       summary: addRevisit
-      description: Explicit authored note tied to exact owned edition; max2000 chars.
-        No automatic tracking of reopening, no provider. Included in
+      description: Explicit authored note tied to exact owned edition; 1–2000 Unicode
+        code points; optional stance defaults to unspecified. Saved parent
+        required. No automatic tracking of reopening, no provider. Included in
         history/detail/export.
       security:
         - sessionCookie: []
@@ -5263,7 +5264,7 @@ paths:
     get:
       operationId: revisits
       summary: revisits
-      description: Keyset created_at DESC,id DESC, owned notes only, default20/max50.
+      description: Keyset created_at ASC,id ASC, owned notes only, default20/max50.
         Response RevisitPage.
       security:
         - sessionCookie: []
@@ -6526,6 +6527,10 @@ components:
                 - IDEMPOTENCY_MISMATCH
                 - RATE_LIMITED
                 - QUOTA_EXCEEDED
+                - NOTE_LIMIT_EXCEEDED
+                - REVISION_LIMIT_EXCEEDED
+                - STORAGE_LIMIT_EXCEEDED
+                - DEPENDENTS_EXIST
                 - SPEND_LIMIT
                 - CONSENT_REQUIRED
                 - CONTEXT_CHANGED
@@ -6754,6 +6759,10 @@ components:
                           - IDEMPOTENCY_MISMATCH
                           - RATE_LIMITED
                           - QUOTA_EXCEEDED
+                          - NOTE_LIMIT_EXCEEDED
+                          - REVISION_LIMIT_EXCEEDED
+                          - STORAGE_LIMIT_EXCEEDED
+                          - DEPENDENTS_EXIST
                           - SPEND_LIMIT
                           - CONSENT_REQUIRED
                           - CONTEXT_CHANGED
@@ -6805,6 +6814,10 @@ components:
                     - IDEMPOTENCY_MISMATCH
                     - RATE_LIMITED
                     - QUOTA_EXCEEDED
+                    - NOTE_LIMIT_EXCEEDED
+                    - REVISION_LIMIT_EXCEEDED
+                    - STORAGE_LIMIT_EXCEEDED
+                    - DEPENDENTS_EXIST
                     - SPEND_LIMIT
                     - CONSENT_REQUIRED
                     - CONTEXT_CHANGED
@@ -6934,6 +6947,10 @@ components:
                       - IDEMPOTENCY_MISMATCH
                       - RATE_LIMITED
                       - QUOTA_EXCEEDED
+                      - NOTE_LIMIT_EXCEEDED
+                      - REVISION_LIMIT_EXCEEDED
+                      - STORAGE_LIMIT_EXCEEDED
+                      - DEPENDENTS_EXIST
                       - SPEND_LIMIT
                       - CONSENT_REQUIRED
                       - CONTEXT_CHANGED
@@ -6985,6 +7002,10 @@ components:
                 - IDEMPOTENCY_MISMATCH
                 - RATE_LIMITED
                 - QUOTA_EXCEEDED
+                - NOTE_LIMIT_EXCEEDED
+                - REVISION_LIMIT_EXCEEDED
+                - STORAGE_LIMIT_EXCEEDED
+                - DEPENDENTS_EXIST
                 - SPEND_LIMIT
                 - CONSENT_REQUIRED
                 - CONTEXT_CHANGED
@@ -7075,6 +7096,10 @@ components:
                 - IDEMPOTENCY_MISMATCH
                 - RATE_LIMITED
                 - QUOTA_EXCEEDED
+                - NOTE_LIMIT_EXCEEDED
+                - REVISION_LIMIT_EXCEEDED
+                - STORAGE_LIMIT_EXCEEDED
+                - DEPENDENTS_EXIST
                 - SPEND_LIMIT
                 - CONSENT_REQUIRED
                 - CONTEXT_CHANGED
@@ -9046,6 +9071,12 @@ components:
               format: date-time
               pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
             - type: "null"
+        retentionExpiresAt:
+          anyOf:
+            - type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+            - type: "null"
         createdAt:
           type: string
           format: date-time
@@ -9278,6 +9309,12 @@ components:
                           format: uuid
                           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
                       savedAt:
+                        anyOf:
+                          - type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          - type: "null"
+                      retentionExpiresAt:
                         anyOf:
                           - type: string
                             format: date-time
@@ -11322,29 +11359,84 @@ components:
                   originalId:
                     type: string
                   value:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                        format: uuid
-                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-                      editionId:
-                        type: string
-                        format: uuid
-                        pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
-                      note:
-                        type: string
-                        maxLength: 2000
-                      createdAt:
-                        type: string
-                        format: date-time
-                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
-                    required:
-                      - id
-                      - editionId
-                      - note
-                      - createdAt
-                    additionalProperties: false
+                    anyOf:
+                      - type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          editionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          note:
+                            type: string
+                            maxLength: 2000
+                          createdAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        required:
+                          - id
+                          - editionId
+                          - note
+                          - createdAt
+                        additionalProperties: false
+                      - type: object
+                        properties:
+                          kind:
+                            type: string
+                            const: revisit.v2
+                          id:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          sessionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          editionId:
+                            type: string
+                            format: uuid
+                            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+                          revision:
+                            type: integer
+                            minimum: 1
+                            maximum: 100
+                          note:
+                            type: string
+                            minLength: 1
+                            pattern: \S
+                            maxLength: 2000
+                            description: 1–2,000 Unicode code points, including at least one non-whitespace
+                              character. Authored text is preserved.
+                          stance:
+                            type: string
+                            enum:
+                              - resonates
+                              - unsure
+                              - disagree
+                              - unspecified
+                          createdAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                          updatedAt:
+                            type: string
+                            format: date-time
+                            pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+                        required:
+                          - kind
+                          - id
+                          - sessionId
+                          - editionId
+                          - revision
+                          - note
+                          - stance
+                          - createdAt
+                          - updatedAt
+                        additionalProperties: false
                 required:
                   - kind
                   - identity
@@ -12119,6 +12211,10 @@ components:
                       - IDEMPOTENCY_MISMATCH
                       - RATE_LIMITED
                       - QUOTA_EXCEEDED
+                      - NOTE_LIMIT_EXCEEDED
+                      - REVISION_LIMIT_EXCEEDED
+                      - STORAGE_LIMIT_EXCEEDED
+                      - DEPENDENTS_EXIST
                       - SPEND_LIMIT
                       - CONSENT_REQUIRED
                       - CONTEXT_CHANGED
@@ -12884,15 +12980,57 @@ components:
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
         note:
           type: string
+          minLength: 1
+          pattern: \S
           maxLength: 2000
+          description: 1–2,000 Unicode code points, including at least one non-whitespace
+            character. Authored text is preserved.
+        stance:
+          default: unspecified
+          type: string
+          enum:
+            - resonates
+            - unsure
+            - disagree
+            - unspecified
       required:
         - editionId
         - note
+        - stance
+      additionalProperties: false
+    RevisitUpdate:
+      type: object
+      properties:
+        note:
+          type: string
+          minLength: 1
+          pattern: \S
+          maxLength: 2000
+          description: 1–2,000 Unicode code points, including at least one non-whitespace
+            character. Authored text is preserved.
+        stance:
+          default: unspecified
+          type: string
+          enum:
+            - resonates
+            - unsure
+            - disagree
+            - unspecified
+      required:
+        - note
+        - stance
       additionalProperties: false
     Revisit:
       type: object
       properties:
+        kind:
+          type: string
+          const: revisit.v2
         id:
+          type: string
+          format: uuid
+          pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        sessionId:
           type: string
           format: uuid
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
@@ -12900,18 +13038,42 @@ components:
           type: string
           format: uuid
           pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        revision:
+          type: integer
+          minimum: 1
+          maximum: 100
         note:
           type: string
+          minLength: 1
+          pattern: \S
           maxLength: 2000
+          description: 1–2,000 Unicode code points, including at least one non-whitespace
+            character. Authored text is preserved.
+        stance:
+          type: string
+          enum:
+            - resonates
+            - unsure
+            - disagree
+            - unspecified
         createdAt:
           type: string
           format: date-time
           pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+        updatedAt:
+          type: string
+          format: date-time
+          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
       required:
+        - kind
         - id
+        - sessionId
         - editionId
+        - revision
         - note
+        - stance
         - createdAt
+        - updatedAt
       additionalProperties: false
     RevisitPage:
       type: object
@@ -12922,7 +13084,14 @@ components:
           items:
             type: object
             properties:
+              kind:
+                type: string
+                const: revisit.v2
               id:
+                type: string
+                format: uuid
+                pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              sessionId:
                 type: string
                 format: uuid
                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
@@ -12930,18 +13099,42 @@ components:
                 type: string
                 format: uuid
                 pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+              revision:
+                type: integer
+                minimum: 1
+                maximum: 100
               note:
                 type: string
+                minLength: 1
+                pattern: \S
                 maxLength: 2000
+                description: 1–2,000 Unicode code points, including at least one non-whitespace
+                  character. Authored text is preserved.
+              stance:
+                type: string
+                enum:
+                  - resonates
+                  - unsure
+                  - disagree
+                  - unspecified
               createdAt:
                 type: string
                 format: date-time
                 pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
+              updatedAt:
+                type: string
+                format: date-time
+                pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z))$
             required:
+              - kind
               - id
+              - sessionId
               - editionId
+              - revision
               - note
+              - stance
               - createdAt
+              - updatedAt
             additionalProperties: false
         nextCursor:
           type:

@@ -85,6 +85,13 @@ export const PRIVATE_FIELD_HANDLERS: readonly (AccountPrivateField | RecoveryPri
     ['reflection_id', 'revision'],
     'reflection_id || : || revision',
   ),
+  account(
+    'revisit_revisions',
+    'body_enc',
+    ['revisit_id', 'revision'],
+    ['revisit_id', 'revision'],
+    'revisit_id || : || revision',
+  ),
   account('revisits', 'note_enc', ['id'], ['id'], 'id'),
   {
     family: 'recovery',

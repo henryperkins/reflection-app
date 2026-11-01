@@ -3,6 +3,7 @@
  * Monetary values are integer USD microdollars; DB timestamps are UTC epoch ms.
  */
 import { z } from 'zod';
+import { REVISIT_LIMITS, revisitTextLength } from './revisit-policy.ts';
 
 export const Id = z.uuid();
 export const Hash = z.string().regex(/^[a-f0-9]{64}$/);
@@ -49,6 +50,10 @@ export const ErrorCode = z.enum([
   'IDEMPOTENCY_MISMATCH',
   'RATE_LIMITED',
   'QUOTA_EXCEEDED',
+  'NOTE_LIMIT_EXCEEDED',
+  'REVISION_LIMIT_EXCEEDED',
+  'STORAGE_LIMIT_EXCEEDED',
+  'DEPENDENTS_EXIST',
   'SPEND_LIMIT',
   'CONSENT_REQUIRED',
   'CONTEXT_CHANGED',
@@ -783,6 +788,7 @@ export const SessionRecord = z.strictObject({
   editionIds: z.array(Id),
   reflectionIds: z.array(Id),
   savedAt: Instant.nullable(),
+  retentionExpiresAt: Instant.nullable().optional(),
   createdAt: Instant,
   requests: z.array(z.strictObject({ requestId: Id, state: RequestState })).max(51),
 });
@@ -812,6 +818,38 @@ export const Revisit = z.strictObject({
   note: z.string().max(2000),
   createdAt: Instant,
 });
+const RevisitText = z
+  .string()
+  .min(1)
+  .regex(/\S/u, 'Include at least one non-whitespace character')
+  .refine(
+    (text) => revisitTextLength(text) <= REVISIT_LIMITS.textCodePoints,
+    'Use 1–2,000 Unicode code points with at least one non-whitespace character',
+  )
+  .meta({
+    maxLength: REVISIT_LIMITS.textCodePoints,
+    description:
+      '1–2,000 Unicode code points, including at least one non-whitespace character. Authored text is preserved.',
+  });
+export const RevisitV2 = z.strictObject({
+  kind: z.literal('revisit.v2'),
+  id: Id,
+  sessionId: Id,
+  editionId: Id,
+  revision: Revision.max(REVISIT_LIMITS.revisionsPerNote),
+  note: RevisitText,
+  stance: Reflection.shape.stance,
+  createdAt: Instant,
+  updatedAt: Instant,
+});
+export const AnyRevisit = z.union([Revisit, RevisitV2]);
+export type RevisitNote = z.infer<typeof RevisitV2>;
+export const RevisitWrite = z.strictObject({
+  editionId: Id,
+  note: RevisitText,
+  stance: Reflection.shape.stance.default('unspecified'),
+});
+export const RevisitUpdate = RevisitWrite.omit({ editionId: true });
 export const GenerationReceipt = z.strictObject({
   requestId: Id,
   state: RequestState,
@@ -851,7 +889,7 @@ export const PortableRecord = z.discriminatedUnion('kind', [
     kind: z.literal('revisit'),
     identity: ImportRecordIdentity,
     originalId: z.string(),
-    value: Revisit,
+    value: AnyRevisit,
   }),
   z.strictObject({
     kind: z.literal('generation_receipt'),
@@ -1000,10 +1038,11 @@ export const apiSchemas = {
     stance: Reflection.shape.stance,
     editionId: Id,
   }),
-  RevisitWrite: z.strictObject({ editionId: Id, note: z.string().max(2000) }),
-  Revisit,
+  RevisitWrite,
+  RevisitUpdate,
+  Revisit: RevisitV2,
   RevisitPage: z.strictObject({
-    items: z.array(Revisit).max(50),
+    items: z.array(RevisitV2).max(REVISIT_LIMITS.pageMax),
     nextCursor: z.string().nullable(),
   }),
   ImportWrite: z.strictObject({
@@ -1167,7 +1206,7 @@ export interface ReflectionService {
     p: Principal,
     key: string,
     input: z.infer<typeof apiSchemas.RevisitWrite>,
-  ): Promise<z.infer<typeof Revisit>>;
+  ): Promise<RevisitNote>;
 }
 export interface PermissionService {
   changeModel(p: Principal, m: Mutation, allowed: boolean): Promise<z.infer<typeof Permission>>;

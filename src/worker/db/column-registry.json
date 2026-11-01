@@ -2688,7 +2688,7 @@
           "aadRule": "[env,revisits,note_enc,owner_id,id,envelope.aadRevision,1,envelope.keyVersion]",
           "class": "E",
           "sqlType": "TEXT",
-          "nullable": false,
+          "nullable": true,
           "default": null,
           "export": "decrypted authored note"
         },
@@ -2707,6 +2707,38 @@
           "nullable": false,
           "default": null,
           "export": "decrypted authored note"
+        },
+        "session_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "session identity"
+        },
+        "current_revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": "1",
+          "export": "revision"
+        },
+        "updated_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "updatedAt"
+        },
+        "deleted_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
         }
       }
     },
@@ -3266,6 +3298,68 @@
           "class": "M",
           "sqlType": "INTEGER",
           "nullable": false,
+          "default": null,
+          "export": "never"
+        }
+      }
+    },
+    "revisit_revisions": {
+      "retention": "with parent reading until whole-note, reading or account erasure; no individual revision deletion",
+      "erasure": "erase body on whole-note/reading/account deletion; bounded content-free tombstone retained for recovery",
+      "columns": {
+        "revisit_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "note identity"
+        },
+        "owner_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "revision": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "recordRevision"
+        },
+        "body_enc": {
+          "aadRule": "[env,revisit_revisions,body_enc,owner_id,revisit_id || : || revision,envelope.aadRevision,1,envelope.keyVersion]",
+          "class": "E",
+          "sqlType": "TEXT",
+          "nullable": true,
+          "default": null,
+          "export": "decrypt authored note snapshot"
+        },
+        "key_version": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "never"
+        },
+        "created_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": false,
+          "default": null,
+          "export": "updatedAt"
+        },
+        "erased_at": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "INTEGER",
+          "nullable": true,
           "default": null,
           "export": "never"
         }

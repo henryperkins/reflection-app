@@ -53,6 +53,7 @@ export class ReadingRecords {
       editionIds: editions!.results.map((r) => r.id),
       reflectionIds: reflections!.results.map((r) => r.id),
       savedAt: row.saved_at === null ? null : iso(row.saved_at),
+      retentionExpiresAt: row.retention_expires_at === null ? null : iso(row.retention_expires_at),
       createdAt: iso(row.created_at),
       requests: requests!.results,
     });
