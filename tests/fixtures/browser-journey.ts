@@ -33,18 +33,19 @@ export async function journeyAccount(
   }
 }
 
-export async function themeContrast(page: Page) {
-  return page.evaluate(() => {
+export async function themeContrast(page: Page, selector?: string) {
+  return page.evaluate((selector): Record<string, number> => {
     const style = getComputedStyle(document.documentElement);
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = 1;
     const context = canvas.getContext('2d')!;
-    const color = (name: string) => {
+    const rgba = (value: string) => {
       context.clearRect(0, 0, 1, 1);
-      context.fillStyle = style.getPropertyValue(name);
+      context.fillStyle = value;
       context.fillRect(0, 0, 1, 1);
       return [...context.getImageData(0, 0, 1, 1).data];
     };
+    const color = (name: string) => rgba(style.getPropertyValue(name));
     const luminance = (rgba: number[]) => {
       const values = rgba.slice(0, 3).map((value) => {
         const channel = value / 255;
@@ -61,6 +62,12 @@ export async function themeContrast(page: Page) {
         b = luminance(background);
       return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
     };
+    if (selector) {
+      const element = document.querySelector(selector);
+      if (!element) throw new Error(`Contrast target missing: ${selector}`);
+      const rendered = getComputedStyle(element);
+      return { selectedText: ratio(rgba(rendered.color), rgba(rendered.backgroundColor)) };
+    }
     return {
       inputOnCard: ratio(color('--input'), color('--card')),
       inputOnBackground: ratio(color('--input'), color('--background')),
@@ -71,5 +78,5 @@ export async function themeContrast(page: Page) {
       primaryButton: ratio(color('--primary-foreground'), color('--primary')),
       destructiveButton: ratio(color('--destructive-foreground'), color('--destructive-button')),
     };
-  });
+  }, selector);
 }

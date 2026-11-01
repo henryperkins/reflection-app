@@ -1,0 +1,70 @@
+{
+  "tested_commit": "acc06ae5c7295560fd6a953d0191dd2e87f47572",
+  "tested_tree": "fce8e1322302746a001bd9b7f012cdb2271db4cd",
+  "scope": "synthetic-local-only",
+  "full_verification_receipt": "design-verify.json",
+  "domain": {
+    "success": true,
+    "numTotalTests": 397,
+    "numPassedTests": 397,
+    "numFailedTests": 0,
+    "numPendingTests": 0
+  },
+  "database": {
+    "success": true,
+    "numTotalTests": 467,
+    "numPassedTests": 467,
+    "numFailedTests": 0,
+    "numPendingTests": 0
+  },
+  "chromium": {
+    "startTime": "2026-11-01T03:55:23.258Z",
+    "duration": 260515.394,
+    "expected": 91,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "cross_browser": {
+    "projects": [
+      "chromium",
+      "firefox",
+      "webkit"
+    ],
+    "stats": {
+      "startTime": "2026-11-01T03:59:49.756Z",
+      "duration": 289216.797,
+      "expected": 36,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "hover_contrast_regression": [
+    {
+      "version": "before",
+      "colorScheme": "light",
+      "selectedText": 2.099569524480096,
+      "passes": false
+    },
+    {
+      "version": "before",
+      "colorScheme": "dark",
+      "selectedText": 1.8946940392034266,
+      "passes": false
+    },
+    {
+      "version": "after",
+      "colorScheme": "light",
+      "selectedText": 5.698366442029168,
+      "passes": true
+    },
+    {
+      "version": "after",
+      "colorScheme": "dark",
+      "selectedText": 7.890587259187789,
+      "passes": true
+    }
+  ],
+  "subsequent_changes": "Documentation and receipts only; application, tests and runtime configuration remain identical to the tested commit."
+}

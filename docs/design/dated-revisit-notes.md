@@ -2,6 +2,10 @@
 
 Status: specification only; first product increment after the existing-journey visual batch. No new AI permission is required. Existing reflection editing and revision erasure remain unchanged.
 
+## November 1 visual reference
+
+See [Return, with time](concepts/2026-11-01/02-return-with-time.jpg) and the [shared concept direction](concept-direction.md). Use the refined Reflection / Account header, with no sidebar or hamburger menu. Keep the original reflection above dated notes, separated by fine rules and generous space. The mobile editor orders note text, optional stance, Save note and Cancel. Botanical accents stay outside personal text. The dates, stance labels and excerpts in the board are illustrative; **this flow remains specification only** and the implementation gate below still applies.
+
 ## Screens and behavior
 
 - A saved reading keeps its complete accepted interpretation, draw, sources and original reflection. Below the reflection, a chronological **Revisit notes** list shows authored notes with an explicit saved date, stance if supplied, and edit/delete actions.

@@ -128,7 +128,18 @@ for (const lost of [false, true])
     }));
     expect(storage).toEqual({ local: {}, session: {}, databases: [], caches: [] });
     expect(faults).toEqual([]);
-    await page.setViewportSize({ width: 390, height: 844 });
+    for (const width of [1100, 390]) {
+      await page.setViewportSize({ width, height: 844 });
+      const layout = await page.locator('.receipt-card').evaluate((receipt) => {
+        const panel = receipt.closest('main')!.getBoundingClientRect();
+        const bounds = receipt.getBoundingClientRect();
+        return { panelBottom: panel.bottom, receiptBottom: bounds.bottom };
+      });
+      expect(
+        layout.receiptBottom,
+        `${width}px: the complete deletion receipt stays inside the entry panel`,
+      ).toBeLessThanOrEqual(layout.panelBottom);
+    }
     await page.screenshot({
       path: `/tmp/reflection-privacy-receipt-${lost ? 'lost' : 'complete'}-mobile.png`,
       fullPage: true,

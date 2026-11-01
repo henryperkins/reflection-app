@@ -1,4 +1,49 @@
-# Core journey visual and accessibility pass
+# Reflection design QA
+
+## November 1 — Entry and return
+
+The owner confirmed this scope: apply the concept boards' visual direction to existing screens and document the proposed flows. PR [#7](https://github.com/henryperkins/reflection-app/pull/7) was merged first as `08e227753f6942d71a5b7dfe717c6d39d6e693df`; this refinement starts from that merged baseline. **Automated verification passed; manual device/assistive-technology acceptance remains open.**
+
+### Delivered surfaces and boundaries
+
+- Landing now shares one paper composition between the large orbit artwork and account controls. The botanical footer reuses an existing optimized transparent sprig. At ≤900 px the controls precede a short orbit crop, keeping create/sign-in/recovery above the artwork.
+- Saved readings has a reserved compact title motif, serif questions, fine list rules and navigation that marks the actual current destination. PR #7's date/question rows without arbitrary per-record thumbnails, status-first outcome cards and reduced copy remain intact.
+- Solstice light/dark tokens, locally hosted Newsreader/Figtree/Outfit, Fluent icons and all factual disclosures remain authoritative. Native browser surfaces declare both color schemes. Only the landing focal image receives high fetch priority; the unused `leaves.png` is no longer imported.
+- The [concept direction](docs/design/concept-direction.md) stores the three refined boards unchanged. Dated revisit notes and selected context remain **specification only**. Their documents record the simple header, original-reflection-first chronology, complete excerpts/dates/revisions, quiet × Remove selection and the boundary at Continue to permission review. Permission copy and submission rules remain open.
+
+### Review findings addressed
+
+- Integration review found that the generic secondary-button hover rule overrode the active Saved readings text color in normal themes. Chromium reproduced 2.10:1 light / 1.89:1 dark contrast. The active hover rule now preserves its foreground, measuring 5.70:1 / 7.89:1. The existing responsive journeys check computed hover contrast for both navigation destinations, including empty and populated history; forced-colors behavior remains covered separately.
+
+- A fixed 100% landing-card height could clip the existing post-deletion receipt. The final layout keeps a flexible column and natural card height. The original layout probe reproduced the clipping; the correction contained the receipt at 320/390/768/1280 px. Existing privacy tests now check full receipt containment on desktop and phone, including a lost deletion response.
+- The new selected navigation cue disappeared under forced colors. A real Chromium assertion reproduced the failure. Current and current-hover states now use system Highlight/HighlightText. Rendered review caught a Chromium Canvas backplate obscuring the selected label despite passing computed-color assertions, so only that selected button opts out of automatic adjustment; its colors still come entirely from the user's system palette. The existing forced-colors journeys assert those platform colors for both destinations at rest and on hover; screenshot review checks the label itself.
+- History screenshot capture could measure the previous reading before asynchronous navigation completed, producing a new history with an obsolete full-page height. The existing normal/native/forced-color harness now waits for the Saved readings heading before capturing. This is an evidence synchronization correction.
+- The independent read-only code/requirements review found the forced-colors issue above and no other Critical, Important or Minor findings. Its excluded device/provider areas remain limitations below; automated outcomes are recorded separately.
+
+### Implementation captures
+
+These are unedited Chromium captures at DPR 1 and a 1000 px viewport height, using a real synthetic local account and three saved test readings. Questions are illustrative; displayed dates are actual server creation times, not the boards' October examples. The capture made exactly three Start requests, recorded no page JavaScript errors and found no horizontal overflow.
+
+| Surface | Phone, light | Phone, evening | Desktop, light | Desktop, evening |
+| --- | --- | --- | --- | --- |
+| Landing | [390 px](docs/design/screens/2026-11-01/390-light-landing.png) | [390 px](docs/design/screens/2026-11-01/390-dark-landing.png) | [1280 px](docs/design/screens/2026-11-01/1280-light-landing.png) | [1280 px](docs/design/screens/2026-11-01/1280-dark-landing.png) |
+| Saved readings | [390 px](docs/design/screens/2026-11-01/390-light-history.png) | [390 px](docs/design/screens/2026-11-01/390-dark-history.png) | [1280 px](docs/design/screens/2026-11-01/1280-light-history.png) | [1280 px](docs/design/screens/2026-11-01/1280-dark-history.png) |
+
+The original implementation record stored receipts/logs and its capture manifest under the ignored local `artifacts/supporting-screen-concepts/` directory. Those local files are not published in this repository; the historical results below are separate from the integration verification linked below. The source and browser harness are copied to a clean local worktree for the synthetic gates, omitting the checkout's dotenv/dev-vars files. No environment file is read or moved, no hosted service is deployed, and no live provider is contacted. The ordinary matrix checks 320/390/768/1280 px in both themes, empty/populated history, long questions/filenames, complete readings/sources, reflection, Account and exact AI-off return; native Chromium 200% zoom and supported forced-colors journeys remain included.
+
+**Historical implementation record: `npm run verify` passed in 290.65 seconds** — 397 domain/tooling tests, 465 workerd/database tests and 91 Chromium browser tests, with zero skipped/flaky. Formatting/lint, strict TypeScript, schema/publication-guard/contract/registry/SQL/OpenAPI checks, client/Worker builds and package-link checks passed. Both the sign-out and lost-response receipt cases passed with the new containment assertions.
+
+**Historical implementation record: 36/36 cross-browser journeys passed in 252.29 seconds**, followed by **4/4 targeted Chromium/Firefox forced-colors journeys in 30.8 seconds** after the selected-state and rendered-label corrections. Both runs had zero skipped, unexpected or flaky tests. The latter conditionally changes forced colors only; the reviewed normal-theme captures remain applicable. That original record reported a byte-for-byte source audit of its own snapshot. It predates the integration hover fix and does not attest to the current branch; use the commit-scoped integration receipts below for the new results.
+
+### Integration verification — November 1
+
+The combined recovery/design source at [`acc06ae`](https://github.com/henryperkins/reflection-app/commit/acc06ae5c7295560fd6a953d0191dd2e87f47572) passed all 14 stages of `npm run verify` in 322.45 seconds: 397 domain/tooling, 467 database and 91 Chromium browser tests. The fresh Chromium/Firefox/WebKit matrix passed all 36 cases in 289.22 seconds. Both runs had zero skipped, unexpected or flaky tests. The matrix includes the computed hover-contrast assertions and supported forced-colors/native-zoom cases.
+
+Published evidence: [full design verification receipt](docs/verification/2026-11-01/design-verify.json), [test counts, browser statistics and contrast regression](docs/verification/2026-11-01/test-summary.json), and [PR #4 verification receipt](docs/verification/2026-11-01/pr4-verify.json). These receipts identify the tested source; subsequent changes publish this evidence and clarify documentation only. No application, test or runtime-configuration file changed after these runs. Complete logs and reports are retained in the local integration backup.
+
+Physical devices, real/synchronized passkeys, screen readers, actual Safari, hosted-origin/RP qualification and live-provider acceptance remain open. This visual scope does not mark those earlier manual gaps passed or approve either proposed product increment.
+
+## October 31 — Historical core journey visual and accessibility pass
 
 Updated 2026-10-31. **Accessibility follow-through: both full gates passed. Manual device/assistive-technology acceptance: blocked (no devices available).** The first frontend batch remains complete. This increment extends acceptance for read → save → reflect → return before supporting-screen styling. Actual Safari/devices/screen-reader acceptance remains outstanding.
 

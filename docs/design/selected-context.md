@@ -2,6 +2,10 @@
 
 Status: specification only; follows dated revisit notes and precedes follow-up generation. General AI permission and permission for a particular context submission are separate choices.
 
+## November 1 visual reference
+
+See [Choose what travels forward](concepts/2026-11-01/03-selected-context.jpg) and the [shared concept direction](concept-direction.md). The refined board uses the simple Reflection / Account header and two distinct states: empty selection and review of complete excerpts with their saved dates and exact revisions. Use a quiet × **Remove selection**, not a trash icon or destructive color; removing request context does not delete the original writing. The concept ends at **Continue to permission review**, before acknowledgement or dispatch. Final permission wording and submission rules remain open; **this flow remains specification only** and the implementation gate below still applies.
+
 ## Screens and behavior
 
 - A context picker starts empty. Eligible saved readings, reflection revisions and dated revisit notes show a question/title, author type, date and exact revision. Never preselect the whole history or a newly edited revision.

@@ -28,6 +28,22 @@ for (const width of [320, 390, 768, 1280]) {
       await page.setViewportSize({ width, height: 1000 });
       await page.emulateMedia({ colorScheme: theme, reducedMotion: 'reduce' });
       const capture = async (state: string) => {
+        if (['saved-empty', 'saved-populated', 'new-empty'].includes(state)) {
+          const destination = state === 'new-empty' ? 'New reading' : 'Saved readings';
+          const current = page.getByRole('button', { name: destination, exact: true });
+          await expect(current).toHaveAttribute('aria-current', 'page');
+          await current.hover();
+          const contrast = await themeContrast(
+            page,
+            '.reading-navigation button[aria-current="page"]',
+          );
+          expect(
+            contrast.selectedText,
+            `${prefix} ${destination} hovered text contrast`,
+          ).toBeGreaterThanOrEqual(4.5);
+          evidence.push({ state: `${state}-hover-contrast`, ...contrast });
+          await page.mouse.move(0, 0);
+        }
         await page.evaluate(async () => {
           await document.fonts.ready;
           await Promise.all(
@@ -178,6 +194,9 @@ for (const width of [320, 390, 768, 1280]) {
       ).toBeVisible();
       await capture('reflection');
       await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+      await expect(
+        page.getByRole('heading', { name: 'Saved readings', exact: true }),
+      ).toBeVisible();
       await capture('saved-populated');
       await page.getByRole('button', { name: longQuestion, exact: true }).click();
       await expect(accepted).toHaveText(original!);
