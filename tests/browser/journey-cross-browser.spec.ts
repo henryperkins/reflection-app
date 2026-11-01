@@ -111,6 +111,14 @@ test('keyboard upload, processing, save, reflection, Account and exact return jo
   await expect(page.getByRole('button', { name: 'Save reflection', exact: true })).toBeFocused();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('status').filter({ hasText: 'Reflection saved.' })).toBeVisible();
+  let releasePasskeys!: () => void;
+  const passkeysReady = new Promise<void>((resolve) => {
+    releasePasskeys = resolve;
+  });
+  await page.route('**/api/v1/auth/credentials', async (route) => {
+    await passkeysReady;
+    await route.continue();
+  });
   await page.getByRole('link', { name: 'Account', exact: true }).focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Your account', exact: true })).toBeFocused();
@@ -126,7 +134,11 @@ test('keyboard upload, processing, save, reflection, Account and exact return jo
         },
       });
     });
-  await page.getByRole('button', { name: 'Add a passkey', exact: true }).focus();
+  const addPasskey = page.getByRole('button', { name: 'Add a passkey', exact: true });
+  await expect(addPasskey).toBeDisabled();
+  releasePasskeys();
+  await expect(addPasskey).toBeEnabled();
+  await addPasskey.focus();
   await page.keyboard.press('Enter');
   await expect(page.getByRole('alert')).toContainText(
     supportsPasskeys ? /prompt was closed.*timed out/ : /not supported|does not support/i,
