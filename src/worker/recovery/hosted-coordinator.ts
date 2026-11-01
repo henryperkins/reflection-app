@@ -33,17 +33,8 @@ export interface OfflineCoordinator {
   resume(context: OfflineContext, evidenceHash: string): Promise<void>;
   abort(context: OfflineContext): Promise<void>;
 }
-/** Extends an invocation's lifetime for best-effort cleanup; the hard deadline below is the backstop. */
+/** Extends an invocation's lifetime for best-effort cleanup; failures require reconciliation. */
 export type WaitUntil = (promise: Promise<unknown>) => void;
-/**
- * No legitimate hosted invocation approaches this bound: provider calls cap at
- * 60s, request absolute expiry is 180s and the maintenance deadline is 90s.
- * A normal-writer registration older than this therefore belongs to an
- * invocation the platform has already ended, so it can safely expire. Expiry
- * never opens ingress: it only lets a later `acquire` finish draining into
- * `offline`. Offline-mutation registrations do not expire this way.
- */
-export const WRITER_REGISTRATION_TTL_MS = 5 * 60_000;
 const REGISTRATION_PAGE_SIZE = 1000;
 interface ControlBindings {
   OFFLINE_COORDINATOR: DurableObjectNamespace<OfflineControl>;
@@ -99,8 +90,8 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     ctx.storage.sql.exec(
       "INSERT OR IGNORE INTO control(id,epoch,mode,operation_id,purpose,expires_at,evidence_hash) VALUES(1,0,'online',NULL,NULL,0,NULL)",
     );
-    // Normal writers carry a hard deadline (see WRITER_REGISTRATION_TTL_MS);
-    // offline-mutation registrations never expire on a timer.
+    // Both normal and offline registrations survive process death. The legacy
+    // expires_at column is retained for stored-schema compatibility, not authority.
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS writers(id TEXT PRIMARY KEY,operation_id TEXT,expires_at INTEGER)',
     );
@@ -114,11 +105,6 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     } catch {
       /* Column already present. */
     }
-    // Rows predating deadlines get one from first sight, never an extension.
-    ctx.storage.sql.exec(
-      'UPDATE writers SET expires_at=? WHERE expires_at IS NULL AND operation_id IS NULL',
-      Date.now() + WRITER_REGISTRATION_TTL_MS,
-    );
     ctx.storage.sql.exec(
       'CREATE TABLE IF NOT EXISTS quiescence_reconciliations(epoch INTEGER PRIMARY KEY,evidence_hash TEXT NOT NULL,registrations INTEGER NOT NULL,completed_at INTEGER NOT NULL)',
     );
@@ -144,20 +130,13 @@ export class OfflineControl extends DurableObject<ControlBindings> {
   #count() {
     return this.ctx.storage.sql.exec<{ n: number }>('SELECT count(*) n FROM writers').one().n;
   }
-  /**
-   * Drop normal-writer registrations past their hard deadline. This never
-   * opens ingress: a drained `closing` fence only advances to `offline`.
-   */
-  #pruneExpiredWriters() {
-    this.ctx.storage.sql.exec(
-      'DELETE FROM writers WHERE operation_id IS NULL AND expires_at IS NOT NULL AND expires_at<=?',
-      Date.now(),
-    );
+  /** Only actual deregistration or verified termination can drain the fence. */
+  #closeDrainedFence() {
     if (this.#row().mode === 'closing' && this.#count() === 0)
       this.ctx.storage.sql.exec("UPDATE control SET mode='offline' WHERE id=1");
   }
   #registrations() {
-    this.#pruneExpiredWriters();
+    this.#closeDrainedFence();
     const rows: Array<{ id: string; operationId: string | null }> = [];
     let after: string | undefined;
     for (;;) {
@@ -299,12 +278,11 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     await this.#authenticate(secret, environment);
     if (!/^[\w-]{1,100}$/.test(id)) throw new Error('Writer identity required');
     return this.ctx.storage.transactionSync(() => {
-      this.#pruneExpiredWriters();
+      this.#closeDrainedFence();
       if (this.#row().mode !== 'online') throw new Error('Environment is offline');
       this.ctx.storage.sql.exec(
-        'INSERT INTO writers(id,operation_id,expires_at) VALUES(?,NULL,?)',
+        'INSERT INTO writers(id,operation_id,expires_at) VALUES(?,NULL,NULL)',
         id,
-        Date.now() + WRITER_REGISTRATION_TTL_MS,
       );
       return this.#row().epoch;
     });
@@ -313,9 +291,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     await this.#authenticate(secret, environment);
     this.ctx.storage.transactionSync(() => {
       this.ctx.storage.sql.exec('DELETE FROM writers WHERE id=? AND operation_id IS NULL', id);
-      this.#pruneExpiredWriters();
-      if (this.#row().mode === 'closing' && this.#count() === 0)
-        this.ctx.storage.sql.exec("UPDATE control SET mode='offline'");
+      this.#closeDrainedFence();
     });
   }
   async acquire(
@@ -326,7 +302,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     await this.#authenticate(secret, environment);
     purposeSchema.parse(purpose);
     return this.ctx.storage.transactionSync(() => {
-      this.#pruneExpiredWriters();
+      this.#closeDrainedFence();
       const row = this.#row();
       // An expired lease can be replaced only when no invocation can still be writing.
       if (
@@ -350,7 +326,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
   }
   async assertCurrent(secret: string, context: OfflineContext) {
     await this.#authenticate(secret, context.environmentId);
-    this.#pruneExpiredWriters();
+    this.#closeDrainedFence();
     this.#current(context);
     if (
       this.ctx.storage.sql
@@ -363,7 +339,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     await this.assertCurrent(secret, context);
     this.ctx.storage.transactionSync(() => {
       this.#current(context);
-      this.#pruneExpiredWriters();
+      this.#closeDrainedFence();
       if (this.#row().evidence_hash !== null) throw new Error('Offline operation is complete');
       if (this.#count()) throw new Error('Offline mutation already running');
       this.ctx.storage.sql.exec(
@@ -387,7 +363,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     hash.parse(evidenceHash);
     this.ctx.storage.transactionSync(() => {
       this.#current(context);
-      this.#pruneExpiredWriters();
+      this.#closeDrainedFence();
       if (this.#count()) throw new Error('Offline mutation still running');
       this.ctx.storage.sql.exec('UPDATE control SET evidence_hash=?', evidenceHash);
     });
@@ -398,7 +374,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     const registrationId = 'resume-' + crypto.randomUUID();
     this.ctx.storage.transactionSync(() => {
       this.#current(context);
-      this.#pruneExpiredWriters();
+      this.#closeDrainedFence();
       if (this.#count() || this.#row().evidence_hash !== evidenceHash)
         throw new Error('Exclusive validated resume required');
       this.ctx.storage.sql.exec(
@@ -439,7 +415,7 @@ export class OfflineControl extends DurableObject<ControlBindings> {
     await this.#authenticate(secret, context.environmentId);
     const registrationId = 'abort-' + crypto.randomUUID();
     this.ctx.storage.transactionSync(() => {
-      this.#pruneExpiredWriters();
+      this.#closeDrainedFence();
       this.#abandoned(context);
       if (this.#count()) throw new Error('Offline operation cannot be aborted');
       this.ctx.storage.sql.exec(
@@ -672,16 +648,16 @@ export class HostedCoordinator implements OfflineCoordinator {
     let releasePromise: Promise<void> | undefined;
     // One shared, failure-swallowing release: a cleanup failure must never
     // replace a result or error the work itself already produced. The
-    // registration's hard deadline clears anything this attempt cannot.
+    // independent signed reconciliation recovers anything this attempt cannot.
     const release = () =>
       (releasePromise ??= (async () => {
         try {
           await this.stub().finishWriter(this.secret, this.environmentId, id);
         } catch {
-          /* Deadline expiry is the backstop. */
+          /* Preserve the registration until independently reconciled. */
         }
       })());
-    const workPromise = work();
+    const workPromise = Promise.resolve().then(work);
     // Hand the platform a cleanup chain before awaiting the work, so a
     // client disconnect cannot strand the unregistration with the request.
     try {
