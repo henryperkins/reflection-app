@@ -1,3 +1,4 @@
+import { fixture, note, edited } from '../fixtures/revisits.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
 import { beforeAll, beforeEach, expect, test } from 'vitest';
@@ -380,4 +381,75 @@ test('a bounded failed-body batch cannot drift into a different owner after null
       .first(),
   ).toEqual({ transmission_enc: null, candidate_enc: null });
   expect((await next.client.request(`/exports/${ticket.id}`)).status).toBe(409);
+});
+
+const proof = () => ({ receiptId: crypto.randomUUID(), receiptToken: randomToken() });
+test('note tombstones survive pending jobs and disappear only beyond completion/backup boundaries', async () => {
+  const f = await fixture(),
+    { first } = await edited(f),
+    receipt = proof();
+  await f.erase.removeRevisit(f.session, first.id, 2, crypto.randomUUID(), receipt);
+  await env.DB.prepare('UPDATE revisits SET deleted_at=? WHERE id=?')
+    .bind(Date.now() - 60 * DAY, first.id)
+    .run();
+  await new RetentionMaintenance(env.DB).run();
+  expect(
+    await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(first.id).first(),
+  ).not.toBeNull();
+  await env.DB.prepare('UPDATE deletion_jobs SET completed_at=?,backup_expires_by=? WHERE id=?')
+    .bind(Date.now() - 50 * DAY, Date.now() - DAY, receipt.receiptId)
+    .run();
+  await env.DB.prepare('UPDATE idempotency_keys SET expires_at=1').run();
+  await new RetentionMaintenance(env.DB).run();
+  expect(
+    await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(first.id).first(),
+  ).toBeNull();
+  expect((await env.DB.prepare('SELECT * FROM revisit_revisions').all()).results).toEqual([]);
+  expect(
+    await env.DB.prepare('SELECT id FROM deletion_jobs WHERE id=?').bind(receipt.receiptId).first(),
+  ).not.toBeNull();
+});
+
+test('unrelated recent completed jobs do not prolong an eligible note tombstone', async () => {
+  const f = await fixture(),
+    first = await note(f),
+    second = await note(f, 'Other');
+  const old = proof(),
+    recent = proof();
+  await f.erase.removeRevisit(f.session, first.id, 1, crypto.randomUUID(), old);
+  await f.erase.removeRevisit(f.session, second.id, 1, crypto.randomUUID(), recent);
+  await env.DB.prepare('UPDATE revisits SET deleted_at=? WHERE id=?')
+    .bind(Date.now() - 60 * DAY, first.id)
+    .run();
+  await env.DB.prepare('UPDATE deletion_jobs SET completed_at=?,backup_expires_by=1 WHERE id=?')
+    .bind(Date.now() - 50 * DAY, old.receiptId)
+    .run();
+  await env.DB.prepare('UPDATE idempotency_keys SET expires_at=1').run();
+  await new RetentionMaintenance(env.DB).run();
+  expect(
+    await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(first.id).first(),
+  ).toBeNull();
+  expect(
+    await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(second.id).first(),
+  ).not.toBeNull();
+});
+
+test('missing exact job evidence retains a note shell and deletion remains available at capacity', async () => {
+  const f = await fixture(),
+    first = await note(f),
+    receipt = proof();
+  await env.DB.prepare('UPDATE accounts SET storage_bytes=20971520 WHERE id=?')
+    .bind(f.kit.subjectId)
+    .run();
+  expect(
+    (await f.erase.removeRevisit(f.session, first.id, 1, crypto.randomUUID(), receipt)).state,
+  ).toBe('complete');
+  await env.DB.prepare('UPDATE revisits SET deleted_at=? WHERE id=?')
+    .bind(Date.now() - 60 * DAY, first.id)
+    .run();
+  await env.DB.prepare('DELETE FROM deletion_jobs WHERE id=?').bind(receipt.receiptId).run();
+  await new RetentionMaintenance(env.DB).run();
+  expect(
+    await env.DB.prepare('SELECT id FROM revisits WHERE id=?').bind(first.id).first(),
+  ).not.toBeNull();
 });

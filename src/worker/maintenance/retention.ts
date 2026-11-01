@@ -3,6 +3,14 @@ import { assertion } from '../identity/checkpoint.ts';
 
 const DAY = 86400000;
 const terminal = "'published','blocked','failed','expired','cancelled'";
+/** Exact completed-job evidence is required; missing evidence never implies cleanup. */
+export const erasedRevisitEligible = `revisits.deleted_at<=${DB_NOW}-${30 * DAY}
+  AND revisits.note_enc IS NULL AND revisits.deletion_job_id IS NOT NULL
+  AND EXISTS(SELECT 1 FROM deletion_jobs j WHERE j.id=revisits.deletion_job_id AND j.owner_id=revisits.owner_id AND j.scope='revisit' AND j.state='complete' AND j.completed_at<=${DB_NOW}-${30 * DAY} AND j.backup_expires_by<=${DB_NOW})
+  AND NOT EXISTS(SELECT 1 FROM deletion_jobs j WHERE j.owner_id=revisits.owner_id AND j.state!='complete')
+  AND NOT EXISTS(SELECT 1 FROM revisit_revisions r WHERE r.owner_id=revisits.owner_id AND r.revisit_id=revisits.id AND (r.body_enc IS NOT NULL OR r.erased_at IS NULL))
+  AND NOT EXISTS(SELECT 1 FROM import_identities i WHERE i.owner_id=revisits.owner_id AND i.revisit_id=revisits.id)
+  AND NOT EXISTS(SELECT 1 FROM idempotency_keys i WHERE i.owner_id=revisits.owner_id AND i.resource_id LIKE revisits.id||':%' AND i.expires_at>${DB_NOW})`;
 /** Routine D1 retention only. Independent recovery objects require the offline cleanup service. */
 export class RetentionMaintenance {
   constructor(readonly db: D1Database) {}
@@ -150,6 +158,8 @@ export class RetentionMaintenance {
       'period',
     );
 
+    await remove('revisits', erasedRevisitEligible, 'deleted_at');
+
     const source = 'reading_sessions';
     const owned = (table: string, condition = '1') =>
       `NOT EXISTS(SELECT 1 FROM ${table} x WHERE x.owner_id=${source}.owner_id AND (${condition}))`;
@@ -161,7 +171,8 @@ export class RetentionMaintenance {
       owned('context_grants'),
       owned('import_items'),
       owned('import_identities'),
-      owned('revisits'),
+      session('revisits', '1'),
+      `NOT EXISTS(SELECT 1 FROM revisit_revisions rv JOIN revisits n ON n.id=rv.revisit_id AND n.owner_id=rv.owner_id WHERE n.owner_id=${source}.owner_id AND n.session_id=${source}.id AND (rv.body_enc IS NOT NULL OR rv.erased_at IS NULL))`,
       session('basis_snapshots', 'x.body_enc IS NOT NULL'),
       session('reading_editions', 'x.body_enc IS NOT NULL'),
       session(

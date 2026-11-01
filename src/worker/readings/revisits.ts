@@ -1,12 +1,6 @@
 import { z } from 'zod';
-import {
-  AnyRevisit,
-  apiSchemas,
-  Ciphertext,
-  Id,
-  RevisitV2,
-  type RevisitNote,
-} from '../../contracts/index.ts';
+import { apiSchemas, Id, RevisitV2, type RevisitNote } from '../../contracts/index.ts';
+import { decodeRevisit, revisitField } from './revisit-codec.ts';
 import { REVISIT_LIMITS } from '../../contracts/revisit-policy.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
@@ -35,16 +29,6 @@ const storageLimit = 20971520;
 /** Authenticated authored annotations. No generation or provider dependencies. */
 export class Revisits {
   constructor(readonly base: RecordBase) {}
-
-  private field(ownerId: string, id: string, revision: number, historical = false) {
-    return {
-      ownerId,
-      table: historical ? 'revisit_revisions' : 'revisits',
-      column: historical ? 'body_enc' : 'note_enc',
-      recordId: historical ? `${id}:${revision}` : id,
-      aadRevision: revision,
-    };
-  }
 
   private async parent(session: Session, editionId: string, saved = false, creating = false) {
     const edition = await q(
@@ -130,42 +114,16 @@ export class Revisits {
       keyVersion = archived.key_version;
       updatedAt = archived.created_at;
     }
-    try {
-      const envelope = Ciphertext.parse(JSON.parse(body!));
-      if (envelope.keyVersion !== keyVersion) throw new Error('Column/envelope key mismatch');
-      const stored = await this.base.opened<z.infer<typeof AnyRevisit>>(
-        this.field(session.subjectId, row.id, revision, historical),
-        body!,
-        AnyRevisit,
-      );
-      if (
-        stored.id !== row.id ||
-        stored.editionId !== row.edition_id ||
-        Date.parse(stored.createdAt) !== row.created_at
-      )
-        throw new Error('Stored identity mismatch');
-      if (!('kind' in stored)) {
-        if (revision !== 1 || updatedAt !== row.created_at)
-          throw new Error('Invalid legacy revision');
-        return RevisitV2.parse({
-          ...stored,
-          kind: 'revisit.v2',
-          sessionId: row.session_id,
-          revision: 1,
-          stance: 'unspecified',
-          updatedAt: stored.createdAt,
-        });
-      }
-      if (
-        stored.sessionId !== row.session_id ||
-        stored.revision !== revision ||
-        Date.parse(stored.updatedAt) !== updatedAt
-      )
-        throw new Error('Stored revision mismatch');
-      return stored;
-    } catch {
-      throw new RecordError(503, 'KEY_UNAVAILABLE');
-    }
+    return decodeRevisit(
+      this.base,
+      session.subjectId,
+      row,
+      revision,
+      body!,
+      keyVersion,
+      updatedAt,
+      historical,
+    );
   }
 
   private async checked(
@@ -301,7 +259,7 @@ export class Revisits {
       updatedAt: iso(now),
     });
     const body = await this.base.crypt.seal(
-      this.field(session.subjectId, id, 1),
+      revisitField(session.subjectId, id, 1),
       value,
       account.key_version,
     );
@@ -375,12 +333,12 @@ export class Revisits {
       updatedAt: iso(Date.now()),
     });
     const archive = await this.base.crypt.seal(
-      this.field(session.subjectId, id, revision, true),
+      revisitField(session.subjectId, id, revision, true),
       current,
       account.key_version,
     );
     const body = await this.base.crypt.seal(
-      this.field(session.subjectId, id, revision + 1),
+      revisitField(session.subjectId, id, revision + 1),
       value,
       account.key_version,
     );

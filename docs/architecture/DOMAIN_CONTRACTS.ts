@@ -1255,6 +1255,7 @@ export const RecoveryCiphertext = z.strictObject({
 export const ErasureTarget = z.discriminatedUnion('scope', [
   z.strictObject({ scope: z.literal('account'), subjectId: Id }),
   z.strictObject({ scope: z.literal('session'), subjectId: Id, sessionId: Id }),
+  z.strictObject({ scope: z.literal('revisit'), subjectId: Id, revisitId: Id }),
   z.strictObject({
     scope: z.literal('reflection_revision'),
     subjectId: Id,
@@ -1266,7 +1267,7 @@ export const ErasureTarget = z.discriminatedUnion('scope', [
 export const ErasureIntent = z.strictObject({
   v: z.literal(1),
   jobId: Id,
-  scope: z.enum(['account', 'session', 'reflection_revision', 'context_copy']),
+  scope: z.enum(['account', 'session', 'reflection_revision', 'context_copy', 'revisit']),
   subjectHmac: Hash,
   targetHmac: Hash,
   hmacKeyId: LedgerKeyId,

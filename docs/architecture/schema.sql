@@ -1166,7 +1166,7 @@ CREATE TABLE revisits_next (
  id TEXT PRIMARY KEY NOT NULL, owner_id TEXT NOT NULL, edition_id TEXT NOT NULL,
  note_enc TEXT, key_version INTEGER NOT NULL, created_at INTEGER NOT NULL,
  session_id TEXT NOT NULL, current_revision INTEGER NOT NULL DEFAULT 1 CHECK(current_revision BETWEEN 1 AND 100),
- updated_at INTEGER NOT NULL, deleted_at INTEGER,
+ updated_at INTEGER NOT NULL, deleted_at INTEGER, deletion_job_id TEXT,
  UNIQUE(owner_id,id),
  FOREIGN KEY(owner_id,edition_id,session_id) REFERENCES reading_editions(owner_id,id,session_id) ON DELETE CASCADE,
  FOREIGN KEY(owner_id,session_id) REFERENCES reading_sessions(owner_id,id) ON DELETE CASCADE,
@@ -1179,6 +1179,7 @@ INSERT INTO revisits_next(id,owner_id,edition_id,note_enc,key_version,created_at
 DROP TABLE revisits;
 ALTER TABLE revisits_next RENAME TO revisits;
 CREATE INDEX revisits_history ON revisits(owner_id,edition_id,created_at ASC,id ASC);
+CREATE INDEX revisits_deletion_job ON revisits(deletion_job_id) WHERE deletion_job_id IS NOT NULL;
 CREATE TABLE revisit_revisions (
  revisit_id TEXT NOT NULL, owner_id TEXT NOT NULL,
  revision INTEGER NOT NULL CHECK(revision BETWEEN 1 AND 100),

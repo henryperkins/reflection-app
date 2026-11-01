@@ -11,10 +11,11 @@ import { statement as q, DB_NOW } from '../db/core.ts';
 import { assertion } from '../identity/checkpoint.ts';
 import type { Session } from '../identity/types.ts';
 import { iso, availableSession, type RecordBase, RecordError } from './base.ts';
+import { decodeRevisit } from './revisit-codec.ts';
 import { Question } from './records.ts';
 
 const Point = z.strictObject({
-  kind: z.enum(['session', 'reading', 'reflection', 'generation_receipt', 'permission']),
+  kind: z.enum(['session', 'reading', 'reflection', 'generation_receipt', 'permission', 'revisit']),
   id: Id,
   revision: z.number().int().positive(),
 });
@@ -109,13 +110,26 @@ export class ReadingExports {
     // Avoid silently omitting later feature families if someone bypasses the disabled import/context routes.
     const unsupported = await q(
       this.base.db,
-      'SELECT 1 WHERE EXISTS(SELECT 1 FROM revisits WHERE owner_id=?) OR EXISTS(SELECT 1 FROM context_grants WHERE owner_id=?) OR EXISTS(SELECT 1 FROM import_identities WHERE owner_id=?)',
-      session.subjectId,
+      'SELECT 1 WHERE EXISTS(SELECT 1 FROM context_grants WHERE owner_id=?) OR EXISTS(SELECT 1 FROM import_identities WHERE owner_id=?)',
       session.subjectId,
       session.subjectId,
     ).first();
     if (unsupported) throw new RecordError(503, 'DEPENDENCY_UNAVAILABLE');
-    const sql = `SELECT * FROM (
+    // D1 bounds compound SELECT terms; keep authored families in a separately bounded group.
+    const sql = `WITH authored AS MATERIALIZED (SELECT * FROM (
+      SELECT 'reflection' AS kind,f.id,r.revision,f.session_id,r.body_enc AS value_enc,r.key_version,json_object('editionId',f.edition_id) AS metadata
+      FROM reflection_revisions r JOIN reflections f ON f.id=r.reflection_id AND f.owner_id=r.owner_id JOIN reading_sessions s ON s.id=f.session_id AND s.owner_id=f.owner_id WHERE f.owner_id=? AND r.erased_at IS NULL AND ${availableSession}
+
+      UNION ALL
+      SELECT 'revisit',n.id,n.current_revision,n.session_id,n.note_enc,n.key_version,
+        json_object('editionId',n.edition_id,'createdAt',n.created_at,'updatedAt',n.updated_at,'historical',0)
+      FROM revisits n JOIN reading_sessions s ON s.owner_id=n.owner_id AND s.id=n.session_id WHERE n.owner_id=? AND n.deleted_at IS NULL AND n.note_enc IS NOT NULL AND ${availableSession}
+      UNION ALL
+      SELECT 'revisit',n.id,r.revision,n.session_id,r.body_enc,r.key_version,
+        json_object('editionId',n.edition_id,'createdAt',n.created_at,'updatedAt',r.created_at,'historical',1)
+      FROM revisit_revisions r JOIN revisits n ON n.owner_id=r.owner_id AND n.id=r.revisit_id JOIN reading_sessions s ON s.owner_id=n.owner_id AND s.id=n.session_id WHERE n.owner_id=? AND n.deleted_at IS NULL AND r.erased_at IS NULL AND r.body_enc IS NOT NULL AND ${availableSession}
+
+    ) WHERE ${point ? '(kind,id,revision)>(?,?,?)' : '1'} ORDER BY kind,id,revision LIMIT 101) SELECT * FROM (
       SELECT 'session' AS kind,s.id,s.revision,s.id AS session_id,s.question_enc AS value_enc,1 AS key_version,
         json_object('status',s.status,'savedAt',s.saved_at,'createdAt',s.created_at,
           'editionIds',(SELECT json_group_array(id) FROM reading_editions WHERE owner_id=s.owner_id AND session_id=s.id),
@@ -127,8 +141,7 @@ export class ReadingExports {
         json_object('status',e.status,'contentState',c.state,'parentEditionId',e.parent_edition_id,'unavailableAt',coalesce(e.invalidated_at,c.withdrawn_at,e.accepted_at))
       FROM reading_editions e JOIN reading_sessions s ON s.id=e.session_id AND s.owner_id=e.owner_id LEFT JOIN content_editions c ON c.hash=e.content_hash WHERE e.owner_id=? AND ${availableSession}
       UNION ALL
-      SELECT 'reflection',f.id,r.revision,f.session_id,r.body_enc,r.key_version,json_object('editionId',f.edition_id)
-      FROM reflection_revisions r JOIN reflections f ON f.id=r.reflection_id AND f.owner_id=r.owner_id JOIN reading_sessions s ON s.id=f.session_id AND s.owner_id=f.owner_id WHERE f.owner_id=? AND r.erased_at IS NULL AND ${availableSession}
+      SELECT * FROM authored
       UNION ALL
       SELECT 'generation_receipt',r.id,r.revision,r.session_id,d.transmission_enc,r.key_version,
         json_object('state',r.state,'createdAt',r.created_at,'dispatchId',d.id,'inputTokens',coalesce(cost.input_tokens,d.input_tokens),'outputTokens',coalesce(cost.output_tokens,d.output_tokens),'cachedInputTokens',coalesce(cost.cached_input_tokens,d.cached_input_tokens),'cacheWriteTokens',coalesce(cost.cache_write_tokens,d.cache_write_tokens),'reasoningTokens',coalesce(cost.reasoning_tokens,d.reasoning_tokens),'serviceTier',coalesce(cost.service_tier,d.service_tier),'costState',coalesce(cost.state,CASE WHEN d.cost_expired_at IS NOT NULL THEN 'expired' ELSE 'none' END),'actualCost',cost.actual_microusd)
@@ -143,7 +156,9 @@ export class ReadingExports {
       q(
         this.base.db,
         sql,
-        ...Array<string>(5).fill(session.subjectId),
+        ...Array<string>(3).fill(session.subjectId),
+        ...(point ? [point.kind, point.id, point.revision] : []),
+        ...Array<string>(4).fill(session.subjectId),
         ...(point ? [point.kind, point.id, point.revision] : []),
       ),
     ]);
@@ -311,6 +326,24 @@ export class ReadingExports {
       )
         throw new RecordError(503, 'KEY_UNAVAILABLE');
       return value;
+    }
+    if (row.kind === 'revisit') {
+      if (!row.value_enc || !row.session_id) throw new RecordError(503, 'KEY_UNAVAILABLE');
+      return decodeRevisit(
+        this.base,
+        owner,
+        {
+          id: row.id,
+          session_id: row.session_id,
+          edition_id: String(metadata.editionId),
+          created_at: Number(metadata.createdAt),
+        },
+        row.revision,
+        row.value_enc,
+        row.key_version,
+        Number(metadata.updatedAt),
+        Boolean(metadata.historical),
+      );
     }
     if (row.kind === 'reflection') {
       if (!row.value_enc) throw new RecordError(503, 'KEY_UNAVAILABLE');

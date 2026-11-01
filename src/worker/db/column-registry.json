@@ -2657,8 +2657,8 @@
       }
     },
     "revisits": {
-      "retention": "with owned saved edition",
-      "erasure": "delete when target/session/account erased",
+      "retention": "with owned saved edition; erased note metadata30d after exact completed job and backup deadline",
+      "erasure": "null all bodies after durable intent; retain content-free tombstone linked to exact deletion job",
       "columns": {
         "id": {
           "aadRule": null,
@@ -2736,6 +2736,14 @@
           "aadRule": null,
           "class": "M",
           "sqlType": "INTEGER",
+          "nullable": true,
+          "default": null,
+          "export": "never"
+        },
+        "deletion_job_id": {
+          "aadRule": null,
+          "class": "M",
+          "sqlType": "TEXT",
           "nullable": true,
           "default": null,
           "export": "never"

@@ -198,7 +198,7 @@ export class OfflineRestore {
         const chain = await this.erasure.ledger.load(original.intent.jobId);
         const pass = await this.erasure.ledger.begin(chain, this.now());
         await this.erasure.project(chain.intent, chain.target, null);
-        await this.env.DB.batch(this.erasure.fence(chain.target));
+        await this.env.DB.batch(this.erasure.fence(chain.target, chain.intent.jobId));
         await this.erasure.eraseTarget(chain.intent.jobId, chain.target);
         const complete = await this.erasure.ledger.finish(chain, pass, this.now());
         await this.erasure.project(chain.intent, chain.target, complete);

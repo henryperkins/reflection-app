@@ -61,6 +61,21 @@ export class SessionErasure {
       revision,
     );
   }
+  async removeRevisit(
+    session: Session,
+    id: string,
+    revision: number,
+    key: string,
+    receipt: Receipt,
+  ): Promise<z.infer<typeof apiSchemas.DeletionReceipt>> {
+    return this.removeTarget(
+      session,
+      { scope: 'revisit', subjectId: session.subjectId, revisitId: id },
+      key,
+      receipt,
+      revision,
+    );
+  }
   async removeReflection(
     session: Session,
     id: string,
@@ -107,6 +122,18 @@ export class SessionErasure {
         if (target.scope === 'session') {
           const row = await this.base.ownedSession(session, target.sessionId);
           if (row.revision !== revision) throw new RecordError(409, 'CONFLICT', row.revision);
+        } else if (target.scope === 'revisit') {
+          const row = await q(
+            this.base.db,
+            'SELECT current_revision,session_id,deleted_at FROM revisits WHERE owner_id=? AND id=?',
+            target.subjectId,
+            target.revisitId,
+          ).first<{ current_revision: number; session_id: string; deleted_at: number | null }>();
+          if (!row) throw new RecordError(404, 'NOT_FOUND');
+          await this.base.ownedSession(session, row.session_id);
+          if (row.deleted_at !== null) throw new RecordError(410, 'CONTENT_UNAVAILABLE');
+          if (row.current_revision !== revision)
+            throw new RecordError(409, 'CONFLICT', row.current_revision);
         } else if (target.scope === 'reflection_revision') {
           const row = await q(
             this.base.db,
@@ -137,7 +164,28 @@ export class SessionErasure {
         );
       } catch (error) {
         const raced = await this.job(receipt.receiptId);
-        if (!raced || !(await this.matches(raced, target, receipt))) throw error;
+        if (!raced || !(await this.matches(raced, target, receipt))) {
+          // An edit can win between the preflight read and the admission batch.
+          if (
+            target.scope === 'revisit' &&
+            error instanceof Error &&
+            /CHECK constraint/.test(error.message)
+          ) {
+            await this.base.checked(session);
+            const row = await q(
+              this.base.db,
+              'SELECT current_revision,deleted_at,session_id FROM revisits WHERE owner_id=? AND id=?',
+              target.subjectId,
+              target.revisitId,
+            ).first<{ current_revision: number; deleted_at: number | null; session_id: string }>();
+            if (!row) throw new RecordError(404, 'NOT_FOUND');
+            await this.base.ownedSession(session, row.session_id);
+            if (row.deleted_at !== null) throw new RecordError(410, 'CONTENT_UNAVAILABLE');
+            if (row.current_revision !== revision)
+              throw new RecordError(409, 'CONFLICT', row.current_revision);
+          }
+          throw error;
+        }
       }
     }
     await this.resume(receipt.receiptId);
@@ -175,6 +223,16 @@ export class SessionErasure {
               target.sessionId,
             ),
       );
+    } else if (target.scope === 'revisit') {
+      statements.push(
+        assertion(
+          this.base.db,
+          `EXISTS(SELECT 1 FROM revisits r JOIN reading_sessions s ON s.owner_id=r.owner_id AND s.id=r.session_id WHERE r.owner_id=? AND r.id=? AND r.current_revision=? AND r.deleted_at IS NULL AND r.note_enc IS NOT NULL AND (s.status='saved' OR (s.status='open' AND s.retention_expires_at>${DB_NOW})))`,
+          target.subjectId,
+          target.revisitId,
+          revision ?? null,
+        ),
+      );
     } else if (target.scope === 'reflection_revision') {
       statements.push(
         assertion(
@@ -186,7 +244,7 @@ export class SessionErasure {
         ),
       );
     }
-    statements.push(...this.fence(target));
+    statements.push(...this.fence(target, id));
     statements.push(
       q(
         this.base.db,
@@ -212,7 +270,7 @@ export class SessionErasure {
     await this.base.db.batch(statements);
   }
   /** Idempotent privacy fence used both at live admission and offline replay. */
-  fence(target: Target): D1PreparedStatement[] {
+  fence(target: Target, jobId: string): D1PreparedStatement[] {
     const owner = target.subjectId;
     if (target.scope === 'account')
       return [
@@ -233,6 +291,16 @@ export class SessionErasure {
           `UPDATE reading_sessions SET status='deleted',saved_at=NULL,deleted_at=coalesce(deleted_at,${DB_NOW}),retention_expires_at=NULL,revision=revision+1 WHERE owner_id=? AND id=? AND status!='deleted'`,
           owner,
           target.sessionId,
+        ),
+      ];
+    if (target.scope === 'revisit')
+      return [
+        q(
+          this.base.db,
+          `UPDATE revisits SET deleted_at=coalesce(deleted_at,${DB_NOW}),deletion_job_id=? WHERE owner_id=? AND id=?`,
+          jobId,
+          owner,
+          target.revisitId,
         ),
       ];
     if (target.scope === 'reflection_revision')
@@ -259,6 +327,7 @@ export class SessionErasure {
     const data = new EraseData(this.base);
     if (target.scope === 'session') await data.session({ id }, target);
     else if (target.scope === 'reflection_revision') await data.reflection({ id }, target);
+    else if (target.scope === 'revisit') await data.revisit({ id }, target);
     else if (target.scope === 'account') {
       await this.retireCheckpoints(target.subjectId);
       await data.account(target);

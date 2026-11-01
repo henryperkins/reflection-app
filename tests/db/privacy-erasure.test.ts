@@ -109,6 +109,23 @@ test('account deletion erases owned bodies, keys, credentials and checkpoints wh
   const { client, kit } = await readingAccount(),
     { started, reading } = await client.create();
   await thoughts(client, started.sessionId, reading.editionId);
+  const note = apiSchemas.Revisit.parse(
+    await (
+      await client.request('/revisits', {
+        editionId: reading.editionId,
+        note: 'Account-owned note',
+      })
+    ).json(),
+  );
+  expect(
+    (
+      await client.request(
+        `/revisits/${note.id}`,
+        { note: 'Account-owned revision' },
+        { method: 'PUT', revision: 1 },
+      )
+    ).status,
+  ).toBe(200);
   const { client: foreign, kit: other } = await readingAccount();
   const proof = receipt();
   const response = await client.request('/account', proof, { method: 'DELETE' });
@@ -126,6 +143,8 @@ test('account deletion erases owned bodies, keys, credentials and checkpoints wh
     'security_operations',
     'reading_sessions',
     'reflection_revisions',
+    'revisits',
+    'revisit_revisions',
     'provider_dispatches',
   ])
     expect(
