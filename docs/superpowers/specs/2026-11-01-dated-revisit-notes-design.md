@@ -1,6 +1,6 @@
 # Dated revisit notes: approved implementation contract
 
-Status: approved for implementation on 2026-11-01. The user explicitly instructed: “Approve these defaults and implement”. This approves the separate revisit resource, 2,000-character note limit, optional stance, 100 active notes per edition, 100 revisions per note, retained edit history, saved-parent/unsave behavior, bounded seven-day deduplication, existing 20 MiB storage ceiling and associated privacy disclosure below. Implementation remains to be completed and verified; this approval does not claim the endpoints, tables or screens already exist. This contract develops the existing [dated revisit notes design](../../design/dated-revisit-notes.md) against application commit `a60a5ec55e2855fffebd0341224c32b7a42d7ba0`.
+Status: approved for implementation on 2026-11-01. The user explicitly instructed: “Approve these defaults and implement”. This approves the separate revisit resource, 2,000-character note limit, optional stance, 100 active notes per edition, 100 revisions per note, retained edit history, saved-parent/unsave behavior, bounded seven-day deduplication, existing 20 MiB storage ceiling and associated privacy disclosure below. Endpoints, tables, screens and synthetic local qualification are now implemented; see the [qualification record](../../verification/2026-11-01/dated-revisit-notes.md). The feature and migration remain undeployed. This contract develops the existing [dated revisit notes design](../../design/dated-revisit-notes.md) against application commit `a60a5ec55e2855fffebd0341224c32b7a42d7ba0`.
 
 ## Intent and scope
 
@@ -16,7 +16,9 @@ The first increment includes a chronological note list, add/edit/delete controls
 
 The user approved the recommended separate-resource approach with the defaults in this document. Database/index details and component boundaries may be refined during implementation without changing the behavior and privacy contract below.
 
-## Existing constraints that affect the work
+## Baseline constraints that informed implementation
+
+The following describes the pre-implementation baseline, retained to explain the approved decisions.
 
 - `src/contracts/index.ts` already defines a minimal `Revisit` (`id`, `editionId`, `note`, `createdAt`), `RevisitWrite`, a portable `revisit` record and a 50-item page. `checks/generate-openapi.ts` describes create/list operations, but `src/worker/readings/routes.ts` does not implement them.
 - `revisits` currently stores one encrypted body, its key version, owner, exact edition and server date. Its encryption AAD includes the existing table/column/id. SQL must not move ciphertext to a new encryption identity and pretend it is still readable.

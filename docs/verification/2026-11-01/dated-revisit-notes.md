@@ -1,0 +1,25 @@
+# Dated revisit notes — source-bound local qualification
+
+This record describes the implemented November 1 increment and its evidence locations. The approved contract remains [dated revisit notes](../../superpowers/specs/2026-11-01-dated-revisit-notes-design.md). Final acceptance requires a passed, source-matched receipt at the paths below; this document alone is not a substitute for the receipts. Historical receipts are unchanged.
+
+The final candidate is frozen before running `npm run verify` (14 stages), followed serially by `npm run test:journey`, then `npm run release -- --check`. Exact source digest, Git identity, command exits, durations, stage results and test counts are recorded in the [sanitized qualification summary](../../../artifacts/dated-revisit-notes/qualification.json) and [exact verification receipt](../../../artifacts/dated-revisit-notes/verify.json); complete execution logs sit alongside them locally. The controller task report records RED/GREEN and coverage mapping. Only these sanitized JSON files are explicitly tracked under the digest-excluded artifacts directory; raw reports and captures remain ignored. Git commit identity may therefore differ from the pre-evidence source tree; the source digest must still match.
+
+## Coverage and lifecycle trace
+
+- Contracts, Unicode limits, legacy blank decode and request defaults: `tests/domain/revisit-contracts.test.ts`, `tests/tooling/openapi-inputs.test.ts`.
+- Populated migration with valid encrypted legacy values, dates, unsaved expiry, imported alias, rollback and exact accounting: `tests/db/revisit-migration.test.ts`.
+- Create → edit archives the prior value under its historical AAD, retains chronology and exact retry identity: `tests/db/revisit-records.test.ts`.
+- Export includes current and every retained revision. Final release guards reject a concurrent parent deletion or changed authentication epoch; parent erasure wins an in-flight edit without recreating either body store: `tests/db/revisit-privacy.test.ts`.
+- Whole-note/reading/account erasure → two stale restores before creation/edit/deletion cannot revive bodies or shorten deadlines: `tests/db/revisit-privacy.test.ts`, `tests/db/privacy-restore.test.ts`.
+- Interrupted rekey between archived/current note ciphertext rewrites resumes with exact values and no repeated completed rewrite: `tests/db/account-rekey.test.ts`. Inventory and retirement planning reject every referenced version: `tests/db/key-inventory.test.ts`.
+- Pending/missing exact-job proof, residual archive content, cleanup undo, storage estimates and deletion at capacity: `tests/db/retention.test.ts`, `tests/db/recovery-cleanup.test.ts`, `tests/db/storage-accounting.test.ts`. Existing coverage is reused rather than cloned.
+- Configured synthetic-hosted restore keeps ingress closed and independent epochs intact: `tests/db/hosted-restore.test.ts`; local stale-note replay coverage is distinct from a deployed hosted restore drill.
+- AI-off create/edit/export/delete/return, date order, lost responses, conflicts, dirty drafts, late acknowledgements, deletion focus and initial-list offline retry: `tests/browser/revisit-notes.spec.ts`.
+
+## Comparison evidence and limits
+
+The final matrix writes full captures and per-layout evidence under `artifacts/visual-pass/screens/`, and its JSON report at `artifacts/visual-pass/browser-matrix.json`. The dated qualification directory preserves the final report and a capture inventory with hashes. The Return, with time board at `docs/design/concepts/2026-11-01/02-return-with-time.jpg` is a directional reference: original reflection precedes notes, authored text remains complete, date and edited date are distinct, and editing preserves full disclosures. Representative final desktop/mobile and light/dark captures are inspected; the full matrix is checked automatically, not individually visually signed off.
+
+Chromium, Firefox and Linux WebKit exercise synthetic local journeys; native zoom is Chromium-only and forced colors cover supported Chromium/Firefox mechanisms. Linux WebKit is not actual Safari. Real physical/synchronized authenticators, screen readers, hosted origin/RP and real-device acceptance remain open. No live provider or dotenv credentials are used. Date/legacy/two-edition presentation fixtures remain distinct from real local persistence/export/deletion flows.
+
+The feature and migration 0017 have never been deployed. The existing preview on main `0c72114` and its ten smoke checks/one bounded live reading predate this feature. Release check is expected to report pending production gates. Those gates do not prevent local implementation completion and are not silently marked passed. Follow the [quiesced migration and no-old-writer rollback rule](../../OPERATIONS_RUNBOOK.md#dated-revisit-notes-migration-0017).

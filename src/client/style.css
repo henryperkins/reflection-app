@@ -2198,7 +2198,8 @@ div.reading-closing {
   display: grid;
   gap: 1rem;
 }
-.revisit-note, .revisit-editor {
+.revisit-note,
+.revisit-editor {
   padding: clamp(1rem, 3vw, 1.75rem);
   min-width: 0;
   overflow-wrap: anywhere;
@@ -2206,7 +2207,8 @@ div.reading-closing {
 .revisit-note h3 {
   font-size: 1.1rem;
 }
-.authored-note, .revisit-conflict blockquote {
+.authored-note,
+.revisit-conflict blockquote {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -2226,7 +2228,9 @@ div.reading-closing {
   max-height: none;
 }
 @media (forced-colors: active) {
-  .revisit-note, .revisit-editor, .revisit-conflict {
+  .revisit-note,
+  .revisit-editor,
+  .revisit-conflict {
     border: 1px solid CanvasText;
   }
 }

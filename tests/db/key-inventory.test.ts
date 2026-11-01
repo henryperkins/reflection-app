@@ -1,3 +1,4 @@
+import { planAccountDataKeyRetirement } from '../../src/worker/recovery/key-retirement.ts';
 import { keyInventoryFixture as fixture } from '../fixtures/key-inventory.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
@@ -197,6 +198,11 @@ test('retained old-key archived revisit bodies remain in inventory beside a new-
   ]);
   const inventory = await inventoryKeyReferences(f.runtime, f.context, f.backups.inventory);
   expect(inventory.complete).toBe(true);
+  for (const key of inventory.accountKeys.filter((key) => key.ownerId === f.owner)) {
+    const plan = await planAccountDataKeyRetirement(inventory, key.ownerId, key.version);
+    expect(plan.allowed).toBe(false);
+    expect(plan.reasons).toContain('ACCOUNT_KEY_REFERENCED');
+  }
   expect(inventory.accountKeys).toContainEqual(
     expect.objectContaining({
       ownerId: f.owner,

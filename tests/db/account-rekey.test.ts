@@ -320,7 +320,7 @@ test('a superseded coordinator lease cannot resume without explicit adoption of 
   expect((await resumed.step(start.operationId, 20)).phase).toMatch(/inventorying|rewriting/);
 });
 
-test('loss immediately after a committed rewrite batch resumes without rewriting completed ciphertext', async () => {
+test('loss between archived and current note rewrites resumes without rewriting completed ciphertext', async () => {
   const f = await fixture();
   await deferredFields(f);
   const start = await f.service.begin(f.owner, 1);
@@ -354,7 +354,7 @@ test('loss immediately after a committed rewrite batch resumes without rewriting
           if (
             armed &&
             statements.some((st) =>
-              (sql.get(st) ?? '').startsWith('UPDATE basis_snapshots SET body_enc='),
+              (sql.get(st) ?? '').startsWith('UPDATE revisit_revisions SET body_enc='),
             )
           ) {
             armed = false;
@@ -366,19 +366,31 @@ test('loss immediately after a committed rewrite batch resumes without rewriting
       return typeof value === 'function' ? value.bind(target) : value;
     },
   });
+  const before = await values(f);
+  const interrupted = new AccountRekey(
+    new RecordBase(db, f.runtime.identity),
+    f.runtime.coordinator!,
+  );
   await expect(
-    new AccountRekey(new RecordBase(db, f.runtime.identity), f.runtime.coordinator!).step(
-      start.operationId,
-      20,
-    ),
+    (async () => {
+      for (let step = 0; step < 100; step++) await interrupted.step(start.operationId, 1);
+    })(),
   ).rejects.toThrow('Synthetic Worker loss');
-  const body = await env.DB.prepare('SELECT body_enc FROM basis_snapshots').first('body_enc');
+  const body = await env.DB.prepare('SELECT body_enc FROM revisit_revisions').first<string>(
+    'body_enc',
+  );
+  const current = await env.DB.prepare('SELECT note_enc FROM revisits').first<string>('note_enc');
+  expect(JSON.parse(body!).keyVersion).toBe(2);
+  expect(JSON.parse(current!).keyVersion).toBe(1);
   let phase = '';
   while (phase !== 'complete')
     phase = (
       await new AccountRekey(f.runtime.base, f.runtime.coordinator!).step(start.operationId, 20)
     ).phase;
-  expect(await env.DB.prepare('SELECT body_enc FROM basis_snapshots').first('body_enc')).toBe(body);
+  expect(await env.DB.prepare('SELECT body_enc FROM revisit_revisions').first('body_enc')).toBe(
+    body,
+  );
+  expect(await values(f)).toEqual(before);
   await f.service.validate(start.operationId);
 });
 

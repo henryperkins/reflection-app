@@ -132,3 +132,9 @@ Type names below are part of the handoff. Keep existing `Revisit` as the legacy 
 - Interface consistency: service methods and schema/type names are defined before consumers; Task 3 owns whole-note deletion, Task 4 uses the existing HTTP/deletion helpers. Task 2 cannot expose new public creation before Task 3 closes export/erasure.
 - Five review-focus cases each have named tests in their owning task. No product scope, approval condition or production gate has been added.
 - Execution uses sequential subagent implementation/review, with isolated synthetic verification and commits at each meaningful boundary. The approved contract is the behavior authority; routine helper/component details remain the implementer's judgment.
+
+## Task 5 qualification execution record
+
+Implementation and targeted tests are recorded in the controller ledger. The final full verification, journey, release-check results and source identity live in ignored `artifacts/dated-revisit-notes/qualification.json` and `.superpowers/sdd/2026-11-01-dated-revisit-notes/task-5-report.md`; consult those execution records instead of interpreting this plan as a completed gate. Independent whole-branch review, push and PR delivery belong to the controller and are not marked complete here.
+
+Task 3 file-list clarification: `src/worker/recovery/ledger.ts` already consumes the shared extended erasure target/intent schemas and required no redundant runtime edit. The contract and replay consumers changed together, with the original encrypted ledger format preserved.

@@ -1,6 +1,12 @@
 # Reflection design QA
 
-## November 1 — Entry and return
+## November 1 — Dated revisit notes
+
+The approved dated-note increment is implemented. [Qualification and comparison scope](docs/verification/2026-11-01/dated-revisit-notes.md) identifies final-source receipts and captures. The chronological list follows the Return, with time board: original reflection first, complete note text and separate saved/edited dates, then a labelled text/stance editor. Full retention/encryption disclosure remains visible; illustrative board copy is not substituted.
+
+The browser suite covers offline first-list retry, failed saves, conflicts, seven-day retry expiry, independent deletion outcomes, late acknowledgements, stale reads, focus and announcements. Standard Chromium tests use real synthetic service flows; distinct-date, legacy-unsaved and unavailable/two-edition presentation cases use labelled synthetic response fixtures. The engine matrix checks 320/390/768/1280 px in both themes, enlarged text, native Chromium zoom and supported forced colors. Screenshot inspection is sampled; automated reflow and focus checks cover the matrix. No physical-device, real-authenticator, screen-reader, Safari or hosted-feature acceptance is claimed.
+
+## November 1 — Entry and return (historical scope)
 
 The owner confirmed this scope: apply the concept boards' visual direction to existing screens and document the proposed flows. PR [#7](https://github.com/henryperkins/reflection-app/pull/7) was merged first as `08e227753f6942d71a5b7dfe717c6d39d6e693df`; this refinement starts from that merged baseline. **Automated verification passed; manual device/assistive-technology acceptance remains open.**
 
@@ -9,7 +15,7 @@ The owner confirmed this scope: apply the concept boards' visual direction to ex
 - Landing now shares one paper composition between the large orbit artwork and account controls. The botanical footer reuses an existing optimized transparent sprig. At ≤900 px the controls precede a short orbit crop, keeping create/sign-in/recovery above the artwork.
 - Saved readings has a reserved compact title motif, serif questions, fine list rules and navigation that marks the actual current destination. PR #7's date/question rows without arbitrary per-record thumbnails, status-first outcome cards and reduced copy remain intact.
 - Solstice light/dark tokens, locally hosted Newsreader/Figtree/Outfit, Fluent icons and all factual disclosures remain authoritative. Native browser surfaces declare both color schemes. Only the landing focal image receives high fetch priority; the unused `leaves.png` is no longer imported.
-- The [concept direction](docs/design/concept-direction.md) stores the three refined boards unchanged. Dated revisit notes and selected context remain **specification only**. Their documents record the simple header, original-reflection-first chronology, complete excerpts/dates/revisions, quiet × Remove selection and the boundary at Continue to permission review. Permission copy and submission rules remain open.
+- The [concept direction](docs/design/concept-direction.md) stores the three refined boards unchanged. At that earlier design-only boundary, dated revisit notes and selected context were **specification only**. Dated notes have since been implemented under separate approval, as recorded above. Their documents record the simple header, original-reflection-first chronology, complete excerpts/dates/revisions, quiet × Remove selection and the boundary at Continue to permission review. Permission copy and submission rules remain open.
 
 ### Review findings addressed
 

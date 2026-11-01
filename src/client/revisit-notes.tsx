@@ -160,7 +160,7 @@ export function RevisitNotes({
       }
       setMessage({
         tone: 'error',
-        text: `${error instanceof Error ? error.message : 'This action could not be completed.'} Your draft is still here.`,
+        text: `${error instanceof Error ? error.message : 'This action could not be completed.'} ${name === 'list' ? 'Try loading notes again.' : 'Your draft is still here.'}`,
       });
     } finally {
       if (current()) {
@@ -479,7 +479,18 @@ export function RevisitNotes({
           )}
         </p>
       )}
-      {!loaded && <p role="status">Loading notes…</p>}
+      {!loaded &&
+        (busy === 'list' ? (
+          <p role="status">Loading notes…</p>
+        ) : (
+          <button
+            type="button"
+            className="secondary"
+            onClick={() => void run('list', (current) => list(current))}
+          >
+            Retry loading notes
+          </button>
+        ))}
       {loaded && page.items.length === 0 && <p>No revisit notes yet.</p>}
       <ol className="revisit-list">
         {page.items.map((note) => (

@@ -1,3 +1,4 @@
+import { Revisits } from '../../src/worker/readings/revisits.ts';
 import { fixture, note, edited } from '../fixtures/revisits.ts';
 import { env } from 'cloudflare:workers';
 import { applyD1Migrations } from 'cloudflare:test';
@@ -76,45 +77,71 @@ test('whole-note deletion erases current and history, spares neighbors and retri
   });
 });
 
-test('ledger outage immediately fences a note and export but keeps ciphertext and pending evidence', async () => {
-  const f = await fixture(),
-    { first } = await edited(f);
-  const ticket = await f.exports.create(f.session, crypto.randomUUID());
-  const receipt = proof();
-  await expect(
-    new SessionErasure(f.base, failingBucket()).removeRevisit(
-      f.session,
-      first.id,
-      2,
-      crypto.randomUUID(),
-      receipt,
-    ),
-  ).rejects.toThrow();
-  await expect(f.notes.read(f.session, first.id)).rejects.toMatchObject({ status: 410 });
-  await expect(f.exports.page(f.session, ticket.id, null)).rejects.toMatchObject({
-    code: 'EXPORT_CHANGED',
-  });
-  expect(
-    await env.DB.prepare('SELECT note_enc FROM revisits WHERE id=?')
-      .bind(first.id)
-      .first('note_enc'),
-  ).not.toBeNull();
-  expect(
-    await env.DB.prepare('SELECT state FROM deletion_jobs WHERE id=?')
+test.each([false, true])(
+  'ledger outage fences notes and preserves pending evidence/accounting (over capacity: %s)',
+  async (overCapacity) => {
+    const f = await fixture(),
+      { first } = await edited(f);
+    const ticket = await f.exports.create(f.session, crypto.randomUUID());
+    const storage = () =>
+      env.DB.prepare('SELECT storage_bytes FROM accounts WHERE id=?')
+        .bind(f.session.subjectId)
+        .first<number>('storage_bytes');
+    if (overCapacity) {
+      const before = (await storage())!;
+      await env.DB.prepare(`WITH RECURSIVE n(x) AS (SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<20480)
+      INSERT INTO export_tickets SELECT 'synthetic-note-pressure-'||x,?,1,1,9999999999999 FROM n`)
+        .bind(f.session.subjectId)
+        .run();
+      expect(await storage()).toBe(before + 20480 * 1024);
+      expect((await storage())!).toBeGreaterThan(20 * 1024 * 1024);
+    }
+    const receipt = proof();
+    await expect(
+      new SessionErasure(f.base, failingBucket()).removeRevisit(
+        f.session,
+        first.id,
+        2,
+        crypto.randomUUID(),
+        receipt,
+      ),
+    ).rejects.toThrow();
+    await expect(f.notes.read(f.session, first.id)).rejects.toMatchObject({ status: 410 });
+    await expect(f.exports.page(f.session, ticket.id, null)).rejects.toMatchObject({
+      code: 'EXPORT_CHANGED',
+    });
+    expect(
+      await env.DB.prepare('SELECT note_enc FROM revisits WHERE id=?')
+        .bind(first.id)
+        .first('note_enc'),
+    ).not.toBeNull();
+    expect(
+      await env.DB.prepare('SELECT state FROM deletion_jobs WHERE id=?')
+        .bind(receipt.receiptId)
+        .first('state'),
+    ).toBe('ledger_pending');
+    const pendingBytes = await storage();
+    const pendingJob = await env.DB.prepare('SELECT * FROM deletion_jobs WHERE id=?')
       .bind(receipt.receiptId)
-      .first('state'),
-  ).toBe('ledger_pending');
-  await new RetentionMaintenance(env.DB).run();
-  await expect(new OfflineCleanup(cleanupBindings(), localBackup()).run()).rejects.toThrow(
-    /pending/i,
-  );
-  await new OfflineRestore(cleanupBindings()).prepare();
-  expect(
-    await env.DB.prepare('SELECT state FROM deletion_jobs WHERE id=?')
-      .bind(receipt.receiptId)
-      .first('state'),
-  ).toBe('complete');
-});
+      .first();
+    await new RetentionMaintenance(env.DB).run();
+    expect(await storage()).toBe(pendingBytes);
+    expect(
+      await env.DB.prepare('SELECT * FROM deletion_jobs WHERE id=?')
+        .bind(receipt.receiptId)
+        .first(),
+    ).toEqual(pendingJob);
+    await expect(new OfflineCleanup(cleanupBindings(), localBackup()).run()).rejects.toThrow(
+      /pending/i,
+    );
+    await new OfflineRestore(cleanupBindings()).prepare();
+    expect(
+      await env.DB.prepare('SELECT state FROM deletion_jobs WHERE id=?')
+        .bind(receipt.receiptId)
+        .first('state'),
+    ).toBe('complete');
+  },
+);
 
 test('export yields every exact note revision, dates and stance without keys, including withdrawn parents', async () => {
   const f = await fixture(),
@@ -456,4 +483,62 @@ test('export pagination includes more than one hundred note snapshots exactly on
     expect(revisions[0]!.value.note).toBe(value.note);
     expect(revisions.at(-1)!.value.note).toBe(`${value.note} 52`);
   }
+});
+
+// These barriers hold already-decrypted results at their final authorization boundary.
+test.each(['parent deletion', 'authentication epoch'] as const)(
+  '%s during export decryption prevents releasing current and archived note plaintext',
+  async (change) => {
+    const f = await fixture();
+    await edited(f);
+    const ticket = await f.exports.create(f.session, crypto.randomUUID());
+    let guards = 0;
+    const held = gate(
+      (sql) =>
+        sql.some(
+          (s) => s.includes('INSERT INTO assertion_probe') && s.includes('export_tickets'),
+        ) && ++guards === 2,
+    );
+    const outcome = new ReadingExports(new RecordBase(held.db, f.base.identity))
+      .page(f.session, ticket.id, null)
+      .catch((error: unknown) => error);
+    await held.ready;
+    try {
+      if (change === 'parent deletion')
+        await f.erase.remove(f.session, f.started.sessionId, 2, crypto.randomUUID(), proof());
+      else
+        await env.DB.prepare('UPDATE accounts SET auth_epoch=auth_epoch+1 WHERE id=?')
+          .bind(f.session.subjectId)
+          .run();
+    } finally {
+      held.release();
+    }
+    expect(await outcome).toMatchObject({
+      code: change === 'parent deletion' ? 'EXPORT_CHANGED' : 'UNAUTHENTICATED',
+    });
+  },
+);
+
+test('parent erasure wins an in-flight note edit without recreating current or archived bodies', async () => {
+  const f = await fixture(),
+    { first } = await edited(f);
+  const held = gate((sql) => sql.some((s) => s.includes('INSERT INTO revisit_revisions')));
+  const outcome = new Revisits(new RecordBase(held.db, f.base.identity))
+    .update(
+      f.session,
+      first.id,
+      2,
+      crypto.randomUUID(),
+      apiSchemas.RevisitUpdate.parse({ note: 'Synthetic blocked edit' }),
+    )
+    .catch((error: unknown) => error);
+  await held.ready;
+  try {
+    await f.erase.remove(f.session, f.started.sessionId, 2, crypto.randomUUID(), proof());
+  } finally {
+    held.release();
+  }
+  expect(await outcome).toMatchObject({ code: 'NOT_FOUND' });
+  expect((await env.DB.prepare('SELECT * FROM revisits').all()).results).toEqual([]);
+  expect((await env.DB.prepare('SELECT * FROM revisit_revisions').all()).results).toEqual([]);
 });

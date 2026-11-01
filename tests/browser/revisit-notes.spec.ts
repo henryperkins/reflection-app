@@ -68,6 +68,28 @@ test('dated notes keep chronological server dates, edited dates, full text and t
   expect(fixture.generationRequests).toEqual([]);
 });
 
+test('an offline initial note list stops loading and can be retried explicitly', async ({
+  page,
+}) => {
+  await savedReading(page, '192.0.2.170');
+  await add(page, 'Synthetic note retained across a transient read failure');
+  await page.route('**/api/v1/revisits?*', (route) => route.abort('internetdisconnected'));
+  await page.reload();
+  const notes = page.getByRole('region', { name: 'Revisit notes', exact: true });
+  await expect(notes.getByRole('alert')).toBeVisible();
+  await expect(notes.getByText('Loading notes…', { exact: true })).toHaveCount(0);
+  await expect(notes.getByText('No revisit notes yet.', { exact: true })).toHaveCount(0);
+  await expect(notes.getByRole('button', { name: 'Add revisit note', exact: true })).toBeDisabled();
+  await expect(notes.getByRole('alert')).not.toContainText('draft');
+  await page.unroute('**/api/v1/revisits?*');
+  await notes.getByRole('button', { name: 'Retry loading notes', exact: true }).click();
+  await expect(notes.getByRole('article')).toContainText(
+    'Synthetic note retained across a transient read failure',
+  );
+  await expect(notes.getByRole('alert')).toHaveCount(0);
+  await expect(notes.getByRole('button', { name: 'Add revisit note', exact: true })).toBeEnabled();
+});
+
 test('lost create response retries the same intent once, preserves offline drafts, and stops retries after seven days', async ({
   page,
 }) => {

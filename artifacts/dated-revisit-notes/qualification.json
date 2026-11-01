@@ -1,0 +1,139 @@
+{
+  "version": 1,
+  "status": "passed",
+  "scope": "synthetic-local-only",
+  "sourceDigest": "b1b99ca8d9a26c5b44d7c6495eaf6ddf69b2efe83f71ad557170439484624e83",
+  "verifiedSourceTree": "653711f62c1c99f9e62e0b9b6001608f13e36747",
+  "sourceParentCommit": "117db897b1fb00d029e6dacacde24c21389aad04",
+  "publication": "The verified tree precedes the two digest-excluded artifact JSON files. The final commit contains the identical hashed source plus those files. Git commit/tree changes do not alter the source digest.",
+  "environment": {
+    "node": "v26.12.1",
+    "availableCpuSet": "0-7",
+    "effectiveCpuSet": "0-3",
+    "affinity": "taskset -c 0-3",
+    "dotenvCredentials": false,
+    "liveProviders": false
+  },
+  "verification": {
+    "command": "taskset -c 0-3 env -u NO_COLOR npm run verify",
+    "exitCode": 0,
+    "receipt": "artifacts/dated-revisit-notes/verify.json",
+    "receiptSha256": "39948e70990499fa3b026f57a814871ceed8b5e4b5306087fb109f46f1e5ea43",
+    "durationMs": 502745,
+    "stageCount": 14,
+    "domain": {
+      "passed": 403,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "files": 50,
+      "success": true
+    },
+    "database": {
+      "passed": 525,
+      "failed": 0,
+      "pending": 0,
+      "todo": 0,
+      "files": 46,
+      "success": true
+    },
+    "browser": {
+      "startTime": "2026-11-01T06:19:47.539Z",
+      "duration": 409583.524,
+      "expected": 115,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    }
+  },
+  "journey": {
+    "command": "taskset -c 0-3 env -u NO_COLOR npm run test:journey",
+    "exitCode": 0,
+    "stats": {
+      "startTime": "2026-11-01T06:26:44.009Z",
+      "duration": 407531.148,
+      "expected": 36,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "projects": {
+      "chromium": {
+        "expected": 14,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      },
+      "firefox": {
+        "expected": 12,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      },
+      "webkit": {
+        "expected": 10,
+        "unexpected": 0,
+        "skipped": 0,
+        "flaky": 0
+      }
+    },
+    "reportSha256": "bde0cb24a8b171ccdfc2445bf10e9bfd7773df794969558c41066f154f3d7ad3",
+    "captureCount": 802,
+    "captureManifest": "artifacts/dated-revisit-notes/capture-manifest.json",
+    "captureManifestSha256": "d274769159e5eb4b358ca4f8ab7a8a81cb586484d5a87533592aad20f2156fa1",
+    "visualInspection": "Sampled representative final mobile/desktop, light/dark and forced-color/native-zoom captures against the Return, with time reference; automated reflow/focus coverage spans the full matrix."
+  },
+  "releaseCheck": {
+    "command": "taskset -c 0-3 env -u NO_COLOR npm run release -- --check",
+    "exitCode": 0,
+    "localVerification": "passed",
+    "deploymentAllowed": false,
+    "milestone2Complete": false,
+    "outstanding": [
+      "hosted identity and automated recovery",
+      "production key rotation and retained-key receipts",
+      "verified launch content and attribution",
+      "provider qualification and billing reconciliation",
+      "hosted release isolation and failing-test proof",
+      "hosted D1 concurrency and scheduled recovery",
+      "hosted erasure/security restore and independent backups",
+      "automated browser and accessibility acceptance",
+      "operational monitoring and runbooks",
+      "owner decisions"
+    ],
+    "applicationDigest": "ad361eeccb1dc48fb3921b380b0fb24bd4bbfb51ca466ccf0646a2f1907f07d9"
+  },
+  "priorGateAttempts": [
+    {
+      "stage": "format and lint",
+      "durationMs": 356,
+      "result": "failed",
+      "reason": "Three note CSS selector lists required Biome line wrapping; fixed without semantic change."
+    },
+    {
+      "stage": "domain and verification behavior",
+      "durationMs": 25129,
+      "result": "failed",
+      "passedTests": 402,
+      "failedTests": 1,
+      "reason": "Existing synthetic provider-evaluation dry-run test exceeded unchanged 10000ms timeout under eight-CPU default concurrency."
+    },
+    {
+      "stage": "domain and verification behavior",
+      "durationMs": 24711,
+      "result": "failed",
+      "passedTests": 402,
+      "failedTests": 1,
+      "reason": "Same timeout reproduced; isolated test passed in 3.97s. Whole domain suite passed 403/403 in 18.37s under four-CPU affinity before final verification."
+    }
+  ],
+  "diagnostics": "Successful verification retains baseline negative-coordinator diagnostics, 125 informational Biome recommendations and one optional-chain warning. Prior timeout history is not pristine performance evidence.",
+  "limitations": [
+    "Feature and migration 0017 are undeployed; existing preview main0c72114 predates dated notes.",
+    "Quiesce writers and deploy matching migration/runtime. Historical ordinary writers have no automatic mixed-version fence; do not resume or roll back old binaries after new-schema records exist.",
+    "Synthetic hosted fixtures are not an actual hosted restore drill. Production release gates remain pending.",
+    "Physical/synchronized authenticators, screen readers, actual Safari, real devices and hosted-origin/RP acceptance remain open.",
+    "Native zoom is Chromium-only; forced-colors mechanism coverage is Chromium/Firefox. Distinct-date/legacy/two-edition presentation fixtures are separate from real synthetic local persistence flows."
+  ],
+  "evidencePrivacy": "Summary and exact receipt contain only source identity, aggregate counts, timings, scope and limitations. Raw reports, screenshots, tokens, kit contents and private records are not published in these JSON files."
+}
