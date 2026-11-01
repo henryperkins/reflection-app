@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { z } from 'zod';
 import { apiSchemas } from '../contracts/index.ts';
 import { date } from './date.ts';
-import { Art } from './art.tsx';
 import { Icon } from './icon.tsx';
 import { Notice } from './notice.tsx';
 
@@ -78,7 +77,6 @@ export function DeletionReceiptPanel({
   };
   return (
     <section className="card receipt-card" aria-label="Deletion receipt">
-      <Art name="study-tension" className="receipt-art" />
       <div className="receipt-content">
         <h2>Deletion receipt</h2>
         <p

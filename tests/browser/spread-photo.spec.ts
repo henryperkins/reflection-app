@@ -66,6 +66,9 @@ test('starting while image preparation is pending keeps the chosen photo', async
   await expect(page.getByTestId('accepted-reading')).toBeVisible();
   expect(input.spreadPhoto).toBe(`data:image/png;base64,${image.toString('base64')}`);
   await expect(page.getByTestId('spread-photo-card')).toBeVisible();
+  await expect(
+    page.getByText('Uploaded spread photo · Recognized 3-card spread', { exact: true }),
+  ).toBeVisible();
   const reference = page.getByRole('img', {
     name: 'Your uploaded spread, for reference while writing',
   });

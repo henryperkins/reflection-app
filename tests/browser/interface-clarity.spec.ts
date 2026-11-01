@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { account, authenticator, enableAi } from '../fixtures/browser-reading.ts';
+import { account, authenticator, enableAi, reading } from '../fixtures/browser-reading.ts';
 
 const localSimulation =
   'This local simulation does not contact an AI provider. Use test accounts and synthetic text only.';
@@ -35,4 +35,30 @@ test('the new-reading form keeps transmission limits without build jargon', asyn
   await expect(
     page.getByRole('button', { name: 'Choose photo', exact: true }),
   ).toHaveAccessibleDescription(/does not recognize real cards/);
+});
+
+test('saved readings are listed by date and question without a decorative thumbnail', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.247');
+  const question = 'Synthetic clarity history question';
+  await reading(page, question);
+  let starts = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().endsWith('/api/v1/requests')) starts++;
+  });
+  await page.getByRole('button', { name: 'Save reading', exact: true }).click();
+  await expect(page.getByText('Saved until you delete it.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+  await expect(
+    page.getByText('Opening one does not start a new reading.', { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText(/Return to the original reading/)).toHaveCount(0);
+  const item = page.locator('.reading-history li');
+  await expect(item).toHaveCount(1);
+  await expect(item.locator('img')).toHaveCount(0);
+  await expect(item.getByRole('button', { name: question, exact: true })).toBeVisible();
+  await item.getByRole('button', { name: question, exact: true }).click();
+  await expect(page.getByTestId('accepted-reading')).toBeVisible();
+  expect(starts).toBe(0);
 });

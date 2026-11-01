@@ -681,11 +681,6 @@ main {
 .receipt-card {
   overflow: hidden;
 }
-.receipt-art {
-  width: 100%;
-  height: 104px;
-  object-position: 45% 50%;
-}
 .receipt-content {
   padding: 20px;
   font-size: 14px;
@@ -899,12 +894,6 @@ main {
   align-items: center;
   gap: 16px;
   padding: 12px 4px;
-}
-.history-art {
-  flex: 0 0 56px;
-  width: 56px;
-  height: 56px;
-  border-radius: 14px;
 }
 .history-copy {
   flex: 1;
@@ -1288,10 +1277,6 @@ button.history-link:hover:enabled {
 .spread-photo-card figcaption {
   font-size: 12px;
   line-height: 18px;
-}
-.progress-art {
-  width: 100%;
-  height: 72px;
 }
 .progress-content {
   padding: 20px;
@@ -1732,9 +1717,6 @@ div.reading-closing {
 }
 .revision-note {
   margin-bottom: 0;
-}
-.reading-detail .receipt-art {
-  height: 88px;
 }
 .reading-deletion {
   margin: 0;
