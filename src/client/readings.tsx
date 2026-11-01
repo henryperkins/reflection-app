@@ -352,6 +352,14 @@ export function ReadingWorkspace({
     if (editionId && !session.editionIds.includes(editionId))
       throw new Error('This reading edition does not belong to the saved session.');
     if (!editionId) throw new Error('No accepted reading is available yet.');
+    const loadReflection = async () => {
+      for (const reflectionId of session.reflectionIds) {
+        if (!current()) return null;
+        const note = await api(`/reflections/${reflectionId}`, apiSchemas.Reflection);
+        if (note.sessionId === id && note.editionId === editionId) return note;
+      }
+      return null;
+    };
     const [content, note] = await Promise.all([
       api(`/readings/${editionId}`, apiSchemas.Reading).catch((error: unknown) => {
         if (
@@ -362,9 +370,7 @@ export function ReadingWorkspace({
           return null;
         throw error;
       }),
-      session.reflectionIds[0]
-        ? api(`/reflections/${session.reflectionIds[0]}`, apiSchemas.Reflection)
-        : Promise.resolve(null),
+      loadReflection(),
     ]);
     if (!current()) return;
     if (content && (content.sessionId !== id || content.editionId !== editionId))

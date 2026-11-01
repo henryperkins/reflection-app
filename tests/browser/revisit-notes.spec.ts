@@ -5,6 +5,7 @@ import {
   account,
   authenticator,
   backToReadings,
+  enableAi,
   keepKit,
   openAccount,
   reading,
@@ -482,6 +483,166 @@ test('chronological pagination keeps the active editor and authored whitespace i
     region.getByRole('button', { name: 'Edit note', exact: true }).first(),
   ).toBeFocused();
 });
+
+// These fixtures supply multiple editions at the HTTP boundary; selected-edition
+// reflection writes and readback still use the real synthetic local service.
+for (const destination of ['older request', 'latest history'] as const) {
+  test(`${destination} selects its first owned edition reflection and creates one when none matches`, async ({
+    page,
+  }) => {
+    await account(page, destination === 'older request' ? '192.0.2.180' : '192.0.2.182');
+    await enableAi(page);
+    const scenarios = [];
+    // Independent real readings keep either scenario's writes out of the other's preconditions.
+    for (const matching of [true, false]) {
+      const question = `Synthetic dated return ${matching ? 'existing' : 'new'}`;
+      await page.getByRole('button', { name: 'New reading', exact: true }).click();
+      await page.getByLabel('Your question', { exact: true }).fill(question);
+      await page.getByLabel('Use English for this reading').check();
+      await page.getByRole('button', { name: 'Start reading', exact: true }).click();
+      await expect(page.getByTestId('accepted-reading')).toBeVisible();
+      await page
+        .getByLabel('Your reflection', { exact: true })
+        .fill('Original synthetic reflection.');
+      await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
+      await expect(page.getByText('Reflection saved.', { exact: true })).toBeVisible();
+      scenarios.push({
+        matching,
+        question,
+        original: await savedSnapshot(page),
+        originalUrl: page.url(),
+      });
+    }
+    await openAccount(page);
+    await page.getByRole('button', { name: 'Turn off AI readings', exact: true }).click();
+    await backToReadings(page);
+    for (const { matching, question, original, originalUrl } of scenarios) {
+      await test.step(
+        matching ? 'edit the first exact match' : 'create without an exact match',
+        async () => {
+          // Catch selection by list position, edition alone, or the last matching reflection.
+          const originalId = original.session.reflectionIds[0]!;
+          const readReflection = async (id: string) =>
+            apiSchemas.Reflection.parse(
+              await page.request
+                .get(`/api/v1/reflections/${id}`)
+                .then((response) => response.json()),
+            );
+          const originalReflection = await readReflection(originalId);
+          const secondResponse = await page.request.post(
+            `/api/v1/sessions/${original.session.id}/reflections`,
+            {
+              headers: {
+                Origin: 'http://localhost:8787',
+                'X-CSRF-Token': original.me.csrfToken,
+                'Idempotency-Key': crypto.randomUUID(),
+              },
+              data: {
+                editionId: original.reading.editionId,
+                text: 'Synthetic second reflection stays unchanged.',
+                stance: 'disagree',
+              },
+            },
+          );
+          expect(secondResponse.ok()).toBe(true);
+          const second = apiSchemas.Reflection.parse(await secondResponse.json());
+          const otherEdition = '00000000-0000-4000-8000-000000000181';
+          const other = apiSchemas.Reflection.parse({
+            ...originalReflection,
+            id: '00000000-0000-4000-8000-000000000182',
+            editionId: otherEdition,
+            text: 'Synthetic other edition reflection must not appear.',
+          });
+          // Separate defensive boundary: even a returned reflection for this edition
+          // cannot be selected if its session identity is wrong.
+          const foreign = apiSchemas.Reflection.parse({
+            ...originalReflection,
+            id: '00000000-0000-4000-8000-000000000183',
+            sessionId: '00000000-0000-4000-8000-000000000184',
+            text: 'Synthetic other session reflection must not appear.',
+          });
+          for (const value of [foreign, other]) {
+            await page.route(`**/api/v1/reflections/${value.id}`, (route) =>
+              route.fulfill({ json: value }),
+            );
+          }
+          await page.route(`**/api/v1/sessions/${original.session.id}`, async (route) => {
+            const response = await route.fetch();
+            const session = apiSchemas.SessionRecord.parse(await response.json());
+            await route.fulfill({
+              response,
+              json: apiSchemas.SessionRecord.parse({
+                ...session,
+                editionIds:
+                  destination === 'older request'
+                    ? [original.reading.editionId, otherEdition]
+                    : [otherEdition, original.reading.editionId],
+                reflectionIds: [other.id, foreign.id, ...(matching ? [originalId, second.id] : [])],
+              }),
+            });
+          });
+          const reflectionReads: string[] = [];
+          page.on('request', (request) => {
+            if (request.method() === 'GET') reflectionReads.push(new URL(request.url()).pathname);
+          });
+          if (destination === 'older request') await page.goto(originalUrl);
+          else {
+            await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+            await page
+              .getByRole('region', { name: 'Saved reading history', exact: true })
+              .getByRole('button', { name: question, exact: true })
+              .click();
+          }
+          const editor = page.getByLabel('Your reflection', { exact: true });
+          await expect(editor).toHaveValue(matching ? 'Original synthetic reflection.' : '');
+          await expect(page).toHaveURL(originalUrl);
+          const draft = 'Synthetic edition-specific draft.';
+          await editor.fill(draft);
+          const refreshed = page.waitForResponse((response) =>
+            response.url().endsWith(`/api/v1/reflections/${other.id}`),
+          );
+          await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+          await refreshed;
+          await expect(
+            page.getByRole('button', { name: 'Save reflection', exact: true }),
+          ).toBeEnabled();
+          await expect(editor).toHaveValue(draft);
+          await expect(page).toHaveURL(originalUrl);
+          const saved = page.waitForResponse((response) =>
+            ['POST', 'PUT'].includes(response.request().method()),
+          );
+          await page.getByRole('button', { name: 'Save reflection', exact: true }).click();
+          const response = await saved;
+          expect(response.request().method()).toBe(matching ? 'PUT' : 'POST');
+          expect(new URL(response.url()).pathname).toBe(
+            matching
+              ? `/api/v1/reflections/${originalId}`
+              : `/api/v1/sessions/${original.session.id}/reflections`,
+          );
+          expect(response.request().postDataJSON()).toEqual({
+            editionId: original.reading.editionId,
+            text: draft,
+            stance: matching ? originalReflection.stance : 'unspecified',
+          });
+          expect(response.ok()).toBe(true);
+          const result = apiSchemas.Reflection.parse(await response.json());
+          await expect(page.getByText('Reflection saved.', { exact: true })).toBeVisible();
+          expect(await readReflection(result.id)).toMatchObject({
+            sessionId: original.session.id,
+            editionId: original.reading.editionId,
+            text: draft,
+          });
+          expect(await readReflection(second.id)).toEqual(second);
+          if (matching) expect(reflectionReads).not.toContain(`/api/v1/reflections/${second.id}`);
+          if (!matching) {
+            expect(result.id).not.toBe(originalId);
+            expect(await readReflection(originalId)).toEqual(originalReflection);
+          }
+        },
+      );
+    }
+  });
+}
 
 test('an older unavailable request keeps its exact edition, notes and URL through focus refresh and note edits', async ({
   page,
