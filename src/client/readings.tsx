@@ -409,9 +409,9 @@ export function ReadingWorkspace({
     setSelectedEditionId(editionId);
     setReading(accepted ? content : null);
     setMode('reading');
-    const requestId =
-      chosen?.requestId ??
-      (accepted ? content.provenance.requestId : session.requests.at(-1)?.requestId);
+    // Session requests are capped and do not identify their edition. Only use a
+    // request already associated with this selection or its accepted content.
+    const requestId = chosen?.requestId ?? (accepted ? content.provenance.requestId : undefined);
     selectedTarget.current = { sessionId: id, editionId, ...(requestId ? { requestId } : {}) };
     if (requestId) replacePath(`/requests/${requestId}`);
     focusResultOnCommit.current = focusResult;

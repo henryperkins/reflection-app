@@ -998,6 +998,89 @@ test('older request and latest history keep owned edition reflections across mat
   }
 });
 
+test('unavailable history never derives its URL from a truncated unrelated request list', async ({
+  page,
+}) => {
+  const { original } = await savedReading(page, '192.0.2.185');
+  await add(page, 'Synthetic unavailable history note');
+  const unrelatedRequests = Array.from({ length: 51 }, () => ({
+    requestId: crypto.randomUUID(),
+    state: 'published' as const,
+  }));
+  // Schema-valid boundary fixture: the capped oldest-first request list need not
+  // include the selected edition's request. The reading and note are persisted.
+  await page.route(`**/api/v1/sessions/${original.session.id}`, async (route) => {
+    const response = await route.fetch();
+    const session = apiSchemas.SessionRecord.parse({
+      ...(await response.json()),
+      requests: unrelatedRequests,
+    });
+    await route.fulfill({ response, json: session });
+  });
+  const requestReads: string[] = [];
+  page.on('request', (request) => {
+    if (
+      request.method() === 'GET' &&
+      new URL(request.url()).pathname.startsWith('/api/v1/requests/')
+    )
+      requestReads.push(new URL(request.url()).pathname);
+  });
+  const readingRoute = `**/api/v1/readings/${original.reading.editionId}`;
+  for (const unavailable of ['typed 410', 'unavailable projection'] as const) {
+    await test.step(unavailable, async () => {
+      await page.route(readingRoute, (route) =>
+        route.fulfill(
+          unavailable === 'typed 410'
+            ? {
+                status: 410,
+                json: readingError('CONTENT_UNAVAILABLE', 'Reading content is unavailable.'),
+              }
+            : {
+                json: apiSchemas.Reading.parse({
+                  kind: 'reading.unavailable.v1',
+                  sessionId: original.session.id,
+                  editionId: original.reading.editionId,
+                  editionNumber: 1,
+                  parentEditionId: null,
+                  reason: 'content_withdrawn',
+                  unavailableAt: '2026-10-01T00:00:00.000Z',
+                }),
+              },
+        ),
+      );
+      await page.getByRole('button', { name: 'Saved readings', exact: true }).click();
+      await expect(page).toHaveURL('http://localhost:8787/');
+      await page
+        .getByRole('region', { name: 'Saved reading history', exact: true })
+        .getByRole('button', { name: 'Synthetic dated return', exact: true })
+        .click();
+      await expect(
+        page.getByText('This reading is unavailable. Your saved notes remain available.', {
+          exact: true,
+        }),
+      ).toBeVisible();
+      await expect(
+        page.getByText('Synthetic unavailable history note', { exact: true }),
+      ).toBeVisible();
+      await expect(page).toHaveURL('http://localhost:8787/');
+      const refreshed = page.waitForResponse((response) =>
+        response.url().endsWith(`/api/v1/readings/${original.reading.editionId}`),
+      );
+      await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+      await refreshed;
+      await expect(
+        page.getByText('Synthetic unavailable history note', { exact: true }),
+      ).toBeVisible();
+      await expect(page).toHaveURL('http://localhost:8787/');
+      await page.reload();
+      await expect(page.getByRole('heading', { name: 'Your readings', exact: true })).toBeVisible();
+      await expect(page).toHaveURL('http://localhost:8787/');
+      expect(requestReads).toEqual([]);
+      await page.unroute(readingRoute);
+    });
+  }
+});
+
 test('an older unavailable request keeps its exact edition, notes and URL through focus refresh and note edits', async ({
   page,
 }) => {
