@@ -382,13 +382,19 @@ export function ReadingWorkspace({
       return null;
     };
     const [content, note] = await Promise.all([
-      api(`/readings/${editionId}`, apiSchemas.Reading).catch((error: unknown) => {
+      api(`/readings/${editionId}`, apiSchemas.Reading).catch(async (error: unknown) => {
         if (
           error instanceof ApiFailure &&
           error.status === 410 &&
           error.code === 'CONTENT_UNAVAILABLE'
-        )
+        ) {
+          if (!current()) return null;
+          // Distinguish withdrawn content from a parent deleted after the first snapshot.
+          const latest = await api(`/sessions/${id}`, apiSchemas.SessionRecord);
+          if (!current()) return null;
+          if (latest.id !== id || !latest.editionIds.includes(editionId)) throw error;
           return null;
+        }
         throw error;
       }),
       loadReflection(),

@@ -607,6 +607,61 @@ test('chronological pagination keeps the active editor and authored whitespace i
   ).toBeFocused();
 });
 
+test('parent deletion during reading fetch clears a workspace with no reflections', async ({
+  page,
+}) => {
+  await account(page, '192.0.2.184');
+  await reading(page, 'Synthetic parent deletion without reflections');
+  await page.getByRole('button', { name: 'Save reading', exact: true }).click();
+  await expect(page.getByText('Saved until you delete it.', { exact: true })).toBeVisible();
+  const original = await savedSnapshot(page);
+  expect(original.session.reflectionIds).toEqual([]);
+  await add(page, 'Synthetic note before parent deletion');
+  await page.getByRole('button', { name: 'Edit note', exact: true }).click();
+  const editor = page.getByLabel('Your revisit note', { exact: true });
+  await editor.fill('Synthetic private draft on the deleted parent');
+  const sessionPath = `/api/v1/sessions/${original.session.id}`;
+  let deleted = false;
+  await page.route(`**${sessionPath}`, async (route) => {
+    if (deleted || route.request().method() !== 'GET') return route.continue();
+    const response = await route.fetch();
+    expect(response.status()).toBe(200);
+    const stale = apiSchemas.SessionRecord.parse(await response.json());
+    expect(stale.reflectionIds).toEqual([]);
+    const deletion = await page.request.delete(sessionPath, {
+      headers: {
+        Origin: 'http://localhost:8787',
+        'X-CSRF-Token': original.me.csrfToken,
+        'Idempotency-Key': crypto.randomUUID(),
+        'If-Match': `"${stale.revision}"`,
+      },
+      data: {
+        receiptId: crypto.randomUUID(),
+        receiptToken: Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString('base64url'),
+      },
+    });
+    expect(deletion.status()).toBe(202);
+    deleted = true;
+    await route.fulfill({ response });
+  });
+  const missing = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/readings/${original.reading.editionId}`) &&
+      response.status() === 410,
+  );
+  await page.evaluate(() => window.dispatchEvent(new Event('focus')));
+  const response = await missing;
+  expect(apiSchemas.ErrorEnvelope.parse(await response.json()).error.code).toBe(
+    'CONTENT_UNAVAILABLE',
+  );
+  await expect(page).toHaveURL('http://localhost:8787/');
+  await expect(page.getByRole('heading', { name: 'Saved readings', exact: true })).toBeVisible();
+  await expect(page.getByTestId('accepted-reading')).toHaveCount(0);
+  await expect(editor).toHaveCount(0);
+  expect((await page.request.get(sessionPath)).status()).toBe(410);
+  expect(deleted).toBe(true);
+});
+
 for (const outcome of [
   'remaining reflection',
   'no remaining reflection',
