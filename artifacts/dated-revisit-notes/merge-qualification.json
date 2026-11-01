@@ -1,0 +1,67 @@
+{
+  "version": 1,
+  "status": "passed",
+  "scope": "full-synthetic-local-qualification-for-authorized-preview-rollout",
+  "sourceCommit": "7ddb5466556d214379054824dcd79eadb38e699c",
+  "sourceTree": "8271d4cbf63091abd5c09953d824ee48e0a670bb",
+  "sourceDigest": "b382629e69584660cb77e696c4359951b02ef8e52dadc46741f85b07786e9bf0",
+  "verification": {
+    "stagesPassed": 14,
+    "durationMs": 480278,
+    "deadlineMs": 540000,
+    "domainTests": 403,
+    "databaseTests": 525,
+    "chromiumTests": 130,
+    "totalTests": 1058,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  },
+  "releaseCheck": {
+    "exitCode": 0,
+    "productionDeploymentAllowed": false,
+    "productionAcceptance": "not-qualified",
+    "target": "reflection-preview"
+  },
+  "previousQualification": {
+    "sourceCommit": "5512175532f0d2e6a3a0f08732921f461cefa0c2",
+    "sourceTree": "a8d0f86711b172f4586c5a61f0b0985b75dd0da8",
+    "sourceDigest": "5b3e663fab5b7adb4925532958c147c817cd8f1d3ef05db20923c81e23cdc33f",
+    "publicationCommit": "c6f7540aa122bd0cacac49172ab7316bd4c54045",
+    "qualification": "artifacts/dated-revisit-notes/release-qualification.json"
+  },
+  "changes": [
+    "Leave unavailable history URLs unchanged when no request is known to belong to the selected edition; preserve known request URLs and accepted provenance.",
+    "A schema-validated capped-list fixture covers both typed HTTP 410 and unavailable projections, focus refresh and reload with real persisted reading/note records.",
+    "Confirm a fresh owned parent and selected edition before treating a reading HTTP 410 as withdrawn content.",
+    "Real parent-deletion regression covers a session with no reflections.",
+    "Note fixtures retain real UI Start and service reads, using the existing reconnect status check to avoid unrelated polling backoff; all prior assertions remain."
+  ],
+  "review": "Scoped source and test refinement approved with no findings; completed suites not rerun by reviewer.",
+  "preservedAttempts": [
+    "The previous source 5512175 passed 1,057 tests in 479,006 ms and its published proof remains immutable; a subsequent valid URL finding required a new source-matched full run.",
+    "The unavailable-history regression failed with an unrelated request URL before the fix; seven affected cases passed after the fix.",
+    "Behavioral RED failed stale request navigation on base production.",
+    "First full verification reached the unchanged deadline after 122 browser passes; no complete browser report was produced.",
+    "Owned orphaned server was stopped after verification termination; port-conflict attempt preserved.",
+    "Intermediate fixture run exposed premature deletion before a saved-article acknowledgement; synchronization strengthened without removing original assertions."
+  ],
+  "constraints": [
+    "Firefox skipped by user instruction.",
+    "No extra full cross-browser matrix or live provider request.",
+    "Historical qualifications retain their original source identities.",
+    "Production/hosted recovery, real devices, physical authenticators and assistive technology remain unqualified."
+  ],
+  "provenance": "All report hashes below reference fresh artifacts emitted by the successful complete verification; original failed attempts and capture directories are preserved separately.",
+  "hashes": {
+    "artifacts/verify.json": "96bcb52991f5e936a4826f5a7ffd6a688a6d0fb67c22ed2703cd28a52ae0c2b3",
+    "artifacts/pr10-release/verify-merge-final-verify.json": "96bcb52991f5e936a4826f5a7ffd6a688a6d0fb67c22ed2703cd28a52ae0c2b3",
+    "artifacts/pr10-release/verify-merge-final-domain-tests.json": "70bac92978cd84e7a7db21176457373abb6882cc51fe69ab5ff9557cb53b71f4",
+    "artifacts/pr10-release/verify-merge-final-db-tests.json": "5a97860739dbd07ba18a7519c682200d3301355ac5632d49c591d0a533cf5f95",
+    "artifacts/pr10-release/verify-merge-final-browser-tests.json": "d2fc0af1614262178d7a2034d1e5e25e18b879a6f2ddc4cd0b7f314fb6c3925c",
+    "artifacts/pr10-release/verify-merge-final.log": "d32c30352d3867950b9d4a669e64765dc8567bbd067d6a1a32d5041b879ed7cf",
+    "artifacts/pr10-release/verify-merge-final-execution.json": "202aaaa7c5c5f3f2cbb541c16cc92b9bd7c9754ec5d8a2e325243981185fb5a8",
+    "artifacts/pr10-release/release-merge-check.log": "2f775a283dc705594d0e45b23fe82447f7e5aeb73ae1c2e6319109e6c2e8abe8",
+    "artifacts/pr10-release/release-merge-check-execution.json": "8cdb45c91f8e1b33d2789f793ab7a6fa9b5eba189172461e416decb9224cbe60"
+  }
+}
