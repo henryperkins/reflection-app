@@ -2,9 +2,9 @@
   "version": 1,
   "status": "passed",
   "scope": "synthetic-local-only",
-  "sourceDigest": "8ba1087481bce4fc35a1a7c2aec3eab077ca66d9b1ced20656c7a77c297c6ad1",
-  "verifiedSourceTree": "03f375200db224c4bc682e7cf1765b76d9e715a2",
-  "sourceParentCommit": "f260b1c589232f31fc23e743fb178913f5290f47",
+  "sourceDigest": "ba27e97e708500743693f6ba9c8114143b943392d2110fcde40c60e155bf8739",
+  "verifiedSourceTree": "fe5b8a23b0b03d6cc8ecfb09c8e262d11cd3e0a5",
+  "sourceParentCommit": "b093ecd4a8696d7dd4d1a3eea1c14b1357964bf9",
   "publication": "The verified tree retains the previous proof JSONs. The final commit replaces only those two digest-excluded artifact JSONs after verification; hashed source is identical. Git commit/tree changes do not alter the source digest.",
   "environment": {
     "node": "v26.12.1",
@@ -18,29 +18,29 @@
     "command": "taskset -c 0-3 env -u NO_COLOR npm run verify",
     "exitCode": 0,
     "receipt": "artifacts/dated-revisit-notes/verify.json",
-    "receiptSha256": "62b24aadf58db7eda5bc674d32eb5253ea62053bf6c2c77ec693963d5ef7b594",
-    "durationMs": 524494,
+    "receiptSha256": "2931732b972fc7d2ad3d231d19d89e7ba20a8ba47989dd30ccf49e0d9fad279e",
+    "durationMs": 529210,
     "stageCount": 14,
     "domain": {
       "passed": 403,
       "failed": 0,
       "pending": 0,
       "todo": 0,
-      "files": 50,
-      "success": true
+      "success": true,
+      "files": 50
     },
     "database": {
       "passed": 525,
       "failed": 0,
       "pending": 0,
       "todo": 0,
-      "files": 46,
-      "success": true
+      "success": true,
+      "files": 46
     },
     "browser": {
-      "startTime": "2026-11-01T06:52:18.844Z",
-      "duration": 429189.55299999996,
-      "expected": 121,
+      "startTime": "2026-11-01T07:24:57.509Z",
+      "duration": 433936.523,
+      "expected": 122,
       "skipped": 0,
       "unexpected": 0,
       "flaky": 0
@@ -50,8 +50,8 @@
     "command": "taskset -c 0-3 env -u NO_COLOR npm run test:journey",
     "exitCode": 0,
     "stats": {
-      "startTime": "2026-11-01T06:59:33.455Z",
-      "duration": 404686.312,
+      "startTime": "2026-11-01T07:32:35.184Z",
+      "duration": 405239.18299999996,
       "expected": 36,
       "skipped": 0,
       "unexpected": 0,
@@ -77,15 +77,15 @@
         "flaky": 0
       }
     },
-    "reportSha256": "dd34eb76c885d04c36b03e45cbed62467eef0e9b5134bd06879c3d4cd0f56f60",
+    "reportSha256": "0d37e10aa24e2e06de1a11ce0dc90cee09e2439d978902d9a72db9cfd400048a",
     "captureCount": 802,
     "captureManifest": "artifacts/dated-revisit-notes/capture-manifest.json",
-    "captureManifestSha256": "0d5f077bbb9f27f4cc6af8c6d8944df54e39a5f6e1767ea1934eb511942fe63f",
-    "visualInspection": "Sampled representative final mobile/desktop, light/dark and forced-color/native-zoom captures against the Return, with time reference; automated reflow/focus coverage spans the full matrix."
+    "captureManifestSha256": "a39d8472737cbbb424c73123a6ec38b7850c14f2571f9fc78d26b37cf03d6f29",
+    "visualInspection": "Five representative final captures were visually sampled: Chromium 320px light populated notes, 1280px dark editor, 390px dark receipt; Firefox 768px forced-dark editor; Chromium 768px native-200%-zoom light editor. Automated reflow/focus assertions span the full matrix. This is not an individual visual review of every capture.",
+    "report": "artifacts/dated-revisit-notes/browser-matrix.json",
+    "inventoryFileCount": 838
   },
   "releaseCheck": {
-    "command": "taskset -c 0-3 env -u NO_COLOR npm run release -- --check",
-    "exitCode": 0,
     "localVerification": "passed",
     "deploymentAllowed": false,
     "milestone2Complete": false,
@@ -101,32 +101,17 @@
       "operational monitoring and runbooks",
       "owner decisions"
     ],
-    "applicationDigest": "632bfb46aec7132afe383e6e48a83c33eb4a1342d74b6f32c70735a5ba878590"
+    "applicationDigest": "1eaa1a1f41163b4a993b44b629aef152e844a50e774f95df1eca0d7054f3dd9b",
+    "command": "taskset -c 0-3 env -u NO_COLOR npm run release -- --check",
+    "exitCode": 0
   },
   "previousQualification": {
-    "commit": "f260b1c589232f31fc23e743fb178913f5290f47",
-    "sourceDigest": "b1b99ca8d9a26c5b44d7c6495eaf6ddf69b2efe83f71ad557170439484624e83",
-    "localArchive": "artifacts/dated-revisit-notes/f260b1c-proof",
-    "note": "Prior proof/logs/reports/capture manifest and screenshots are preserved locally; the immutable commit retains its published JSONs."
+    "commit": "b093ecd4a8696d7dd4d1a3eea1c14b1357964bf9",
+    "sourceDigest": "8ba1087481bce4fc35a1a7c2aec3eab077ca66d9b1ced20656c7a77c297c6ad1",
+    "localArchive": "artifacts/dated-revisit-notes/b093ecd-proof",
+    "note": "Prior proof/logs/reports/capture manifest and screenshots remain preserved, alongside the earlier f260b1c archive. Immutable commits retain their published JSONs."
   },
-  "finalReviewFix": {
-    "finding": "FR-1",
-    "change": "Only typed CONFLICT enters save/deletion revision reconciliation; other typed errors retain guidance, draft or confirmation and unchanged intent.",
-    "red": {
-      "failed": 6,
-      "log": "artifacts/dated-revisit-notes/fr1-red.log"
-    },
-    "green": {
-      "startTime": "2026-11-01T06:48:21.053Z",
-      "duration": 119762.46800000001,
-      "expected": 30,
-      "skipped": 0,
-      "unexpected": 0,
-      "flaky": 0
-    },
-    "fixtureScope": "Validated HTTP error/page fixtures test client classification; same-intent retries after simulated remediation reach the real synthetic service. Existing D1 tests establish server limits and atomic rollback."
-  },
-  "priorGateAttemptsScope": "Previous f260 qualification; retained as disclosed environment history, not new failures in this final-fix run.",
+  "priorGateAttemptsScope": "Previous f260 qualification; retained as disclosed environment history. The current follow-up full gate passed on its first final-source run.",
   "priorGateAttempts": [
     {
       "stage": "format and lint",
@@ -159,5 +144,58 @@
     "Physical/synchronized authenticators, screen readers, actual Safari, real devices and hosted-origin/RP acceptance remain open.",
     "Native zoom is Chromium-only; forced-colors mechanism coverage is Chromium/Firefox. Distinct-date/legacy/two-edition presentation fixtures are separate from real synthetic local persistence flows."
   ],
-  "evidencePrivacy": "Summary and exact receipt contain only source identity, aggregate counts, timings, scope and limitations. Raw reports, screenshots, tokens, kit contents and private records are not published in these JSON files."
+  "evidencePrivacy": "Only sanitized source identities, aggregate counts, timings, scope, limitations and artifact references are published. Raw reports, screenshots, receipt credentials, kit contents and private records remain ignored.",
+  "previousFinalReviewFix": {
+    "finding": "FR-1",
+    "change": "Only typed CONFLICT enters save/deletion revision reconciliation; other typed errors retain guidance, draft or confirmation and unchanged intent.",
+    "red": {
+      "failed": 6,
+      "log": "artifacts/dated-revisit-notes/fr1-red.log"
+    },
+    "green": {
+      "startTime": "2026-11-01T06:48:21.053Z",
+      "duration": 119762.46800000001,
+      "expected": 30,
+      "skipped": 0,
+      "unexpected": 0,
+      "flaky": 0
+    },
+    "fixtureScope": "Validated HTTP error/page fixtures test client classification; same-intent retries after simulated remediation reach the real synthetic service. Existing D1 tests establish server limits and atomic rollback.",
+    "scope": "Earlier b093 fix and its original RED/GREEN evidence; the current full verification includes these cases."
+  },
+  "postPublicationFixes": {
+    "changes": [
+      "Preserve notes on the exact owned edition when its reading fetch returns HTTP 410 / CONTENT_UNAVAILABLE; preserve successful unavailable representations and other error propagation.",
+      "Retain every undismissed in-memory deletion proof across subsequent successes, failures and same-proof retries, with independent download/dismissal and updated confirmed status.",
+      "Generate the missing revisit-policy.ts dependency beside the byte-identical architecture contract mirror.",
+      "Limit restore claims to the actual whole-note bookmark matrix, session edited-snapshot restores and live account cascade coverage."
+    ],
+    "focusedGreen": {
+      "command": "taskset -c 0-3 env -u NO_COLOR npx playwright test tests/browser/revisit-notes.spec.ts",
+      "exitCode": 0,
+      "stats": {
+        "startTime": "2026-11-01T07:20:57.137Z",
+        "duration": 125949.55,
+        "expected": 31,
+        "skipped": 0,
+        "unexpected": 0,
+        "flaky": 0
+      }
+    },
+    "withdrawalRed": {
+      "stats": {
+        "startTime": "2026-11-01T07:20:11.252Z",
+        "duration": 25246.437,
+        "expected": 0,
+        "skipped": 0,
+        "unexpected": 2,
+        "flaky": 0
+      },
+      "scope": "Two schema-valid HTTP-boundary cases failed against the original b093 reading handler before restoring the fix. Earlier incomplete-envelope failures are excluded as reproduction evidence."
+    },
+    "receiptRed": "The initial receipt-replacement regression failed with one retained proof instead of two; the expanded integrated local-service case passes and covers three distinct proofs, lost acknowledgements, pre-service failures, retries, independent dismissal and downloads.",
+    "mirrorValidation": "Direct-import missing-module failure reproduced; generator, direct import, generated drift and exact byte comparison passed after adding the policy mirror.",
+    "expiryFindingDisposition": "No backend change: the admission-failure handler calls ownedSession, which rechecks retention-aware availability and throws typed 410 before revision mapping.",
+    "fixtureScope": "Schema-validated HTTP withdrawal fixtures exercise the client boundary; D1 tests establish actual service behavior. Receipt retention exercises the real synthetic local service with selected network failures."
+  }
 }

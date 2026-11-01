@@ -78,10 +78,18 @@ export function RevisitNotes({
   const [reconciled, setReconciled] = useState(false);
   const [deleting, setDeleting] = useState<RevisitNote | null>(null);
   const [checked, setChecked] = useState(false);
-  const [receipt, setReceipt] = useState<{
-    proof: DeletionProof;
-    initial: z.infer<typeof apiSchemas.DeletionStatus> | null;
-  } | null>(null);
+  const [receipts, setReceipts] = useState<
+    { proof: DeletionProof; initial: z.infer<typeof apiSchemas.DeletionStatus> | null }[]
+  >([]);
+  const retainReceipt = (receipt: (typeof receipts)[number]) => {
+    setReceipts((prior) => {
+      const existing = prior.find((item) => item.proof.receiptId === receipt.proof.receiptId);
+      if (!existing) return [...prior, receipt];
+      return prior.map((item) =>
+        item === existing ? { ...item, initial: receipt.initial ?? item.initial } : item,
+      );
+    });
+  };
   const [message, setMessage] = useState<NoticeMessage | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [deletionBusy, setDeletionBusy] = useState(false);
@@ -420,7 +428,7 @@ export function RevisitNotes({
           running.current = false;
           setBusy(null);
         }
-        setReceipt({
+        retainReceipt({
           proof,
           initial: { state: result.state, backupExpiresBy: result.backupExpiresBy },
         });
@@ -454,7 +462,7 @@ export function RevisitNotes({
             });
           }
         } else {
-          setReceipt({ proof, initial: null });
+          retainReceipt({ proof, initial: null });
           throw error;
         }
       }
@@ -746,13 +754,19 @@ export function RevisitNotes({
           </div>
         </div>
       )}
-      {receipt && (
-        <DeletionReceiptPanel
-          key={receipt.proof.receiptId}
-          {...receipt}
-          onDismiss={() => setReceipt(null)}
-        />
-      )}
+      {receipts.map((receipt, index) => (
+        <section key={receipt.proof.receiptId} aria-label={`Note deletion receipt ${index + 1}`}>
+          {receipts.length > 1 && <p>Note deletion receipt {index + 1}</p>}
+          <DeletionReceiptPanel
+            {...receipt}
+            onDismiss={() =>
+              setReceipts((prior) =>
+                prior.filter((item) => item.proof.receiptId !== receipt.proof.receiptId),
+              )
+            }
+          />
+        </section>
+      ))}
       {loaded && (
         <button
           type="button"

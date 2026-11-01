@@ -290,15 +290,8 @@ test('note drafts participate in Account, navigation, Back and reload guards; wi
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.route(`**/api/v1/readings/${original.reading.editionId}`, (route) =>
     route.fulfill({
-      json: {
-        kind: 'reading.unavailable.v1',
-        sessionId: original.session.id,
-        editionId: original.reading.editionId,
-        editionNumber: 1,
-        parentEditionId: null,
-        reason: 'content_withdrawn',
-        unavailableAt: '2026-10-01T00:00:00.000Z',
-      },
+      status: 410,
+      json: readingError('CONTENT_UNAVAILABLE', 'Reading content is unavailable.'),
     }),
   );
   await page.reload();
@@ -310,6 +303,17 @@ test('note drafts participate in Account, navigation, Back and reload guards; wi
   await expect(
     page.getByText('Synthetic note for withdrawn reading', { exact: true }),
   ).toBeVisible();
+  await page.getByRole('button', { name: 'Edit note', exact: true }).click();
+  await page
+    .getByLabel('Your revisit note', { exact: true })
+    .fill('Synthetic edited after withdrawal');
+  await page.getByRole('button', { name: 'Save note', exact: true }).click();
+  await expect(page.getByText('Synthetic edited after withdrawal', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Delete note', exact: true }).click();
+  await page.getByLabel('Delete this note and all saved versions permanently').check();
+  await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Deletion receipt', exact: true })).toBeVisible();
+  await expect(page.getByText('Synthetic edited after withdrawal', { exact: true })).toHaveCount(0);
 });
 
 test('session expiry removes private drafts and sign-in restores only saved notes', async ({
@@ -496,15 +500,8 @@ test('an older unavailable request keeps its exact edition, notes and URL throug
   });
   await page.route(`**/api/v1/readings/${original.reading.editionId}`, (route) =>
     route.fulfill({
-      json: {
-        kind: 'reading.unavailable.v1',
-        sessionId: original.session.id,
-        editionId: original.reading.editionId,
-        editionNumber: 1,
-        parentEditionId: null,
-        reason: 'content_withdrawn',
-        unavailableAt: '2026-10-01T00:00:00.000Z',
-      },
+      status: 410,
+      json: readingError('CONTENT_UNAVAILABLE', 'Reading content is unavailable.'),
     }),
   );
   const accepted = original.reading;
@@ -544,7 +541,58 @@ test('an older unavailable request keeps its exact edition, notes and URL throug
     }),
   ).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`/requests/${requestId}$`));
-  // Acknowledgement no longer waits for the independent session/list refresh.
+  // Successful unavailable representations remain compatible too. These fixtures
+  // qualify client boundary handling; D1 tests establish actual withdrawal behavior.
+  await page.unroute(`**/api/v1/readings/${original.reading.editionId}`);
+  await page.route(`**/api/v1/readings/${original.reading.editionId}`, (route) =>
+    route.fulfill({
+      json: {
+        kind: 'reading.unavailable.v1',
+        sessionId: original.session.id,
+        editionId: original.reading.editionId,
+        editionNumber: 1,
+        parentEditionId: null,
+        reason: 'content_withdrawn',
+        unavailableAt: '2026-10-01T00:00:00.000Z',
+      },
+    }),
+  );
+  await page.reload();
+  await expect(
+    page.getByText('Synthetic older-edition note edited', { exact: true }),
+  ).toBeVisible();
+  const savedUrl = page.url();
+  await page.unroute(`**/api/v1/readings/${original.reading.editionId}`);
+  await page.route(`**/api/v1/readings/${original.reading.editionId}`, (route) =>
+    route.abort('internetdisconnected'),
+  );
+  await page.goto(savedUrl);
+  await expect(page.getByRole('alert')).toContainText('Failed to fetch');
+  await expect(page.getByRole('region', { name: 'Revisit notes', exact: true })).toHaveCount(0);
+  for (const [status, code] of [
+    [404, 'NOT_FOUND'],
+    [503, 'DEPENDENCY_UNAVAILABLE'],
+    [410, 'EXPIRED'],
+    [401, 'UNAUTHENTICATED'],
+  ] as const) {
+    await page.unroute(`**/api/v1/readings/${original.reading.editionId}`);
+    await page.route(`**/api/v1/readings/${original.reading.editionId}`, (route) =>
+      route.fulfill({
+        status,
+        json: readingError(code, `Synthetic reading error ${status}`),
+      }),
+    );
+    await page.goto(savedUrl);
+    await expect(
+      page.getByText(
+        status === 401
+          ? 'Your session ended. Please sign in again.'
+          : `Synthetic reading error ${status}`,
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(page.getByRole('region', { name: 'Revisit notes', exact: true })).toHaveCount(0);
+  }
   await page.unrouteAll({ behavior: 'wait' });
 });
 
@@ -1213,3 +1261,102 @@ test('FR-1: a typed deletion idempotency rejection does not invent a changed not
     'Synthetic retained note for typed deletion rejection',
   );
 });
+
+// Reading HTTP-boundary fixtures above use the service's typed withdrawal response;
+// deletion requests here reach the real synthetic local service unless explicitly aborted.
+test('undismissed deletion receipts survive later success, failure and same-proof retries', async ({
+  page,
+}) => {
+  await savedReading(page, '192.0.2.183');
+  for (const label of ['first', 'second', 'third'])
+    await add(page, `Synthetic ${label} receipt note`);
+  const proofs: { receiptId: string; receiptToken: string }[] = [];
+  let attempt = 0;
+  await page.route('**/api/v1/revisits/*', async (route) => {
+    if (route.request().method() !== 'DELETE') return route.continue();
+    proofs.push(route.request().postDataJSON());
+    attempt++;
+    if (attempt === 2) {
+      const response = await route.fetch();
+      expect(response.status()).toBe(202);
+      return route.abort('internetdisconnected');
+    }
+    if (attempt === 4) return route.abort('internetdisconnected');
+    return route.continue();
+  });
+  const panels = page.getByRole('region', { name: 'Deletion receipt', exact: true });
+  for (const [index, label] of ['first', 'second', 'third'].entries()) {
+    const article = page
+      .getByRole('article')
+      .filter({ hasText: `Synthetic ${label} receipt note` });
+    await article.getByRole('button', { name: 'Delete note', exact: true }).click();
+    await page.getByLabel('Delete this note and all saved versions permanently').check();
+    await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+    await expect(panels).toHaveCount(index + 1);
+    if (index > 0) {
+      await expect(page.getByRole('alert')).toContainText('draft');
+      await page.getByRole('button', { name: 'Confirm note deletion', exact: true }).click();
+    }
+    await expect(
+      page.getByRole('status').filter({ hasText: 'Note deletion accepted.' }),
+    ).toBeVisible();
+    await expect(panels).toHaveCount(index + 1);
+    await expect(panels.nth(index)).toContainText('Deletion is complete for active storage.');
+  }
+  expect(proofs[1]).toEqual(proofs[2]);
+  expect(proofs[3]).toEqual(proofs[4]);
+  const downloaded: { receiptId: string; receiptToken: string }[] = [];
+  for (let index = 0; index < 3; index++) {
+    const download = page.waitForEvent('download');
+    await panels
+      .nth(index)
+      .getByRole('button', { name: 'Download deletion receipt', exact: true })
+      .click();
+    const receipt = JSON.parse(await readFile((await (await download).path())!, 'utf8'));
+    expect(receipt).toMatchObject({
+      format: 'reflection-deletion-receipt.v1',
+      ...proofs[[0, 1, 3][index]!],
+    });
+    downloaded.push(receipt);
+  }
+  expect(new Set(downloaded.map((proof) => proof.receiptId)).size).toBe(3);
+  expect(new Set(downloaded.map((proof) => proof.receiptToken)).size).toBe(3);
+  await panels.nth(1).getByRole('button', { name: 'Dismiss receipt', exact: true }).click();
+  await expect(panels).toHaveCount(2);
+  for (const [index, originalIndex] of [0, 2].entries()) {
+    const download = page.waitForEvent('download');
+    await panels
+      .nth(index)
+      .getByRole('button', { name: 'Download deletion receipt', exact: true })
+      .click();
+    expect(JSON.parse(await readFile((await (await download).path())!, 'utf8'))).toEqual(
+      downloaded[originalIndex],
+    );
+  }
+  await page.context().clearCookies();
+  await page.getByRole('button', { name: 'Refresh notes', exact: true }).click();
+  await expect(
+    page.getByText('Your session ended. Please sign in again.', { exact: true }),
+  ).toBeVisible();
+  await expect(panels).toHaveCount(0);
+  for (const proof of downloaded) {
+    const response = await page.request.get(`/api/v1/deletions/${proof.receiptId}`, {
+      headers: { 'X-Deletion-Token': proof.receiptToken },
+    });
+    expect(response.ok()).toBe(true);
+    expect((await response.json()).state).toBe('complete');
+  }
+});
+
+function readingError(code: string, message: string) {
+  return apiSchemas.ErrorEnvelope.parse({
+    error: {
+      code,
+      message,
+      correlationId: '00000000-0000-4000-8000-000000000183',
+      retry: 'never',
+      retryAfterSeconds: null,
+      currentRevision: null,
+    },
+  });
+}

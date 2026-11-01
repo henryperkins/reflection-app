@@ -353,16 +353,24 @@ export function ReadingWorkspace({
       throw new Error('This reading edition does not belong to the saved session.');
     if (!editionId) throw new Error('No accepted reading is available yet.');
     const [content, note] = await Promise.all([
-      api(`/readings/${editionId}`, apiSchemas.Reading),
+      api(`/readings/${editionId}`, apiSchemas.Reading).catch((error: unknown) => {
+        if (
+          error instanceof ApiFailure &&
+          error.status === 410 &&
+          error.code === 'CONTENT_UNAVAILABLE'
+        )
+          return null;
+        throw error;
+      }),
       session.reflectionIds[0]
         ? api(`/reflections/${session.reflectionIds[0]}`, apiSchemas.Reflection)
         : Promise.resolve(null),
     ]);
     if (!current()) return;
-    if (content.sessionId !== id || content.editionId !== editionId)
+    if (content && (content.sessionId !== id || content.editionId !== editionId))
       throw new Error('The reading response did not match this edition.');
-    const accepted = content.kind === 'tarot.accepted.v1' || content.kind === 'tarot.accepted.v2';
-    if (!accepted && content.kind !== 'reading.unavailable.v1')
+    const accepted = content?.kind === 'tarot.accepted.v1' || content?.kind === 'tarot.accepted.v2';
+    if (content && !accepted && content.kind !== 'reading.unavailable.v1')
       throw new Error('This reading format cannot be opened here.');
     setRecord(session);
     setSelectedEditionId(editionId);
